@@ -548,7 +548,6 @@ export default function DetailPageMaker() {
                     <div key={i} style={{
                       width: 32, height: 32, borderRadius: 8,
                       background: c, border: "2px solid rgba(0,0,0,0.1)",
-                      title: c,
                     }} title={c} />
                   ))}
                 </div>

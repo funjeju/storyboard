@@ -86,13 +86,11 @@ Rules:
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: copyPrompt }] }],
-      generationConfig: { maxOutputTokens: 1500 },
+      generationConfig: { maxOutputTokens: 1500, responseMimeType: "application/json" },
     });
 
-    const text = result.response.text().replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response: " + text.slice(0, 200));
-    const copy = JSON.parse(jsonMatch[0]);
+    const text = result.response.text().trim();
+    const copy = JSON.parse(text);
 
     return NextResponse.json({ copy });
   } catch (e: unknown) {

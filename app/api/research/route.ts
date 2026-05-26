@@ -78,13 +78,11 @@ Product context: ${JSON.stringify(productInfo)}`;
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 1500 },
+      generationConfig: { maxOutputTokens: 1500, responseMimeType: "application/json" },
     });
 
-    const text = result.response.text().replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response: " + text.slice(0, 200));
-    const research = JSON.parse(jsonMatch[0]);
+    const text = result.response.text().trim();
+    const research = JSON.parse(text);
 
     return NextResponse.json({ research });
   } catch (e: unknown) {

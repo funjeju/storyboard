@@ -34,17 +34,16 @@ Return ONLY valid JSON with this exact structure:
   "mood": "string describing mood (e.g. 'premium luxury', 'playful and energetic')",
   "aesthetic": "string describing overall aesthetic (e.g. 'minimalist Scandinavian', 'bold streetwear')",
   "overallTone": "string (e.g. 'warm and inviting', 'cool and clinical')",
-  "promptBase": "A concise English image generation prompt (40-60 words) that captures the consistent visual style: lighting, background, color palette, mood, and composition style ??WITHOUT naming specific products"
+  "promptBase": "A concise English image generation prompt (40-60 words) that captures the consistent visual style: lighting, background, color palette, mood, and composition style WITHOUT naming specific products"
 }`,
           },
         ],
       }],
+      generationConfig: { responseMimeType: "application/json" },
     });
 
-    const text = result.response.text().replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response: " + text.slice(0, 200));
-    const dna = JSON.parse(jsonMatch[0]);
+    const text = result.response.text().trim();
+    const dna = JSON.parse(text);
 
     return NextResponse.json({ dna });
   } catch (e: unknown) {

@@ -1,0 +1,315 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);color:var(--color-text-primary);background:transparent}
+.wrap{padding:20px 0 40px}
+.phase{margin-bottom:28px}
+.phase-label{font-size:10px;font-weight:500;letter-spacing:2px;color:var(--color-text-tertiary);margin-bottom:10px;text-transform:uppercase}
+.phase-title{font-size:16px;font-weight:500;color:var(--color-text-primary);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.phase-title i{font-size:18px}
+.cards{display:grid;gap:10px}
+.cards-3{grid-template-columns:repeat(3,1fr)}
+.cards-4{grid-template-columns:repeat(4,1fr)}
+.cards-2{grid-template-columns:repeat(2,1fr)}
+.card{border-radius:var(--border-radius-lg);padding:14px 16px;border:1px solid var(--color-border-tertiary)}
+.card-a{background:rgba(99,102,241,0.06);border-color:rgba(99,102,241,0.2)}
+.card-b{background:rgba(245,158,11,0.06);border-color:rgba(245,158,11,0.2)}
+.card-c{background:rgba(16,185,129,0.06);border-color:rgba(16,185,129,0.2)}
+.card-n{background:var(--color-background-secondary)}
+.card h3{font-size:13px;font-weight:500;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.card h3 i{font-size:15px}
+.card p{font-size:12px;color:var(--color-text-secondary);line-height:1.6}
+.tag-a{color:rgba(99,102,241,0.9);font-weight:500}
+.tag-b{color:rgba(245,158,11,0.9);font-weight:500}
+.tag-c{color:rgba(16,185,129,0.9);font-weight:500}
+.divider{height:1px;background:var(--color-border-tertiary);margin:24px 0;position:relative}
+.divider::after{content:'';position:absolute;left:50%;top:-3px;width:6px;height:6px;border-radius:50%;background:var(--color-border-secondary);transform:translateX(-50%)}
+.arrow-down{text-align:center;color:var(--color-text-tertiary);font-size:18px;margin:8px 0}
+.platform-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.pcard{border-radius:var(--border-radius-md);padding:12px 14px;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.pcard h4{font-size:12px;font-weight:500;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.pcard h4 i{font-size:14px}
+.pcard p{font-size:11px;color:var(--color-text-secondary);line-height:1.55}
+.pcard .mode{display:inline-flex;align-items:center;gap:3px;margin-top:6px;font-size:10px;font-weight:500;padding:2px 7px;border-radius:20px}
+.mode-chunk{background:rgba(239,68,68,0.1);color:rgba(239,68,68,0.9)}
+.mode-html{background:rgba(16,185,129,0.1);color:rgba(16,185,129,0.9)}
+.mode-block{background:rgba(99,102,241,0.1);color:rgba(99,102,241,0.9)}
+.input-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.icard{border-radius:var(--border-radius-md);padding:12px 14px;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.icard h4{font-size:12px;font-weight:500;margin-bottom:5px;display:flex;align-items:center;gap:5px}
+.icard h4 i{font-size:14px}
+.icard ul{list-style:none;font-size:11px;color:var(--color-text-secondary);line-height:1.7}
+.icard ul li::before{content:'·';margin-right:5px}
+.ai-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.aicard{border-radius:var(--border-radius-md);padding:14px 16px;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.aicard h4{font-size:13px;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.aicard h4 i{font-size:15px}
+.aicard ul{list-style:none;font-size:12px;color:var(--color-text-secondary);line-height:1.75}
+.aicard ul li{display:flex;gap:6px}
+.aicard ul li::before{content:'—';color:var(--color-text-tertiary);flex-shrink:0}
+.out-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ocard{border-radius:var(--border-radius-md);padding:14px 16px;border:1px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.ocard h4{font-size:12px;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.ocard h4 i{font-size:14px}
+.copy-item{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-radius:6px;background:var(--color-background-primary);border:1px solid var(--color-border-tertiary);margin-bottom:5px;font-size:11px}
+.copy-btn{font-size:10px;color:var(--color-text-tertiary);display:flex;align-items:center;gap:3px}
+.seo-item{display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0}
+.seo-ok{color:rgba(16,185,129,0.9)}
+.seo-warn{color:rgba(245,158,11,0.9)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:500;margin-left:4px}
+.b-purple{background:rgba(99,102,241,0.12);color:rgba(99,102,241,0.9)}
+.b-amber{background:rgba(245,158,11,0.12);color:rgba(245,158,11,0.9)}
+.b-green{background:rgba(16,185,129,0.12);color:rgba(16,185,129,0.9)}
+.big-flow{display:flex;align-items:center;gap:0;overflow-x:auto;padding:4px 0}
+.flow-step{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.flow-box{border-radius:8px;padding:8px 12px;font-size:11px;font-weight:500;text-align:center;min-width:80px;border:1px solid}
+.f1{background:rgba(99,102,241,0.08);border-color:rgba(99,102,241,0.25);color:rgba(99,102,241,0.9)}
+.f2{background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.25);color:rgba(245,158,11,0.9)}
+.f3{background:rgba(16,185,129,0.08);border-color:rgba(16,185,129,0.25);color:rgba(16,185,129,0.9)}
+.f4{background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.25);color:rgba(239,68,68,0.9)}
+.f5{background:rgba(59,130,246,0.08);border-color:rgba(59,130,246,0.25);color:rgba(59,130,246,0.9)}
+.f6{background:var(--color-background-secondary);border-color:var(--color-border-secondary);color:var(--color-text-primary)}
+.flow-arr{flex-shrink:0;color:var(--color-text-tertiary);font-size:14px;padding:0 4px;margin-top:-12px}
+.flow-sub{font-size:9px;color:var(--color-text-tertiary);text-align:center}
+.section-hd{font-size:11px;font-weight:500;color:var(--color-text-tertiary);letter-spacing:1.5px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--color-border-tertiary)}
+</style>
+<div class="wrap">
+
+<div class="phase">
+  <div class="phase-label">전체 파이프라인</div>
+  <div class="big-flow">
+    <div class="flow-step"><div class="flow-box f1">코스 선택<br>A / B / C</div><div class="flow-sub">3가지 유형</div></div>
+    <div class="flow-arr">›</div>
+    <div class="flow-step"><div class="flow-box f2">플랫폼 선택</div><div class="flow-sub">네이버/티스토리 등</div></div>
+    <div class="flow-arr">›</div>
+    <div class="flow-step"><div class="flow-box f3">인풋 수집</div><div class="flow-sub">텍스트/음성/파일/사진</div></div>
+    <div class="flow-arr">›</div>
+    <div class="flow-step"><div class="flow-box f4">AI 추천 미리보기</div><div class="flow-sub">키워드·제목·구성</div></div>
+    <div class="flow-arr">›</div>
+    <div class="flow-step"><div class="flow-box f5">원고 + 이미지 생성</div><div class="flow-sub">SEO 자동 최적화</div></div>
+    <div class="flow-arr">›</div>
+    <div class="flow-step"><div class="flow-box f6">플랫폼별 출력</div><div class="flow-sub">복사 → 발행</div></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="phase">
+  <div class="section-hd">STEP 1 — 코스 선택</div>
+  <div class="cards cards-3">
+    <div class="card card-a">
+      <h3 class="tag-a"><i class="ti ti-file-text" aria-hidden="true"></i> A코스 — 원고 최적화</h3>
+      <p>원고가 있음. 알고리즘에 맞게 재구성·편집이 필요한 사람.<br><br>
+      <strong>사진 있음:</strong> 원고 + 사진 올리면 자동 배치<br>
+      <strong>사진 없음:</strong> B코스로 연결</p>
+    </div>
+    <div class="card card-b">
+      <h3 class="tag-b"><i class="ti ti-photo" aria-hidden="true"></i> B코스 — 원고 + 이미지 생성</h3>
+      <p>텍스트는 있는데 사진이 없는 사람.<br><br>
+      카드뉴스 / AI 이미지 생성 / 인포그래픽 중 선택.<br>
+      레퍼런스 이미지 업로드 → 스타일 DNA 추출 후 일관된 톤으로 생성</p>
+    </div>
+    <div class="card card-c">
+      <h3 class="tag-c"><i class="ti ti-wand" aria-hidden="true"></i> C코스 — 완전 자동</h3>
+      <p>아무것도 없는 사람. 키워드 하나만 줘도 됨.<br><br>
+      AI가 키워드 분석 → 제목·구성 제안 → 원고 생성 → 이미지 생성까지 전부 자동</p>
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="section-hd">STEP 2 — 플랫폼 선택 → 출력 방식 자동 결정</div>
+  <div class="platform-grid">
+    <div class="pcard">
+      <h4><i class="ti ti-brand-naver" aria-hidden="true"></i> 네이버 블로그</h4>
+      <p>HTML 전체 복사 불가. 단락별 순서 복사 모드로 출력</p>
+      <span class="mode mode-chunk"><i class="ti ti-list-numbers"></i> 단락별 복사</span>
+    </div>
+    <div class="pcard">
+      <h4><i class="ti ti-brand-blogger" aria-hidden="true"></i> 티스토리</h4>
+      <p>HTML 에디터 지원. 전체 HTML 1번 복사로 완료</p>
+      <span class="mode mode-html"><i class="ti ti-code"></i> 전체 HTML</span>
+    </div>
+    <div class="pcard">
+      <h4><i class="ti ti-brand-google" aria-hidden="true"></i> 블로그스팟</h4>
+      <p>HTML 완전 지원. 전체 HTML 1번 복사로 완료</p>
+      <span class="mode mode-html"><i class="ti ti-code"></i> 전체 HTML</span>
+    </div>
+    <div class="pcard">
+      <h4><i class="ti ti-brand-wordpress" aria-hidden="true"></i> 워드프레스</h4>
+      <p>HTML 코드 or Gutenberg 블록 포맷 중 선택 가능</p>
+      <span class="mode mode-block"><i class="ti ti-layout-grid"></i> HTML / 블록</span>
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="section-hd">STEP 3 — 인풋 수집 방법</div>
+  <div class="input-grid">
+    <div class="icard">
+      <h4><i class="ti ti-file-import" aria-hidden="true"></i> 텍스트·파일</h4>
+      <ul>
+        <li>직접 붙여넣기</li>
+        <li>.txt / .docx 파일 업로드</li>
+        <li>키워드 / 제목 / 주제만 입력</li>
+        <li>참조 이미지 업로드</li>
+      </ul>
+    </div>
+    <div class="icard">
+      <h4><i class="ti ti-microphone" aria-hidden="true"></i> 음성 녹음</h4>
+      <ul>
+        <li>브라우저 내 음성 녹음</li>
+        <li>자동 텍스트 변환 (STT)</li>
+        <li>변환된 텍스트 편집 가능</li>
+        <li>그대로 원고로 사용</li>
+      </ul>
+    </div>
+    <div class="icard">
+      <h4><i class="ti ti-photo-up" aria-hidden="true"></i> 사진 업로드</h4>
+      <ul>
+        <li>최대 20장 한꺼번에 업로드</li>
+        <li>글 단락에 자동 배분</li>
+        <li>네이버 권장 사이즈 자동 리사이징</li>
+        <li>파일명 SEO 최적화</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="section-hd">STEP 4 — AI 추천 미리보기 (확정 전 항상 보여줌)</div>
+  <div class="aicard" style="margin-bottom:10px">
+    <h4><i class="ti ti-chart-bar" aria-hidden="true"></i> 키워드 분석 결과</h4>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;color:var(--color-text-secondary)">
+      <div>
+        <div style="margin-bottom:6px"><strong>Google Trends</strong> — 상대 인기도 (0~100)</div>
+        <div>급상승 연관 검색어</div>
+        <div>지역별 관심도</div>
+        <div>경쟁 키워드 난이도 추정</div>
+      </div>
+      <div>
+        <div style="margin-bottom:6px"><strong>AI 분석</strong> — 웹서치 기반</div>
+        <div>상위 노출 글 구조 파악</div>
+        <div>롱테일 키워드 추천</div>
+        <div>메인·서브 키워드 구조 설계</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div class="aicard">
+      <h4><i class="ti ti-heading" aria-hidden="true"></i> 제목 3가지 자동 생성</h4>
+      <ul>
+        <li>25자 이내 자동 준수</li>
+        <li>키워드 앞 배치 자동 적용</li>
+        <li>클릭 한 번으로 선택</li>
+      </ul>
+    </div>
+    <div class="aicard">
+      <h4><i class="ti ti-layout-list" aria-hidden="true"></i> 추천 글 구조</h4>
+      <ul>
+        <li>도입(훅) → 본문 → 마무리 구성</li>
+        <li>정보형·리스트형·스토리형·비교형</li>
+        <li>수정 후 확정 가능</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="section-hd">STEP 5 — AI 핵심 기능</div>
+  <div class="ai-grid">
+    <div class="aicard">
+      <h4><i class="ti ti-pencil" aria-hidden="true"></i> 글쓰기 엔진</h4>
+      <ul>
+        <li>원고 전체 자동 생성 (C코스)</li>
+        <li>SEO 기준 재구성·편집 (A코스)</li>
+        <li>내 글체 학습 후 반영</li>
+        <li>키워드 밀도 실시간 체크 (3~5회)</li>
+        <li>글자 수 실시간 카운터 (800자+)</li>
+        <li>단락별 개별 수정 가능</li>
+      </ul>
+    </div>
+    <div class="aicard">
+      <h4><i class="ti ti-photo-ai" aria-hidden="true"></i> 이미지 생성 엔진</h4>
+      <ul>
+        <li>레퍼런스 업로드 → 스타일 DNA 추출</li>
+        <li>전 섹션 일관된 톤 유지</li>
+        <li>단락별 이미지 프롬프트 자동 생성</li>
+        <li>프롬프트 복사 → 외부 도구 사용 가능</li>
+        <li>외부 생성 이미지 업로드 후 삽입</li>
+        <li>카드뉴스 / 인포그래픽 / AI사진 선택</li>
+      </ul>
+    </div>
+    <div class="aicard">
+      <h4><i class="ti ti-search" aria-hidden="true"></i> 리서치 엔진</h4>
+      <ul>
+        <li>Google Trends 상대 인기도 연동</li>
+        <li>급상승·연관 키워드 자동 수집</li>
+        <li>경쟁 글 구조 분석 (웹서치 기반)</li>
+        <li>카테고리별 FAQ 자동 생성</li>
+        <li>시장 가격대·USP 분석 제안</li>
+      </ul>
+    </div>
+    <div class="aicard">
+      <h4><i class="ti ti-checklist" aria-hidden="true"></i> SEO 체크 엔진</h4>
+      <ul>
+        <li>제목 25자 이내 자동 검증</li>
+        <li>이미지 수 확인 (6~13개 권장)</li>
+        <li>소제목(H태그) 구조 점검</li>
+        <li>이미지 파일명 최적화 안내</li>
+        <li>종합 점수 표시 (100점 만점)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="section-hd">STEP 6 — 출력 모드 (플랫폼별)</div>
+  <div class="out-grid">
+    <div class="ocard">
+      <h4 class="tag-a" style="font-size:12px"><i class="ti ti-list-numbers" aria-hidden="true"></i> 네이버 — 단락별 순서 복사 모드</h4>
+      <div class="copy-item"><span>[1] 제목</span><span class="copy-btn"><i class="ti ti-copy"></i> 복사</span></div>
+      <div class="copy-item"><span>[2] 대표 이미지</span><span class="copy-btn"><i class="ti ti-download"></i> 다운</span></div>
+      <div class="copy-item"><span>[3] 도입부 텍스트</span><span class="copy-btn"><i class="ti ti-copy"></i> 복사</span></div>
+      <div class="copy-item"><span>[4] 소제목 1</span><span class="copy-btn"><i class="ti ti-copy"></i> 복사</span></div>
+      <div class="copy-item"><span>[5] 본문 1</span><span class="copy-btn"><i class="ti ti-copy"></i> 복사</span></div>
+      <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:6px">진행 체크박스 + 완료율 표시</div>
+    </div>
+    <div class="ocard">
+      <h4 class="tag-c" style="font-size:12px"><i class="ti ti-code" aria-hidden="true"></i> 티스토리·블로그스팟·워드프레스</h4>
+      <div style="background:var(--color-background-primary);border:1px solid var(--color-border-tertiary);border-radius:6px;padding:10px;font-size:10px;font-family:var(--font-mono);color:var(--color-text-secondary);line-height:1.7;margin-bottom:8px">
+        &lt;article&gt;<br>
+        &nbsp;&nbsp;&lt;h1&gt;제목&lt;/h1&gt;<br>
+        &nbsp;&nbsp;&lt;img src="..."&gt;<br>
+        &nbsp;&nbsp;&lt;h2&gt;소제목&lt;/h2&gt;<br>
+        &nbsp;&nbsp;&lt;p&gt;본문...&lt;/p&gt;<br>
+        &lt;/article&gt;
+      </div>
+      <div style="display:flex;gap:6px;font-size:11px">
+        <span style="flex:1;text-align:center;padding:5px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:6px;color:rgba(16,185,129,0.9)"><i class="ti ti-copy"></i> 전체 HTML 복사</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="section-hd">SEO 최종 체크리스트 (발행 전)</div>
+  <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:14px 18px;border:1px solid var(--color-border-tertiary)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 20px">
+      <div class="seo-item"><i class="ti ti-circle-check seo-ok"></i><span style="font-size:12px">제목에 키워드 포함 (25자 이내)</span></div>
+      <div class="seo-item"><i class="ti ti-circle-check seo-ok"></i><span style="font-size:12px">본문 800자 이상</span></div>
+      <div class="seo-item"><i class="ti ti-circle-check seo-ok"></i><span style="font-size:12px">키워드 3~5회 자연스럽게 삽입</span></div>
+      <div class="seo-item"><i class="ti ti-circle-check seo-ok"></i><span style="font-size:12px">소제목(H태그) 구조 포함</span></div>
+      <div class="seo-item"><i class="ti ti-circle-check seo-ok"></i><span style="font-size:12px">이미지 6~13장 배치</span></div>
+      <div class="seo-item"><i class="ti ti-alert-circle seo-warn"></i><span style="font-size:12px">이미지 파일명 최적화 필요</span></div>
+      <div class="seo-item"><i class="ti ti-circle-check seo-ok"></i><span style="font-size:12px">마무리 댓글 유도 문장 포함</span></div>
+      <div class="seo-item"><i class="ti ti-circle-check seo-ok"></i><span style="font-size:12px">중복 콘텐츠 없음</span></div>
+    </div>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:12px;color:var(--color-text-secondary)">종합 점수</span>
+      <span style="font-size:15px;font-weight:500;color:rgba(16,185,129,0.9)">88 / 100 — 상위노출 가능</span>
+    </div>
+  </div>
+</div>
+
+</div>

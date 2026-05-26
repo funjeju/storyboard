@@ -2,12 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Cut, Beat, Storyboard, StoryboardMeta, EmotionStyle } from "@/lib/types";
-import {
-  auth,
-  signInWithGoogle,
-  signOutUser,
-  saveStoryboard,
-} from "@/lib/firebase";
+import { auth, signInWithGoogle, signOutUser } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 
 // ── CONSTANTS ──────────────────────────────────────────────────────────────
@@ -603,12 +598,27 @@ Rules:
     setGenBeats(p => ({ ...p, [cut.cutNumber]: false }));
   };
 
-  // ── Save to Firebase ──
+  // ── Save to Firebase (서버 라우트 경유 → Admin SDK로 저장) ──
   const handleSave = async () => {
-    if (!user || !storyboard) return;
+    if (!user || !storyboard || !auth) return;
     setSaving(true);
-    const id = await saveStoryboard(user.uid, { storyboard, beatBoards });
-    showToast(id ? "스토리보드 저장됐어요! 🎬" : "저장 실패. 다시 시도해주세요.");
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("No token");
+
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ storyboard, beatBoards }),
+      });
+      const data = await res.json();
+      showToast(data.id ? "스토리보드 저장됐어요! 🎬" : "저장 실패. 다시 시도해주세요.");
+    } catch {
+      showToast("저장 실패. 다시 시도해주세요.");
+    }
     setSaving(false);
   };
 

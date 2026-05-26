@@ -1,5 +1,5 @@
-import StoryboardApp from "@/components/StoryboardApp";
+import MainHub from "@/components/MainHub";
 
 export default function Page() {
-  return <StoryboardApp />;
+  return <MainHub />;
 }

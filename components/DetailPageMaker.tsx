@@ -90,7 +90,10 @@ async function callApi(path: string, body: unknown) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(`${path} ${res.status}: ${errBody.error || JSON.stringify(errBody)}`);
+  }
   return res.json();
 }
 

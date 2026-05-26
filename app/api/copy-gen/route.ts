@@ -86,11 +86,23 @@ Rules:
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: copyPrompt }] }],
-      generationConfig: { maxOutputTokens: 1500, responseMimeType: "application/json" },
+      generationConfig: { maxOutputTokens: 8192, responseMimeType: "application/json" },
     });
 
-    const text = result.response.text().trim();
-    const copy = JSON.parse(text);
+    const candidate = result.response.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    const text = (candidate?.content?.parts?.[0]?.text || "").trim();
+
+    if (!text) {
+      throw new Error(`Empty response from Gemini. finishReason=${finishReason}`);
+    }
+
+    let copy;
+    try {
+      copy = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(`JSON parse failed (finishReason=${finishReason}): ${String(parseErr).slice(0, 100)} | head: ${text.slice(0, 300)}`);
+    }
 
     return NextResponse.json({ copy });
   } catch (e: unknown) {

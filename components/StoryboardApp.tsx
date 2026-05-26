@@ -641,10 +641,51 @@ Rules:
         background: "radial-gradient(ellipse 70% 40% at 50% 0%,rgba(99,102,241,0.07) 0%,transparent 60%), radial-gradient(ellipse 50% 30% at 90% 90%,rgba(251,191,36,0.04) 0%,transparent 50%)",
       }} />
 
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1440, margin: "0 auto", padding: "0 28px 100px" }}>
+      {/* Top Nav */}
+      <nav style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
+        background: "rgba(13,13,26,0.92)", backdropFilter: "blur(12px)",
+        borderBottom: "1px solid rgba(255,255,255,0.07)",
+        padding: "0 28px", height: 42, display: "flex", alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <a href="/" style={{ display: "flex", alignItems: "center", gap: 7, textDecoration: "none" }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: 7,
+              background: "linear-gradient(135deg, #7C3AED, #EC4899)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, color: "white", fontWeight: 800,
+            }}>✦</div>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "rgba(255,255,255,0.85)" }}>AI Studio</span>
+          </a>
+          <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.12)" }} />
+          {[
+            { href: "/storyboard", icon: "🎬", label: "Storyboard" },
+            { href: "/suno", icon: "🎵", label: "Suno Maker" },
+            { href: "/detail", icon: "🛍️", label: "Detail Page" },
+          ].map(t => (
+            <a key={t.href} href={t.href} style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "3px 9px", borderRadius: 7, textDecoration: "none",
+              background: t.href === "/storyboard" ? "rgba(251,191,36,0.15)" : "transparent",
+              border: t.href === "/storyboard" ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent",
+              fontSize: 11, fontWeight: 600,
+              color: t.href === "/storyboard" ? "#FBBf24" : "rgba(255,255,255,0.45)",
+            }}>
+              <span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}
+            </a>
+          ))}
+        </div>
+        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", fontWeight: 600 }}>
+          Powered by <span style={{ color: "#60A5FA" }}>Gemini</span>
+        </span>
+      </nav>
+
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1440, margin: "0 auto", padding: "42px 28px 100px" }}>
 
         {/* HEADER */}
-        <div style={{ padding: "34px 0 24px", display: "flex", alignItems: "center", gap: 18, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ padding: "28px 0 24px", display: "flex", alignItems: "center", gap: 18, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
           <div style={{
             width: 50, height: 50, borderRadius: 14,
             background: "linear-gradient(135deg,#FBBf24,#D97706)",

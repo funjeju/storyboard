@@ -299,22 +299,68 @@ export default function DetailPageMaker() {
         textarea { resize:vertical; }
       `}</style>
 
+      {/* Top Nav */}
+      <nav style={{
+        background: "white", borderBottom: "1px solid #E5E7EB",
+        padding: "0 32px", height: 44, display: "flex", alignItems: "center",
+        justifyContent: "space-between", position: "sticky", top: 0, zIndex: 101,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+      }}>
+        {/* 로고 + 홈 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <a href="/" style={{
+            display: "flex", alignItems: "center", gap: 8, textDecoration: "none",
+          }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: "linear-gradient(135deg, #7C3AED, #EC4899)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 13, fontWeight: 800, color: "white",
+            }}>✦</div>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>AI Studio</span>
+          </a>
+          <div style={{ width: 1, height: 16, background: "#E5E7EB" }} />
+          {/* Tool Links */}
+          {[
+            { href: "/storyboard", icon: "🎬", label: "Storyboard" },
+            { href: "/suno", icon: "🎵", label: "Suno Maker" },
+            { href: "/detail", icon: "🛍️", label: "Detail Page" },
+          ].map(tool => (
+            <a key={tool.href} href={tool.href} style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "4px 10px", borderRadius: 8, textDecoration: "none",
+              background: tool.href === "/detail" ? "#EFF6FF" : "transparent",
+              border: tool.href === "/detail" ? "1px solid #BFDBFE" : "1px solid transparent",
+              fontSize: 12, fontWeight: 600,
+              color: tool.href === "/detail" ? "#2563EB" : "#6B7280",
+              transition: "all 0.15s",
+            }}>
+              <span style={{ fontSize: 13 }}>{tool.icon}</span>
+              {tool.label}
+            </a>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>
+          Powered by <span style={{ color: "#2563EB", fontWeight: 700 }}>Gemini</span>
+        </div>
+      </nav>
+
       {/* Header */}
       <header style={{
         background: "white", borderBottom: "1px solid #E5E7EB",
-        padding: "0 40px", height: 60, display: "flex", alignItems: "center",
-        justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100,
+        padding: "0 40px", height: 52, display: "flex", alignItems: "center",
+        justifyContent: "space-between", position: "sticky", top: 44, zIndex: 100,
         boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
-            width: 34, height: 34, borderRadius: 10,
+            width: 30, height: 30, borderRadius: 9,
             background: "linear-gradient(135deg, #2563EB, #7C3AED)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 16,
+            fontSize: 14,
           }}>🛍️</div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>Detail Page Maker</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>Detail Page Maker</div>
             <div style={{ fontSize: 9, color: "#9CA3AF", letterSpacing: 2, fontWeight: 600 }}>SHOPPING MALL AI</div>
           </div>
         </div>
@@ -577,7 +623,7 @@ export default function DetailPageMaker() {
 
       {/* ── STEP 2: Section Editor ── */}
       {step === 2 && (
-        <div style={{ display: "flex", height: "calc(100vh - 60px)" }}>
+        <div style={{ display: "flex", height: "calc(100vh - 96px)" }}>
           {/* Sidebar */}
           <div style={{
             width: 220, background: "white", borderRight: "1px solid #E5E7EB",

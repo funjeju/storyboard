@@ -412,29 +412,60 @@ export default function SunoMaker() {
         input:focus, textarea:focus, select:focus { border-color: ${P} !important; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
       `}</style>
 
+      {/* ── TOP NAV ── */}
+      <nav style={{
+        background: "white", borderBottom: "1px solid #EDE9FE",
+        padding: "0 32px", height: 42, display: "flex", alignItems: "center",
+        justifyContent: "space-between", position: "sticky", top: 0, zIndex: 101,
+        boxShadow: "0 1px 3px rgba(124,58,237,0.06)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 7, textDecoration: "none" }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: 7,
+              background: `linear-gradient(135deg, ${P}, ${PINK})`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, color: "white", fontWeight: 800,
+            }}>✦</div>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#111827" }}>AI Studio</span>
+          </Link>
+          <div style={{ width: 1, height: 14, background: "#E5E7EB" }} />
+          {[
+            { href: "/storyboard", icon: "🎬", label: "Storyboard" },
+            { href: "/suno", icon: "🎵", label: "Suno Maker" },
+            { href: "/detail", icon: "🛍️", label: "Detail Page" },
+          ].map(t => (
+            <Link key={t.href} href={t.href} style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "3px 9px", borderRadius: 7, textDecoration: "none",
+              background: t.href === "/suno" ? "#F5F3FF" : "transparent",
+              border: t.href === "/suno" ? `1px solid #DDD6FE` : "1px solid transparent",
+              fontSize: 11, fontWeight: 600,
+              color: t.href === "/suno" ? P : "#9CA3AF",
+            }}>
+              <span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}
+            </Link>
+          ))}
+        </div>
+        <span style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>
+          Powered by <span style={{ color: P, fontWeight: 700 }}>Gemini</span>
+        </span>
+      </nav>
+
       {/* ── HEADER ── */}
       <header style={{
         background: `linear-gradient(135deg, ${P}, ${PINK})`,
         padding: "0 40px",
-        height: 60,
+        height: 52,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        position: "sticky", top: 0, zIndex: 100,
+        position: "sticky", top: 42, zIndex: 100,
         boxShadow: "0 4px 20px rgba(124,58,237,0.35)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Link href="/" style={{
-            width: 32, height: 32, borderRadius: 9,
-            background: "rgba(255,255,255,0.2)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 14, color: "white", textDecoration: "none",
-            transition: "background 0.15s",
-          }}>←</Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 22 }}>🎵</span>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "white", letterSpacing: -0.3 }}>Suno Music Maker</div>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: 2 }}>PROMPT · MASTER · PUBLISH</div>
-            </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 20 }}>🎵</span>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "white", letterSpacing: -0.3 }}>Suno Music Maker</div>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: 2 }}>PROMPT · MASTER · PUBLISH</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -448,7 +479,7 @@ export default function SunoMaker() {
         </div>
       </header>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "36px 28px 100px", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 28px 100px", display: "flex", flexDirection: "column", gap: 20 }}>
 
         {/* ── 01 PROJECT ── */}
         <div style={{ animation: "fadeUp 0.4s ease 0.05s both" }}>

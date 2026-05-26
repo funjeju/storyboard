@@ -71,7 +71,20 @@ export async function POST(req: NextRequest) {
 TONE: ${toneDesc}
 PLATFORM: ${platformNote}
 PRODUCT: ${JSON.stringify(productInfo)}
-RESEARCH INSIGHTS: ${research ? JSON.stringify(research) : "없음"}
+
+STRATEGIC BRIEF FROM RESEARCH:
+${research ? JSON.stringify(research, null, 2) : "(no research available — use product info directly)"}
+
+HOW TO USE THE RESEARCH:
+- The research is your strategic brief, not background reading. Anchor EVERY line of copy in it.
+- If the research says "target emotion is regret avoidance" — the headline must trigger regret avoidance.
+- If the research names a "buyer mindset" — speak directly into that mindset.
+- If the research ranks differentiators — use that ranking to order your bullets.
+- If the research provides "persona blueprints" — write testimonials as that exact persona would speak.
+- Do not invent angles the research warns against ("avoidAngles").
+- Use "supportingFacts" as the concrete claims your copy anchors on.
+
+Your job is to CONVERT strategy into copy. The research told you WHAT to say; you write HOW to say it.
 
 Rules:
 - Write in Korean (한국어)

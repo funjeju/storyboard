@@ -1,9 +1,7 @@
 ﻿import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
-// Gemini 2.0 Flash image generation model
-// Update to "gemini-2.5-flash" when Gemini 2.5 Flash image generation is GA
-const GEMINI_IMAGE_MODEL = "gemini-2.0-flash-preview-image-generation";
+const GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image-preview";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
@@ -22,7 +20,9 @@ export async function POST(req: NextRequest) {
       generationConfig: { responseModalities: ["TEXT", "IMAGE"] } as any,
     });
 
-    const parts = result.response.candidates?.[0]?.content?.parts ?? [];
+    const candidate = result.response.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    const parts = candidate?.content?.parts ?? [];
 
     for (const part of parts) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,12 +34,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ error: "No image generated" }, { status: 500 });
-  } catch (error) {
-    console.error("Gemini image API error:", error);
+    const textPart = parts.find((p) => "text" in p)?.text || "";
     return NextResponse.json(
-      { error: "Image generation failed" },
+      {
+        error: `No image in response (finishReason=${finishReason}). Model said: ${textPart.slice(0, 300) || "(empty)"}`,
+      },
       { status: 500 }
     );
+  } catch (error) {
+    console.error("Gemini image API error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: `Image API: ${msg}` }, { status: 500 });
   }
 }

@@ -235,9 +235,12 @@ export default function DetailPageMaker() {
         body: JSON.stringify({ prompt: fullPrompt }),
       });
       const data = await res.json();
-      if (data.imageUrl) {
-        updateSection(sec.id, { imageUrl: data.imageUrl, imageLoading: false });
+      if (!res.ok || !data.imageUrl) {
+        updateSection(sec.id, { imageLoading: false });
+        alert("이미지 생성 실패: " + (data.error || `HTTP ${res.status}`));
+        return;
       }
+      updateSection(sec.id, { imageUrl: data.imageUrl, imageLoading: false });
     } catch (e) {
       updateSection(sec.id, { imageLoading: false });
       alert("이미지 생성 실패: " + String(e));

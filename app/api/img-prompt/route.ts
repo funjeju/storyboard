@@ -1,7 +1,7 @@
+﻿import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
 const SECTION_IMAGE_CONTEXT: Record<string, string> = {
   hook: "Hero product shot, full bleed, maximum impact. Product as the star.",
@@ -39,17 +39,9 @@ export async function POST(req: NextRequest) {
       ? `\n\nSection copy to visually support:\n${JSON.stringify(copy)}`
       : "";
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 512,
-      system: `You are an expert AI image prompt engineer for e-commerce product photography.
-Create precise, detailed image generation prompts for Midjourney, DALL-E, Flux, or Gemini.
-Product: ${JSON.stringify(productInfo)}`,
-      messages: [
-        {
-          role: "user",
-          content: `Generate an image prompt for the "${sectionType}" section of a product detail page.
+    const prompt = `Generate an image prompt for the "${sectionType}" section of a product detail page.
 
+Product: ${JSON.stringify(productInfo)}
 Section purpose: ${sectionContext}${dnaContext}${copyContext}${cumulativeRef}
 
 Requirements:
@@ -60,13 +52,20 @@ Requirements:
 5. 60-100 words, English only
 6. No prohibited content
 
-Return ONLY the prompt text, no explanation.`,
-        },
-      ],
+Return ONLY the prompt text, no explanation.`;
+
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: "You are an expert AI image prompt engineer for e-commerce product photography. Create precise, detailed image generation prompts for Midjourney, DALL-E, Flux, or Gemini.",
     });
 
-    const prompt = response.content[0].type === "text" ? response.content[0].text.trim() : "";
-    return NextResponse.json({ prompt });
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 512 },
+    });
+
+    const text = result.response.text().trim();
+    return NextResponse.json({ prompt: text });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });

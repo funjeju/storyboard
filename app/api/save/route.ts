@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb, verifyIdToken } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 

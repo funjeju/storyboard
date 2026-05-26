@@ -1,7 +1,7 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
 const TONE_DESCRIPTIONS: Record<string, string> = {
   premium: "고급스럽고 권위있는 톤. 품질과 가치를 강조. 신뢰와 격조 있는 어조.",
@@ -66,10 +66,7 @@ export async function POST(req: NextRequest) {
       ? "Shopify 최적화: 글로벌 감성, 영문 혼용 가능."
       : "스마트스토어 최적화: 네이버 검색 친화적, 상세하고 신뢰감 있는 어조.";
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1500,
-      system: `You are Korea's top e-commerce copywriter specializing in high-converting product detail pages.
+    const system = `You are Korea's top e-commerce copywriter specializing in high-converting product detail pages.
 
 TONE: ${toneDesc}
 PLATFORM: ${platformNote}
@@ -80,11 +77,19 @@ Rules:
 - Write in Korean (한국어)
 - Tone must be consistent throughout
 - Focus on conversion and emotional resonance
-- Return ONLY valid JSON`,
-      messages: [{ role: "user", content: copyPrompt }],
+- Return ONLY valid JSON`;
+
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: system,
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: copyPrompt }] }],
+      generationConfig: { maxOutputTokens: 1500 },
+    });
+
+    const text = result.response.text();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
     const copy = JSON.parse(jsonMatch[0]);

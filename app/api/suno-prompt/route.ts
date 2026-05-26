@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
+﻿import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,16 +20,16 @@ FORMAT RULES:
 QUALITY STANDARDS:
 - Lyrics must rhyme naturally and fit the requested density/rhyme style
 - Hook must be memorable and standalone
-- Emotional arc: build through verse → release in chorus
+- Emotional arc: build through verse ??release in chorus
 - Style tag must be specific and actionable for Suno`;
 
     const userMsg = `Generate a Suno prompt with these parameters:
 
-PROJECT: ${body.projectType === "album" ? `Album — Track ${body.trackIndex || 1} of ${body.trackCount}` : "Single"}
+PROJECT: ${body.projectType === "album" ? `Album ??Track ${body.trackIndex || 1} of ${body.trackCount}` : "Single"}
 TITLE: ${body.title || "AI will decide"}
 
 SONG CONTENT:
-- Topic: ${body.topic || "AI choice — make something compelling"}
+- Topic: ${body.topic || "AI choice ??make something compelling"}
 - Hook Lyrics: ${body.hookLyrics || "AI generated"}
 - Structure: ${body.songStructure || "Intro-Verse-PreChorus-Chorus-Verse-Bridge-FinalChorus-Outro"}
 - Lyric Density: ${body.lyricDensity}
@@ -54,18 +54,17 @@ TECHNICAL:
 
 Output the complete Suno prompt only. No explanation, no preamble.`;
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2000,
-      system,
-      messages: [{ role: "user", content: userMsg }],
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: system,
     });
 
-    const text = message.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as { type: "text"; text: string }).text)
-      .join("");
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: userMsg }] }],
+      generationConfig: { maxOutputTokens: 2000 },
+    });
 
+    const text = result.response.text();
     return NextResponse.json({ prompt: text });
   } catch (error) {
     console.error("Suno prompt API error:", error);

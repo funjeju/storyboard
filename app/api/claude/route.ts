@@ -1,27 +1,26 @@
-import Anthropic from "@anthropic-ai/sdk";
+﻿import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
     const { system, user, maxTokens = 4000 } = await req.json();
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: user }],
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: system,
     });
 
-    const text = message.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as { type: "text"; text: string }).text)
-      .join("");
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      generationConfig: { maxOutputTokens: maxTokens },
+    });
 
+    const text = result.response.text();
     return NextResponse.json({ text });
   } catch (error) {
-    console.error("Claude API error:", error);
-    return NextResponse.json({ error: "Claude API error" }, { status: 500 });
+    console.error("Gemini API error:", error);
+    return NextResponse.json({ error: "Gemini API error" }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
+﻿import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
 const RESEARCH_PROMPTS: Record<string, string> = {
   hook: `Analyze this product and generate hook research:
@@ -67,16 +67,21 @@ export async function POST(req: NextRequest) {
     const prompt = RESEARCH_PROMPTS[sectionType];
     if (!prompt) return NextResponse.json({ error: "Unknown section type" }, { status: 400 });
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1500,
-      system: `You are a top Korean e-commerce copywriter and conversion specialist.
+    const system = `You are a top Korean e-commerce copywriter and conversion specialist.
 Respond in Korean for text content, but keep JSON keys in English.
-Product context: ${JSON.stringify(productInfo)}`,
-      messages: [{ role: "user", content: prompt }],
+Product context: ${JSON.stringify(productInfo)}`;
+
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: system,
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 1500 },
+    });
+
+    const text = result.response.text();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
     const research = JSON.parse(jsonMatch[0]);

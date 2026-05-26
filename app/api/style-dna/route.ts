@@ -41,9 +41,9 @@ Return ONLY valid JSON with this exact structure:
       }],
     });
 
-    const text = result.response.text();
+    const text = result.response.text().replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response");
+    if (!jsonMatch) throw new Error("No JSON in response: " + text.slice(0, 200));
     const dna = JSON.parse(jsonMatch[0]);
 
     return NextResponse.json({ dna });

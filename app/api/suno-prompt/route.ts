@@ -57,11 +57,11 @@ Write ALL sections completely. Never truncate.`;
       systemInstruction: lyricsSystem,
     });
 
-    // 스타일 프롬프트는 항상 생성, 가사는 vocal이 있을 때만
+    // 스타일 프롬프트 + 가사 병렬 생성
     const [styleResult, lyricsResult] = await Promise.all([
       styleModel.generateContent({
         contents: [{ role: "user", parts: [{ text: styleUser }] }],
-        generationConfig: { maxOutputTokens: 200 },
+        generationConfig: { maxOutputTokens: 500 },
       }),
       body.vocal !== "없음" ? lyricsModel.generateContent({
         contents: [{ role: "user", parts: [{ text: lyricsUser }] }],
@@ -72,16 +72,16 @@ Write ALL sections completely. Never truncate.`;
     const stylePrompt = styleResult.response.text().trim().replace(/^["']|["']$/g, "");
     const lyrics = lyricsResult ? lyricsResult.response.text().trim() : null;
 
-    // 제목 제안
+    // 제목 제안 — stylePrompt 완성 후 sequential하게
     const titleModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const titleResult = await titleModel.generateContent({
       contents: [{
         role: "user",
-        parts: [{ text: `Suggest a short, evocative song title in ${body.language} for: ${stylePrompt}${body.topic ? `. Theme: ${body.topic}` : ""}. Reply with ONLY the title, nothing else.` }],
+        parts: [{ text: `Suggest ONE short evocative song title (2-5 words) in ${body.language === "한국어" ? "Korean" : "English"} for this style: "${stylePrompt}"${body.topic ? `. Theme: ${body.topic}` : ""}. Reply with ONLY the title text, no quotes, no explanation.` }],
       }],
-      generationConfig: { maxOutputTokens: 30 },
+      generationConfig: { maxOutputTokens: 100 },
     });
-    const suggestedTitle = titleResult.response.text().trim().replace(/^["']|["']$/g, "");
+    const suggestedTitle = titleResult.response.text().trim().replace(/^["'「『]|["'」』]$/g, "").split("\n")[0].trim();
 
     return NextResponse.json({ stylePrompt, lyrics, suggestedTitle });
   } catch (error) {

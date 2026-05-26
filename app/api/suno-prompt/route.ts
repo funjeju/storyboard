@@ -14,22 +14,24 @@ export async function POST(req: NextRequest) {
 The style prompt is the MOST CRITICAL element — it determines everything about how the track sounds.
 DO NOT write lyrics. DO NOT use section tags like [Verse] or [Chorus].
 
-Your output must be a single rich paragraph of comma-separated descriptors covering ALL of the following:
+⚠️ HARD CONSTRAINT: Suno's Style of Music field accepts a MAXIMUM of 1000 CHARACTERS (including spaces).
+Your output MUST be 1000 characters or fewer — count as you write. Target ~900 chars to leave safety margin.
+This means you must be DENSE — every word earns its place. No filler, no transitions, no "and also".
 
-① GENRE IDENTITY — specific subgenre blend, not generic labels (e.g. "post-grunge alt-metal" not just "rock")
-② ARTIST/SOUND REFERENCE — 1-2 real artists or albums whose sonic world this resembles
-③ INSTRUMENTATION — every instrument present, playing style, tuning, tone, articulation in detail
-   (e.g. "down-tuned 7-string guitar with heavy palm muting and mid-scooped crunch distortion")
-④ RHYTHM & GROOVE — drum pattern character, kick/snare feel, hi-hat style, groove pocket, ${bpmText}
-⑤ BASS — tone, technique, relationship to kick drum
-⑥ VOCAL DELIVERY — gender, technique, emotional delivery, vocal texture, any special techniques
-⑦ PRODUCTION STYLE — mixing approach, spatial depth, compression character, era reference
-   (e.g. "Rick Rubin-era raw and punchy", "modern hyperpop loudness", "lo-fi tape warmth")
-⑧ SONIC ATMOSPHERE — the emotional and sonic world the listener is immersed in
-⑨ ENERGY DYNAMICS — how intensity builds or shifts (e.g. "slow burn to explosive chorus release")
+Your output is a single rich paragraph of comma-separated descriptors covering ALL of:
+① GENRE IDENTITY — specific subgenre blend (e.g. "post-grunge alt-metal" not just "rock")
+② ARTIST/SOUND REFERENCE — 1-2 real artists or albums this sonically resembles
+③ INSTRUMENTATION — key instruments, playing style, tone, articulation
+   (e.g. "down-tuned 7-string guitar, heavy palm muting, mid-scooped crunch")
+④ RHYTHM & GROOVE — drum character, kick/snare feel, hi-hat style, ${bpmText}
+⑤ BASS — tone, technique, relationship to kick
+⑥ VOCAL DELIVERY — gender, technique, texture, emotional delivery
+⑦ PRODUCTION STYLE — mixing approach, era/producer reference (e.g. "Rick Rubin-era raw", "modern hyperpop loudness")
+⑧ SONIC ATMOSPHERE — the emotional/sonic world
+⑨ ENERGY DYNAMICS — how intensity moves through the track
 
-Output ONLY the style descriptor paragraph. 150-250 words.
-Make it so vivid and specific that Suno has zero ambiguity about the sound to create.`;
+Output ONLY the style descriptor paragraph. Comma-separated, single paragraph, ≤1000 characters.
+Be cinematic, specific, and dense. Cut adjectives that don't add sonic info.`;
 
     const styleUser = `Write a maximally detailed Suno style prompt for this track (${trackLabel}).
 Every parameter below MUST be reflected in the sonic description:
@@ -87,7 +89,13 @@ Write ALL sections fully. No placeholders.`;
       }),
     ]);
 
-    const stylePrompt = styleResult.response.text().trim().replace(/^["'`]|["'`]$/g, "");
+    let stylePrompt = styleResult.response.text().trim().replace(/^["'`]|["'`]$/g, "");
+    // Hard cap to Suno's 1000-char Style field limit. Trim at last comma to stay clean.
+    if (stylePrompt.length > 1000) {
+      const trimmed = stylePrompt.slice(0, 1000);
+      const lastComma = trimmed.lastIndexOf(",");
+      stylePrompt = lastComma > 800 ? trimmed.slice(0, lastComma) : trimmed;
+    }
     const lyrics = lyricsResult ? lyricsResult.response.text().trim() : null;
     const suggestedTitle = titleResult.response.text().trim().replace(/^["'「『【\[<]|["'」』】\]>]$/g, "").split("\n")[0].trim();
 

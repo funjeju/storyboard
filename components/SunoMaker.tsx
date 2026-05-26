@@ -779,6 +779,16 @@ export default function SunoMaker() {
                     fontSize: 13, lineHeight: 1.9, color: "#1F2937",
                     fontWeight: 500, letterSpacing: 0.1,
                   }}>{r.stylePrompt}</div>
+                  <div style={{
+                    padding: "8px 24px 16px",
+                    fontSize: 11,
+                    color: r.stylePrompt.length > 1000 ? "#DC2626" : r.stylePrompt.length > 900 ? "#F59E0B" : "#9CA3AF",
+                    fontWeight: 600,
+                    display: "flex", alignItems: "center", gap: 6,
+                  }}>
+                    {r.stylePrompt.length > 1000 ? "⚠️" : "✓"} {r.stylePrompt.length} / 1000자
+                    {r.stylePrompt.length > 1000 && <span style={{ marginLeft: 4 }}>(Suno 한도 초과 — 잘릴 수 있음)</span>}
+                  </div>
                 </div>
 
                 {/* ── Lyrics (접힌 상태, 별도 영역) ── */}

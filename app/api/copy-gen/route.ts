@@ -13,41 +13,41 @@ const TONE_DESCRIPTIONS: Record<string, string> = {
 };
 
 const SECTION_COPY_PROMPTS: Record<string, string> = {
-  hook: `Write a compelling hook section for a Korean shopping mall product page.
-Include: main headline (15자 이내), subheadline (30자 이내), opening body copy (2-3 sentences).
-Format: { headline: string, subheadline: string, body: string }`,
+  hook: `Write the HOOK section copy. This is the first text the buyer sees — it must stop the scroll.
+This copy will overlay the hero image. Keep it tight and impactful.
+Format: { headline: string (≤15자, the scroll-stopper), subheadline: string (≤30자, the support), body: string (2-3 짧은 문장, 본론 진입) }`,
 
-  usp: `Write a USP (핵심 차별점) section.
-Include: section title, 3-4 USP bullets with icons/emoji, supporting statement.
-Format: { title: string, usps: { icon: string, text: string, detail: string }[], support: string }`,
+  usp: `Write the USP section copy (핵심 차별점).
+This text accompanies a feature-focused image. Each USP must be scannable.
+Format: { title: string (섹션 제목), usps: { icon: string (이모지 1자), text: string (≤20자 핵심), detail: string (≤40자 부연) }[] (3-4개), support: string (≤50자 마무리) }`,
 
-  problemSolution: `Write a problem-solution section (문제해결).
-Include: problem statement header, pain point description, solution reveal, transformation statement.
-Format: { problemHeader: string, painDescription: string, solutionReveal: string, transformation: string }`,
+  problemSolution: `Write the problem-solution copy (문제해결).
+This overlays a before/after or transformation image.
+Format: { problemHeader: string (≤25자, 문제 직시), painDescription: string (2문장, 공감), solutionReveal: string (≤30자, 해결책 등장), transformation: string (2문장, 달라지는 일상) }`,
 
-  specs: `Write product specifications section (제품사양).
-Include: section intro, spec table rows (label + value), highlight callout.
-Format: { intro: string, specs: { label: string, value: string }[], highlight: string }`,
+  specs: `Write product specifications copy (제품사양).
+This overlays a clean detail/technical image.
+Format: { intro: string (≤40자, 사양으로 들어가는 도입), specs: { label: string, value: string }[] (5-7개), highlight: string (≤40자, 핵심 사양 callout) }`,
 
-  lifestyle: `Write a lifestyle section (라이프스타일).
-Include: aspirational headline, 2 scenario descriptions, emotional closing.
-Format: { headline: string, scenarios: { title: string, copy: string }[], closing: string }`,
+  lifestyle: `Write lifestyle copy (라이프스타일).
+This overlays an aspirational lifestyle scene. Evoke the feeling, don't sell.
+Format: { headline: string (≤25자, 동경하는 순간), scenarios: { title: string (≤15자), copy: string (2-3 문장, 그 순간 묘사) }[] (2개), closing: string (≤40자, 감성 마무리) }`,
 
-  options: `Write a product options & promo section (옵션/혜택).
-Include: options intro, option descriptions, best-value badge text, promo callout.
-Format: { intro: string, options: { name: string, description: string }[], bestValue: string, promo: string }`,
+  options: `Write product options & promo copy (옵션/혜택).
+This overlays an option lineup or flat-lay image.
+Format: { intro: string (≤40자), options: { name: string, description: string (≤40자) }[], bestValue: string (≤25자, 최고 가성비 배지), promo: string (≤60자, 혜택 callout) }`,
 
-  reviews: `Write a social proof section (고객후기).
-Include: section headline, 3 testimonial quotes with ratings, trust statement.
-Format: { headline: string, testimonials: { name: string, quote: string, rating: number }[], trust: string }`,
+  reviews: `Write social proof copy (고객후기).
+This overlays a customer/usage image. Testimonials must sound real, not marketing.
+Format: { headline: string (≤25자), testimonials: { name: string, quote: string (1-2 자연스러운 문장), rating: number }[] (3개), trust: string (≤50자, 신뢰 마무리) }`,
 
-  faq: `Write a FAQ section.
-Include: 5-6 Q&A pairs optimized for conversion.
-Format: { faqs: { q: string, a: string }[] }`,
+  faq: `Write FAQ copy.
+This overlays a clean info-graphic image. Answers must build confidence, not just inform.
+Format: { faqs: { q: string (≤30자), a: string (1-2 문장, 명확) }[] (5-6개) }`,
 
-  cta: `Write a high-converting CTA section (구매하기).
-Include: closing headline, main CTA text, urgency element, guarantee statement.
-Format: { headline: string, ctaText: string, urgency: string, guarantee: string }`,
+  cta: `Write a high-converting CTA copy (구매하기).
+This overlays the final closing hero image.
+Format: { headline: string (≤20자, 마지막 한 방), ctaText: string (≤10자, 버튼 문구), urgency: string (≤30자, 행동 촉구), guarantee: string (≤40자, 신뢰 보장) }`,
 };
 
 export async function POST(req: NextRequest) {
@@ -66,31 +66,39 @@ export async function POST(req: NextRequest) {
       ? "Shopify 최적화: 글로벌 감성, 영문 혼용 가능."
       : "스마트스토어 최적화: 네이버 검색 친화적, 상세하고 신뢰감 있는 어조.";
 
+    // Extract section-specific guidance from the unified research brief.
+    const sectionGuidance = research?.sectionGuidance?.[sectionType];
+
     const system = `You are Korea's top e-commerce copywriter specializing in high-converting product detail pages.
 
 TONE: ${toneDesc}
 PLATFORM: ${platformNote}
 PRODUCT: ${JSON.stringify(productInfo)}
 
-STRATEGIC BRIEF FROM RESEARCH:
-${research ? JSON.stringify(research, null, 2) : "(no research available — use product info directly)"}
+═══════════════════════════════════════════════
+UNIFIED STRATEGIC BRIEF (shared across all 9 sections):
+${research ? JSON.stringify({
+  targetPersona: research.targetPersona,
+  coreEmotion: research.coreEmotion,
+  marketPosition: research.marketPosition,
+  valueProposition: research.valueProposition,
+  supportingFacts: research.supportingFacts,
+}, null, 2) : "(no research — work from product info only)"}
 
-HOW TO USE THE RESEARCH:
-- The research is your strategic brief, not background reading. Anchor EVERY line of copy in it.
-- If the research says "target emotion is regret avoidance" — the headline must trigger regret avoidance.
-- If the research names a "buyer mindset" — speak directly into that mindset.
-- If the research ranks differentiators — use that ranking to order your bullets.
-- If the research provides "persona blueprints" — write testimonials as that exact persona would speak.
-- Do not invent angles the research warns against ("avoidAngles").
-- Use "supportingFacts" as the concrete claims your copy anchors on.
+THIS SECTION'S SPECIFIC GUIDANCE (sectionGuidance.${sectionType}):
+${sectionGuidance ? JSON.stringify(sectionGuidance, null, 2) : "(no section-specific guidance — derive from unified brief)"}
+═══════════════════════════════════════════════
 
-Your job is to CONVERT strategy into copy. The research told you WHAT to say; you write HOW to say it.
+HOW TO USE THE BRIEF:
+- The unified brief is shared across ALL sections — so your copy must feel like part of a coherent whole, speaking to the SAME persona with the SAME core emotion.
+- The section-specific guidance tells you the angle for THIS section in particular. Follow it.
+- Anchor concrete claims in supportingFacts (don't invent numbers).
+- Match the buyer's mindset and motivations from targetPersona.
+- Don't ignore the brief — every line should be traceable back to it.
 
-Rules:
-- Write in Korean (한국어)
-- Tone must be consistent throughout
-- Focus on conversion and emotional resonance
-- Return ONLY valid JSON`;
+REMEMBER: This copy will overlay an image. Keep text TIGHT — character limits exist for a reason. Make every word earn its place.
+
+Return ONLY valid JSON in the format requested.`;
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",

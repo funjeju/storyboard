@@ -1,0 +1,11 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": [
+    {
+      "bucket": "storyboard-bfc87.firebasestorage.app",
+      "rules": "storage.rules"
+    }
+  ]
+}

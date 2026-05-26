@@ -70,12 +70,12 @@ Write ALL sections fully. No placeholders.`;
       genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: styleSystem })
         .generateContent({
           contents: [{ role: "user", parts: [{ text: styleUser }] }],
-          generationConfig: { maxOutputTokens: 700 },
+          generationConfig: { maxOutputTokens: 8192 },
         }),
       body.vocal !== "없음"
         ? lyricsModel.generateContent({
             contents: [{ role: "user", parts: [{ text: lyricsUser }] }],
-            generationConfig: { maxOutputTokens: 4000 },
+            generationConfig: { maxOutputTokens: 16384 },
           })
         : Promise.resolve(null),
       model.generateContent({
@@ -83,7 +83,7 @@ Write ALL sections fully. No placeholders.`;
           role: "user",
           parts: [{ text: `Suggest ONE punchy song title (2-5 words) in ${body.language === "한국어" ? "Korean" : "English"} for a ${body.genre1} track. Theme: "${body.topic || "open"}". Reply with ONLY the title. No quotes.` }],
         }],
-        generationConfig: { maxOutputTokens: 60 },
+        generationConfig: { maxOutputTokens: 200 },
       }),
     ]);
 

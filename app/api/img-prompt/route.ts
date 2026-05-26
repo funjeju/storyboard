@@ -61,7 +61,7 @@ Return ONLY the prompt text, no explanation.`;
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 512 },
+      generationConfig: { maxOutputTokens: 8192 },
     });
 
     const text = result.response.text().trim();

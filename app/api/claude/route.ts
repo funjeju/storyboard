@@ -5,7 +5,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
-    const { system, user, maxTokens = 4000 } = await req.json();
+    const { system, user, maxTokens = 32768 } = await req.json();
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",

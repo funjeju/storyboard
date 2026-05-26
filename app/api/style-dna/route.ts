@@ -39,7 +39,7 @@ Return ONLY valid JSON with this exact structure:
           },
         ],
       }],
-      generationConfig: { responseMimeType: "application/json" },
+      generationConfig: { maxOutputTokens: 16384, responseMimeType: "application/json" },
     });
 
     const text = result.response.text().trim();

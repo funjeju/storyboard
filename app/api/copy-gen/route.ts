@@ -86,7 +86,7 @@ Rules:
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: copyPrompt }] }],
-      generationConfig: { maxOutputTokens: 8192, responseMimeType: "application/json" },
+      generationConfig: { maxOutputTokens: 32768, responseMimeType: "application/json" },
     });
 
     const candidate = result.response.candidates?.[0];

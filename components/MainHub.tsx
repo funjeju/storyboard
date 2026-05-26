@@ -19,13 +19,10 @@ const TOOLS = [
     gradient: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
     accentGrad: "linear-gradient(135deg, #FBBf24, #F59E0B)",
     accent: "#FBBf24",
+    accentRgb: "251,191,36",
     border: "rgba(251,191,36,0.25)",
-    cardBg: "#0D0D1A",
     href: "/storyboard",
     badge: "LIVE",
-    badgeColor: "#10B981",
-    textColor: "white",
-    featureColor: "rgba(255,255,255,0.65)",
     ctaText: "🎬 스토리보드 시작",
   },
   {
@@ -43,13 +40,10 @@ const TOOLS = [
     gradient: "linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #EC4899 100%)",
     accentGrad: "linear-gradient(135deg, #7C3AED, #EC4899)",
     accent: "#7C3AED",
+    accentRgb: "124,58,237",
     border: "rgba(124,58,237,0.25)",
-    cardBg: "#FAFBFF",
     href: "/suno",
     badge: "NEW",
-    badgeColor: "#7C3AED",
-    textColor: "white",
-    featureColor: "rgba(255,255,255,0.75)",
     ctaText: "🎵 음악 만들기",
   },
   {
@@ -67,38 +61,11 @@ const TOOLS = [
     gradient: "linear-gradient(135deg, #0F4C9A 0%, #1D6EBF 50%, #2563EB 100%)",
     accentGrad: "linear-gradient(135deg, #2563EB, #0EA5E9)",
     accent: "#2563EB",
+    accentRgb: "37,99,235",
     border: "rgba(37,99,235,0.25)",
-    cardBg: "#F0F6FF",
     href: "/detail",
     badge: "NEW",
-    badgeColor: "#2563EB",
-    textColor: "white",
-    featureColor: "rgba(255,255,255,0.75)",
     ctaText: "🛍️ 상세페이지 시작",
-  },
-  {
-    id: "library",
-    icon: "📚",
-    name: "My Library",
-    nameKo: "마이 라이브러리",
-    desc: "생성한 콘텐츠와 음악 파일을 한곳에서 관리",
-    features: [
-      "Suno 스타일 프롬프트·가사 자동 저장",
-      "Suno에서 받아온 음악 파일 업로드",
-      "상세페이지 프로젝트 통합 관리",
-      "검색·필터·태그로 빠른 탐색",
-    ],
-    gradient: "linear-gradient(135deg, #064E3B 0%, #047857 50%, #10B981 100%)",
-    accentGrad: "linear-gradient(135deg, #10B981, #059669)",
-    accent: "#10B981",
-    border: "rgba(16,185,129,0.25)",
-    cardBg: "#F0FDF4",
-    href: "/library",
-    badge: "NEW",
-    badgeColor: "#10B981",
-    textColor: "white",
-    featureColor: "rgba(255,255,255,0.75)",
-    ctaText: "📚 라이브러리 열기",
   },
 ];
 
@@ -161,14 +128,14 @@ export default function MainHub() {
               width: 8, height: 8, borderRadius: "50%", background: "#10B981",
               boxShadow: "0 0 0 3px rgba(16,185,129,0.2)",
             }} />
-            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>4 tools active</span>
+            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>3 tools active</span>
           </div>
           <AuthButton />
         </div>
       </header>
 
       {/* ── HERO ── */}
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "72px 40px 0" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "72px 40px 0" }}>
         <div style={{ textAlign: "center", marginBottom: 56, animation: "fadeUp 0.5s ease both" }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6,
@@ -199,8 +166,13 @@ export default function MainHub() {
           </p>
         </div>
 
-        {/* ── TOOL CARDS ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 24, paddingBottom: 80 }}>
+        {/* ── TOOL CARDS — 3열 고정 ── */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 28,
+          paddingBottom: 80,
+        }}>
           {TOOLS.map((tool, i) => (
             <div
               key={tool.id}
@@ -216,8 +188,8 @@ export default function MainHub() {
               }}
               onMouseEnter={e => {
                 const el = e.currentTarget as HTMLDivElement;
-                el.style.transform = "translateY(-5px)";
-                el.style.boxShadow = "0 24px 48px rgba(0,0,0,0.12)";
+                el.style.transform = "translateY(-6px)";
+                el.style.boxShadow = "0 28px 56px rgba(0,0,0,0.13)";
               }}
               onMouseLeave={e => {
                 const el = e.currentTarget as HTMLDivElement;
@@ -228,19 +200,19 @@ export default function MainHub() {
               {/* Card Header */}
               <div style={{
                 background: tool.gradient,
-                padding: "32px 32px 28px",
+                padding: "36px 36px 30px",
                 position: "relative",
                 overflow: "hidden",
               }}>
                 {/* Decorative circles */}
                 <div style={{
-                  position: "absolute", right: -20, top: -20,
-                  width: 120, height: 120, borderRadius: "50%",
+                  position: "absolute", right: -24, top: -24,
+                  width: 140, height: 140, borderRadius: "50%",
                   background: "rgba(255,255,255,0.06)",
                 }} />
                 <div style={{
-                  position: "absolute", right: 20, bottom: -30,
-                  width: 80, height: 80, borderRadius: "50%",
+                  position: "absolute", right: 24, bottom: -36,
+                  width: 90, height: 90, borderRadius: "50%",
                   background: "rgba(255,255,255,0.04)",
                 }} />
 
@@ -255,25 +227,25 @@ export default function MainHub() {
                   letterSpacing: 1.5,
                 }}>{tool.badge}</div>
 
-                <div style={{ fontSize: 40, marginBottom: 14, animation: "float 3s ease-in-out infinite" }}>
+                <div style={{ fontSize: 44, marginBottom: 16, animation: "float 3s ease-in-out infinite" }}>
                   {tool.icon}
                 </div>
-                <div style={{ fontSize: 21, fontWeight: 800, color: "white", marginBottom: 6, letterSpacing: -0.5 }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "white", marginBottom: 8, letterSpacing: -0.5 }}>
                   {tool.name}
                 </div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", lineHeight: 1.5 }}>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", lineHeight: 1.6 }}>
                   {tool.desc}
                 </div>
               </div>
 
               {/* Card Body */}
-              <div style={{ background: "white", padding: "24px 32px 28px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 22 }}>
+              <div style={{ background: "white", padding: "26px 36px 30px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 24 }}>
                   {tool.features.map((f, j) => (
                     <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                       <div style={{
                         width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                        background: `rgba(${tool.id === "storyboard" ? "251,191,36" : tool.id === "suno" ? "124,58,237" : tool.id === "library" ? "16,185,129" : "37,99,235"},0.1)`,
+                        background: `rgba(${tool.accentRgb},0.1)`,
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 9, color: tool.accent, fontWeight: 800, marginTop: 1,
                       }}>✓</div>
@@ -284,14 +256,14 @@ export default function MainHub() {
 
                 <button style={{
                   width: "100%",
-                  padding: "13px",
+                  padding: "14px",
                   background: tool.accentGrad,
                   border: "none",
                   borderRadius: 12,
                   fontSize: 14, fontWeight: 700, color: "white",
                   cursor: "pointer",
                   letterSpacing: 0.3,
-                  boxShadow: `0 4px 14px rgba(${tool.id === "storyboard" ? "251,191,36" : tool.id === "suno" ? "124,58,237" : tool.id === "library" ? "16,185,129" : "37,99,235"},0.35)`,
+                  boxShadow: `0 4px 16px rgba(${tool.accentRgb},0.35)`,
                   transition: "opacity 0.15s",
                 }}>
                   {tool.ctaText} →

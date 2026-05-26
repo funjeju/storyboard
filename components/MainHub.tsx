@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import AuthButton from "@/components/AuthButton";
 
 const TOOLS = [
   {
@@ -154,12 +155,15 @@ export default function MainHub() {
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: "50%", background: "#10B981",
-            boxShadow: "0 0 0 3px rgba(16,185,129,0.2)",
-          }} />
-          <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>4 tools active</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: "50%", background: "#10B981",
+              boxShadow: "0 0 0 3px rgba(16,185,129,0.2)",
+            }} />
+            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>4 tools active</span>
+          </div>
+          <AuthButton />
         </div>
       </header>
 

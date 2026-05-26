@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import DetailPageMaker from "@/components/DetailPageMaker";
 
 export default function DetailPage() {
-  return <DetailPageMaker />;
+  return (
+    <Suspense fallback={null}>
+      <DetailPageMaker />
+    </Suspense>
+  );
 }

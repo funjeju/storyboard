@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { useAuth } from "@/components/AuthProvider";
+import { upsertSunoTrack } from "@/lib/firestoreHelpers";
 import Link from "next/link";
 
 // ── CONSTANTS ──────────────────────────────────────────────────────────────
@@ -305,6 +307,8 @@ interface LibraryTrack {
 
 // ── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function SunoMaker() {
+  const { user, signIn } = useAuth();
+
   // ─ Project
   const [projectType,  setProjectType]  = useState<"single" | "album">("single");
   const [trackCount,   setTrackCount]   = useState(1);
@@ -430,7 +434,7 @@ export default function SunoMaker() {
     setLyricsOpen(out.map(() => false));
     setLoading(false);
 
-    // Auto-save to library for /library page
+    // Auto-save to library (localStorage + Firestore when logged in)
     try {
       const existing: LibraryTrack[] = JSON.parse(localStorage.getItem("suno_library_v1") || "[]");
       const now = Date.now();
@@ -447,6 +451,27 @@ export default function SunoMaker() {
         audioDataKey: null,
       }));
       localStorage.setItem("suno_library_v1", JSON.stringify([...newEntries, ...existing].slice(0, 200)));
+
+      // Cloud sync when logged in
+      if (user) {
+        for (const entry of newEntries) {
+          upsertSunoTrack(user.uid, {
+            id: entry.id,
+            title: entry.title,
+            stylePrompt: entry.stylePrompt,
+            lyrics: entry.lyrics,
+            genre: entry.genre,
+            mood: entry.mood,
+            vocal: entry.vocal,
+            topic: entry.topic,
+            createdAt: entry.createdAt,
+            updatedAt: Date.now(),
+            status: "completed",
+            audioStoragePath: null,
+            audioUrl: null,
+          }).catch(e => console.warn("Firestore suno save failed", e));
+        }
+      }
     } catch (e) {
       console.warn("Library save failed", e);
     }
@@ -582,9 +607,21 @@ export default function SunoMaker() {
             </Link>
           ))}
         </div>
-        <span style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>
-          Powered by <span style={{ color: P, fontWeight: 700 }}>Gemini</span>
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {user ? (
+            <>
+              <span style={{ fontSize: 10, color: "#059669" }}>☁️ 동기화 중</span>
+              {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 22, height: 22, borderRadius: "50%" }} />}
+            </>
+          ) : (
+            <button
+              onClick={signIn}
+              style={{ fontSize: 10, color: P, fontWeight: 700, background: "transparent", border: `1px solid ${P}`, borderRadius: 6, padding: "3px 9px", cursor: "pointer" }}
+            >
+              로그인하면 클라우드 저장
+            </button>
+          )}
+        </div>
       </nav>
 
       {/* ── HEADER ── */}

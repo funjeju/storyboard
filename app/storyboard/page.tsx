@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import StoryboardApp from "@/components/StoryboardApp";
 
 export default function StoryboardPage() {
-  return <StoryboardApp />;
+  return (
+    <Suspense fallback={null}>
+      <StoryboardApp />
+    </Suspense>
+  );
 }

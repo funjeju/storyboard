@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
+import { upsertDetailProject, getDetailProject } from "@/lib/firestoreHelpers";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -188,33 +191,74 @@ async function callApi<T = Record<string, unknown>>(path: string, body: unknown)
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DetailPageMaker() {
+  const { user } = useAuth();
+  const searchParams = useSearchParams();
+
   const [step, setStep] = useState(0);
   const [project, setProject] = useState<ProjectState>(() => newProjectState());
   const [projectIndex, setProjectIndex] = useState<{ id: string; name: string; updatedAt: number }[]>([]);
   const [bulkProgress, setBulkProgress] = useState<{ active: boolean; done: number; total: number; label: string }>({ active: false, done: 0, total: 0, label: "" });
   const [researchLoading, setResearchLoading] = useState(false);
   const [dnaLoading, setDnaLoading] = useState(false);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Load index + last-edited project on mount
+  // Load index + last-edited project on mount (or from ?load= query param)
   useEffect(() => {
     setProjectIndex(loadProjectsIndex());
-    const currentId = localStorage.getItem(CURRENT_KEY);
-    if (currentId) {
-      const loaded = loadProject(currentId);
-      if (loaded) setProject(loaded);
+    const loadId = searchParams?.get("load");
+    if (loadId && user) {
+      // Try to load from Firestore
+      getDetailProject(user.uid, loadId).then(cloud => {
+        if (cloud) {
+          try {
+            const parsed: ProjectState = JSON.parse(cloud.projectData);
+            setProject(parsed);
+            setStep(parsed.styleDNA ? 2 : parsed.productInfo.name ? 1 : 0);
+          } catch { /* fall through to localStorage */ }
+        }
+      }).catch(() => {});
+    } else {
+      const currentId = localStorage.getItem(CURRENT_KEY);
+      if (currentId) {
+        const loaded = loadProject(currentId);
+        if (loaded) setProject(loaded);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced autosave
+  // Debounced autosave (localStorage + Firestore)
   useEffect(() => {
     const t = setTimeout(() => {
       const toSave = { ...project, updatedAt: Date.now() };
       saveProject(toSave);
       setProjectIndex(loadProjectsIndex());
+
+      // Cloud sync when logged in
+      if (user) {
+        const completedSections = project.sections.filter(s => s.copy !== null).length;
+        const totalSections = project.sections.length;
+        const status = completedSections === totalSections ? "completed" as const : "in-progress" as const;
+        setCloudSyncing(true);
+        upsertDetailProject(user.uid, {
+          id: project.id,
+          productName: project.productInfo.name || "(이름 없음)",
+          platform: project.platform,
+          tone: project.tone,
+          status,
+          completedSections,
+          totalSections,
+          createdAt: project.updatedAt,
+          updatedAt: Date.now(),
+          projectData: JSON.stringify(toSave),
+        }).catch(e => console.warn("Firestore detail save failed", e))
+          .finally(() => setCloudSyncing(false));
+      }
     }, 600);
     return () => clearTimeout(t);
-  }, [project]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, user]);
 
   const updateProject = useCallback((patch: Partial<ProjectState>) => {
     setProject(prev => ({ ...prev, ...patch }));
@@ -566,8 +610,19 @@ export default function DetailPageMaker() {
             </a>
           ))}
         </div>
-        <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>
-          Powered by <span style={{ color: "#2563EB", fontWeight: 700 }}>Gemini</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {user ? (
+            <>
+              <span style={{ fontSize: 10, color: cloudSyncing ? "#6B7280" : "#059669" }}>
+                {cloudSyncing ? "⏳ 저장 중..." : "☁️ 클라우드 저장됨"}
+              </span>
+              {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 22, height: 22, borderRadius: "50%" }} />}
+            </>
+          ) : (
+            <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>
+              Powered by <span style={{ color: "#2563EB", fontWeight: 700 }}>Gemini</span>
+            </div>
+          )}
         </div>
       </nav>
 

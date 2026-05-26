@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import type { Cut, Beat, Storyboard, StoryboardMeta, EmotionStyle } from "@/lib/types";
-import { auth, signInWithGoogle, signOutUser } from "@/lib/firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
+import { upsertStoryboard, getStoryboard } from "@/lib/firestoreHelpers";
 
 // ── CONSTANTS ──────────────────────────────────────────────────────────────
 const SOLUTIONS: Record<string, { min: number; max: number; recommended: number }> = {
@@ -478,6 +479,9 @@ function CutCard({ cut, meta, beatBoard, isGenBeats, onGenBeat, idx }: {
 
 // ── MAIN ───────────────────────────────────────────────────────────────────
 export default function StoryboardApp() {
+  const { user, signIn, signOut } = useAuth();
+  const searchParams = useSearchParams();
+
   const [topic,         setTopic]         = useState("");
   const [totalDuration, setTotalDuration] = useState(120);
   const [customDur,     setCustomDur]     = useState("");
@@ -489,11 +493,11 @@ export default function StoryboardApp() {
   const [extraNote,     setExtraNote]     = useState("");
   const [storyboard,    setStoryboard]    = useState<Storyboard | null>(null);
   const [beatBoards,    setBeatBoards]    = useState<Record<number, Beat[]>>({});
+  const [projectId,     setProjectId]     = useState<string>(() => `sb-${Date.now()}`);
   const [loading,       setLoading]       = useState(false);
   const [genBeats,      setGenBeats]      = useState<Record<number, boolean>>({});
   const [error,         setError]         = useState<string | null>(null);
   const [toast,         setToast]         = useState<string | null>(null);
-  const [user,          setUser]          = useState<User | null>(null);
   const [saving,        setSaving]        = useState(false);
 
   const solInfo = SOLUTIONS[solution];
@@ -502,10 +506,27 @@ export default function StoryboardApp() {
 
   useEffect(() => { setMaxCut(SOLUTIONS[solution].recommended); }, [solution]);
 
+  // Load from Firestore if ?load= param present
   useEffect(() => {
-    if (!auth) return;
-    const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u));
-    return unsubscribe;
+    const loadId = searchParams?.get("load");
+    if (loadId && user) {
+      getStoryboard(user.uid, loadId).then(sb => {
+        if (sb) {
+          try {
+            const parsed = JSON.parse(sb.storyboardData);
+            if (parsed.topic)      setTopic(parsed.topic);
+            if (parsed.solution)   setSolution(parsed.solution);
+            if (parsed.style)      setStyle(parsed.style);
+            if (parsed.mood)       setMood(parsed.mood);
+            if (parsed.effDur)     setTotalDuration(parsed.effDur);
+            if (parsed.storyboard) setStoryboard(parsed.storyboard);
+            if (parsed.beatBoards) setBeatBoards(parsed.beatBoards);
+            setProjectId(loadId);
+          } catch { /* ignore */ }
+        }
+      }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showToast = (msg: string) => {
@@ -547,12 +568,15 @@ Structure:
         ...c, ...(parsed.cuts[i] || {}),
         cutNumber: c.cutNumber, timeStart: c.timeStart, timeEnd: c.timeEnd, duration: c.duration,
       }));
-      setStoryboard({
+      const newSB: Storyboard = {
         toneAndMood: parsed.toneAndMood,
         copyLines: parsed.copyLines || [],
         cuts: merged,
         meta: { topic, solution, style, mood, effDur, maxCut },
-      });
+      };
+      setStoryboard(newSB);
+      // Auto-save to cloud as in-progress
+      cloudSave(newSB, beatBoards, "in-progress").catch(() => {});
     } catch {
       setError("스토리보드 생성 실패. 다시 시도해주세요.");
     }
@@ -591,31 +615,45 @@ Rules:
     try {
       const text  = await callClaude(system, userMsg, 3000);
       const beats = JSON.parse(text.replace(/```json|```/g, "").trim());
-      setBeatBoards(p => ({ ...p, [cut.cutNumber]: beats }));
+      const newBB = { ...beatBoards, [cut.cutNumber]: beats };
+      setBeatBoards(newBB);
+      // Update cloud save with latest beat boards
+      if (storyboard) cloudSave(storyboard, newBB, "in-progress").catch(() => {});
     } catch {
       showToast("비트 생성 실패. 다시 시도해주세요.");
     }
     setGenBeats(p => ({ ...p, [cut.cutNumber]: false }));
   };
 
-  // ── Save to Firebase (서버 라우트 경유 → Admin SDK로 저장) ──
+  // ── Save to Firestore ──
+  const cloudSave = async (sb: Storyboard, bb: Record<number, Beat[]>, status: "in-progress" | "completed") => {
+    if (!user) return;
+    try {
+      await upsertStoryboard(user.uid, {
+        id: projectId,
+        topic: sb.meta.topic,
+        solution: sb.meta.solution,
+        style: sb.meta.style,
+        mood: sb.meta.mood,
+        durationSec: sb.meta.effDur,
+        status,
+        cutsGenerated: sb.cuts.length,
+        totalCuts: sb.cuts.length,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        storyboardData: JSON.stringify({ topic, solution, style, mood, effDur, storyboard: sb, beatBoards: bb }),
+      });
+    } catch (e) {
+      console.warn("Firestore storyboard save failed", e);
+    }
+  };
+
   const handleSave = async () => {
-    if (!user || !storyboard || !auth) return;
+    if (!user || !storyboard) return;
     setSaving(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error("No token");
-
-      const res = await fetch("/api/save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ storyboard, beatBoards }),
-      });
-      const data = await res.json();
-      showToast(data.id ? "스토리보드 저장됐어요! 🎬" : "저장 실패. 다시 시도해주세요.");
+      await cloudSave(storyboard, beatBoards, "completed");
+      showToast("스토리보드 저장됐어요! 🎬");
     } catch {
       showToast("저장 실패. 다시 시도해주세요.");
     }
@@ -678,9 +716,18 @@ Rules:
             </a>
           ))}
         </div>
-        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", fontWeight: 600 }}>
-          Powered by <span style={{ color: "#60A5FA" }}>Gemini</span>
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {user ? (
+            <>
+              <span style={{ fontSize: 10, color: "#10B981" }}>☁️ 클라우드 저장</span>
+              {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 18, height: 18, borderRadius: "50%" }} />}
+            </>
+          ) : (
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", fontWeight: 600 }}>
+              Powered by <span style={{ color: "#60A5FA" }}>Gemini</span>
+            </span>
+          )}
+        </div>
       </nav>
 
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1440, margin: "0 auto", padding: "42px 28px 100px" }}>
@@ -714,16 +761,18 @@ Rules:
               </div>
             ))}
             <button
-              onClick={user ? signOutUser : signInWithGoogle}
+              onClick={user ? signOut : signIn}
               style={{
                 marginLeft: 8, padding: "7px 14px",
                 background: user ? "rgba(255,255,255,0.06)" : "rgba(99,102,241,0.18)",
                 border: `1px solid ${user ? "rgba(255,255,255,0.1)" : "rgba(99,102,241,0.35)"}`,
                 borderRadius: 9, fontSize: 11, fontWeight: 700,
                 color: user ? "rgba(255,255,255,0.5)" : "#818CF8", cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6,
               }}
             >
-              {user ? `${user.displayName?.split(" ")[0] || "User"} ↗` : "Google 로그인"}
+              {user?.photoURL && <img src={user.photoURL} alt="" style={{ width: 16, height: 16, borderRadius: "50%" }} />}
+              {user ? `${user.displayName?.split(" ")[0] || "User"} · 로그아웃` : "Google 로그인"}
             </button>
           </div>
         </div>

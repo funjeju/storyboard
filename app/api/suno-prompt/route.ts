@@ -33,6 +33,38 @@ Your output is a single rich paragraph of comma-separated descriptors covering A
 Output ONLY the style descriptor paragraph. Comma-separated, single paragraph, ≤1000 characters.
 Be cinematic, specific, and dense. Cut adjectives that don't add sonic info.`;
 
+    const adv = body.advanced as {
+      vocalDirection?: string;
+      venueMood?: string;
+      energyCurve?: string;
+      bpmFeel?: string;
+      hookStyle?: string;
+      vocalProduction?: string;
+      songDevice?: string;
+      detailedMoods?: string[];
+      avoidElementsAdvanced?: string[];
+      instruments?: { guitar?: string; drums?: string; bass?: string; synth?: string };
+    } | null;
+
+    const isAutoOrEmpty = (v?: string) => !v || v === "자동" || v.startsWith("자동");
+    const advancedBlock = adv ? `
+
+═══ ADVANCED SONIC CONTROLS (these OVERRIDE genre defaults) ═══
+${!isAutoOrEmpty(adv.vocalDirection) ? `VOCAL DIRECTION: ${adv.vocalDirection} — describe vocal delivery to match this exactly` : ""}
+${!isAutoOrEmpty(adv.venueMood) ? `VENUE/PLACE TEXTURE: ${adv.venueMood} — the sonic world must evoke this specific environment` : ""}
+${!isAutoOrEmpty(adv.energyCurve) ? `ENERGY CURVE: ${adv.energyCurve} — dynamics must follow this shape across the track` : ""}
+${!isAutoOrEmpty(adv.bpmFeel) ? `TEMPO FEEL: ${adv.bpmFeel} — describe rhythm character in these terms` : ""}
+${!isAutoOrEmpty(adv.hookStyle) ? `HOOK STYLE: ${adv.hookStyle} — chorus/hook must have this character` : ""}
+${!isAutoOrEmpty(adv.vocalProduction) ? `VOCAL PRODUCTION: ${adv.vocalProduction} — describe vocal mix/processing this way` : ""}
+${!isAutoOrEmpty(adv.songDevice) ? `SONG DEVICE: ${adv.songDevice} — must explicitly mention this structural device` : ""}
+${(adv.detailedMoods?.length ?? 0) > 0 ? `DETAILED MOODS (atmospheric layers): ${adv.detailedMoods!.join(", ")} — weave these specific feelings into the description` : ""}
+${!isAutoOrEmpty(adv.instruments?.guitar) ? `GUITAR: ${adv.instruments!.guitar} (override genre default)` : ""}
+${!isAutoOrEmpty(adv.instruments?.drums) ? `DRUMS: ${adv.instruments!.drums} (override genre default)` : ""}
+${!isAutoOrEmpty(adv.instruments?.bass) ? `BASS: ${adv.instruments!.bass} (override genre default)` : ""}
+${adv.instruments?.synth && !adv.instruments.synth.startsWith("자동") ? `SYNTH PRESENCE: ${adv.instruments.synth}` : ""}
+${(adv.avoidElementsAdvanced?.length ?? 0) > 0 ? `\n⛔ HARD AVOID LIST (must NEVER appear in the prompt): ${adv.avoidElementsAdvanced!.join(", ")} — do not include any vocabulary, descriptors, or sonic elements that would produce these` : ""}
+═══════════════════════════════════════════════════════════` : "";
+
     const styleUser = `Write a maximally detailed Suno style prompt for this track (${trackLabel}).
 Every parameter below MUST be reflected in the sonic description:
 
@@ -44,9 +76,10 @@ VOCAL: ${body.vocal} (${body.language})
 PURPOSE: ${body.purpose || "general release"}
 THEME/CONTEXT: ${body.topic || "not specified"}
 AVOID: ${body.avoidElements || "nothing specific"}
-EXTRA DIRECTION: ${body.additionalRequests || "none"}
+EXTRA DIRECTION: ${body.additionalRequests || "none"}${advancedBlock}
 
-This is the most important output. Be specific, cinematic, and precise.`;
+This is the most important output. Be specific, cinematic, and precise.
+Remember the 1000-character hard limit — be DENSE, not wordy.`;
 
     const lyricsSystem = `You are an acclaimed ${body.language === "한국어" ? "Korean" : "English"} lyricist.
 Use Suno metatags: [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Final Chorus], [Outro]

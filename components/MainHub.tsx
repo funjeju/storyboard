@@ -75,6 +75,30 @@ const TOOLS = [
     featureColor: "rgba(255,255,255,0.75)",
     ctaText: "🛍️ 상세페이지 시작",
   },
+  {
+    id: "library",
+    icon: "📚",
+    name: "My Library",
+    nameKo: "마이 라이브러리",
+    desc: "생성한 콘텐츠와 음악 파일을 한곳에서 관리",
+    features: [
+      "Suno 스타일 프롬프트·가사 자동 저장",
+      "Suno에서 받아온 음악 파일 업로드",
+      "상세페이지 프로젝트 통합 관리",
+      "검색·필터·태그로 빠른 탐색",
+    ],
+    gradient: "linear-gradient(135deg, #064E3B 0%, #047857 50%, #10B981 100%)",
+    accentGrad: "linear-gradient(135deg, #10B981, #059669)",
+    accent: "#10B981",
+    border: "rgba(16,185,129,0.25)",
+    cardBg: "#F0FDF4",
+    href: "/library",
+    badge: "NEW",
+    badgeColor: "#10B981",
+    textColor: "white",
+    featureColor: "rgba(255,255,255,0.75)",
+    ctaText: "📚 라이브러리 열기",
+  },
 ];
 
 export default function MainHub() {
@@ -135,7 +159,7 @@ export default function MainHub() {
             width: 8, height: 8, borderRadius: "50%", background: "#10B981",
             boxShadow: "0 0 0 3px rgba(16,185,129,0.2)",
           }} />
-          <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>3 tools active</span>
+          <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>4 tools active</span>
         </div>
       </header>
 
@@ -172,7 +196,7 @@ export default function MainHub() {
         </div>
 
         {/* ── TOOL CARDS ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24, paddingBottom: 80 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 24, paddingBottom: 80 }}>
           {TOOLS.map((tool, i) => (
             <div
               key={tool.id}
@@ -245,7 +269,7 @@ export default function MainHub() {
                     <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                       <div style={{
                         width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                        background: `rgba(${tool.id === "storyboard" ? "251,191,36" : tool.id === "suno" ? "124,58,237" : "37,99,235"},0.1)`,
+                        background: `rgba(${tool.id === "storyboard" ? "251,191,36" : tool.id === "suno" ? "124,58,237" : tool.id === "library" ? "16,185,129" : "37,99,235"},0.1)`,
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 9, color: tool.accent, fontWeight: 800, marginTop: 1,
                       }}>✓</div>
@@ -263,7 +287,7 @@ export default function MainHub() {
                   fontSize: 14, fontWeight: 700, color: "white",
                   cursor: "pointer",
                   letterSpacing: 0.3,
-                  boxShadow: `0 4px 14px rgba(${tool.id === "storyboard" ? "251,191,36" : tool.id === "suno" ? "124,58,237" : "37,99,235"},0.35)`,
+                  boxShadow: `0 4px 14px rgba(${tool.id === "storyboard" ? "251,191,36" : tool.id === "suno" ? "124,58,237" : tool.id === "library" ? "16,185,129" : "37,99,235"},0.35)`,
                   transition: "opacity 0.15s",
                 }}>
                   {tool.ctaText} →

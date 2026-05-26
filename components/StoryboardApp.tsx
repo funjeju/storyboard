@@ -664,6 +664,7 @@ Rules:
             { href: "/storyboard", icon: "🎬", label: "Storyboard" },
             { href: "/suno", icon: "🎵", label: "Suno Maker" },
             { href: "/detail", icon: "🛍️", label: "Detail Page" },
+            { href: "/library", icon: "📚", label: "My Library" },
           ].map(t => (
             <a key={t.href} href={t.href} style={{
               display: "flex", alignItems: "center", gap: 5,

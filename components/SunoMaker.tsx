@@ -29,6 +29,82 @@ const PLATFORMS = [
   { id: "soundcloud", label: "SoundCloud", lufs: -8,  color: "#FF5500" },
 ];
 
+// ── ADVANCED MODE OPTIONS ──────────────────────────────────────────────────
+const VOCAL_DIRECTIONS = [
+  "자동", "속삭임 중심", "감성/허스키", "청량한 팝톤", "파워 보컬",
+  "오페라틱/고딕", "거친 샤우팅 혼합", "듀엣/하모니 강조",
+];
+const VENUE_MOODS = [
+  "자동", "바다 파도", "바람 소리", "비 오는 거리", "화산/현무암 무드",
+  "도심 야경", "카페 감성", "드라이브", "캠프파이어", "새벽 공항",
+  "섬 여행 감성",
+];
+const ENERGY_CURVES = [
+  "자동", "잔잔→폭발형", "처음부터 강렬함", "점층적 빌드업",
+  "후렴 몰빵형", "브릿지 반전형", "마지막 대폭발형",
+];
+const BPM_FEELS = [
+  "자동", "느리고 묵직함", "미드템포 그루브", "달리는 느낌", "댄서블",
+];
+const HOOK_STYLES = [
+  "자동", "떼창형(anthem)", "감정 폭발형", "중독성 반복형",
+  "속삭임 훅", "고음 터짐형", "랩 섞임",
+];
+const VOCAL_PRODUCTION = [
+  "자동", "생보컬 느낌", "리버브 많음", "오토튠 약간",
+  "하모니 강조", "공간감 큼", "라디오/빈티지 질감",
+];
+const SONG_DEVICES = [
+  "자동", "브릿지 조바꿈", "템포 드롭", "브레이크다운",
+  "무반주 파트", "기타 솔로", "코러스 반복 엔딩",
+];
+const DETAILED_MOODS_MULTI = [
+  "몽환적", "고독한", "치명적", "설레는", "영화적", "광활한",
+  "여름밤", "새벽 감성", "미스터리", "bittersweet(아련함)",
+];
+const AVOID_ELEMENTS_OPTIONS = [
+  "과한 EDM", "과한 샤우팅", "밝은 분위기", "유치한 가사톤",
+  "과한 신스", "재즈 느낌", "펑크 느낌", "트랩 비트",
+];
+const INSTRUMENT_GUITAR = ["자동", "클린", "디스토션", "헤비 리프", "앰비언트", "빈티지"];
+const INSTRUMENT_DRUMS  = ["자동", "타이트", "묵직함", "트라이벌", "더블킥", "라이브 밴드 느낌"];
+const INSTRUMENT_BASS   = ["자동", "서브 강함", "펑키", "왜곡", "자연스러움"];
+const INSTRUMENT_SYNTH  = ["자동: 장르에 맞게", "없음", "약함", "중간", "강함"];
+
+// One-click presets that set multiple advanced fields at once
+const PRESETS: { name: string; emoji: string; set: Record<string, string | string[]> }[] = [
+  { name: "제주 새벽 드라이브", emoji: "🌅", set: {
+    vocalDirection: "속삭임 중심", venueMood: "드라이브", energyCurve: "점층적 빌드업",
+    bpmFeel: "미드템포 그루브", hookStyle: "속삭임 훅", vocalProduction: "리버브 많음",
+    detailedMoods: ["새벽 감성", "영화적", "광활한"],
+  } },
+  { name: "여름밤 시티팝", emoji: "🌃", set: {
+    vocalDirection: "청량한 팝톤", venueMood: "도심 야경", energyCurve: "잔잔→폭발형",
+    bpmFeel: "댄서블", hookStyle: "중독성 반복형", vocalProduction: "공간감 큼",
+    detailedMoods: ["여름밤", "설레는"],
+  } },
+  { name: "겨울 아침 카페", emoji: "☕", set: {
+    vocalDirection: "감성/허스키", venueMood: "카페 감성", energyCurve: "처음부터 강렬함",
+    bpmFeel: "느리고 묵직함", hookStyle: "속삭임 훅", vocalProduction: "생보컬 느낌",
+    detailedMoods: ["고독한", "bittersweet(아련함)"],
+  } },
+  { name: "광활한 영화 OST", emoji: "🎬", set: {
+    vocalDirection: "오페라틱/고딕", venueMood: "화산/현무암 무드", energyCurve: "마지막 대폭발형",
+    bpmFeel: "느리고 묵직함", hookStyle: "고음 터짐형", vocalProduction: "공간감 큼",
+    detailedMoods: ["영화적", "광활한", "치명적"],
+  } },
+  { name: "비 오는 밤 R&B", emoji: "🌧️", set: {
+    vocalDirection: "감성/허스키", venueMood: "비 오는 거리", energyCurve: "잔잔→폭발형",
+    bpmFeel: "미드템포 그루브", hookStyle: "감정 폭발형", vocalProduction: "리버브 많음",
+    detailedMoods: ["몽환적", "치명적", "bittersweet(아련함)"],
+  } },
+  { name: "섬 여행 인디팝", emoji: "🏝️", set: {
+    vocalDirection: "청량한 팝톤", venueMood: "섬 여행 감성", energyCurve: "처음부터 강렬함",
+    bpmFeel: "달리는 느낌", hookStyle: "떼창형(anthem)", vocalProduction: "생보컬 느낌",
+    detailedMoods: ["여름밤", "설레는", "광활한"],
+  } },
+];
+
 // ── STYLES ─────────────────────────────────────────────────────────────────
 const P = "#7C3AED";
 const PINK = "#EC4899";
@@ -213,6 +289,20 @@ function Slider({ value, onChange, label }: { value: number; onChange: (v: numbe
   );
 }
 
+// ── TYPES ──────────────────────────────────────────────────────────────────
+interface LibraryTrack {
+  id: string;
+  title: string;
+  stylePrompt: string;
+  lyrics: string | null;
+  genre: string;
+  mood: string;
+  vocal: string;
+  topic: string;
+  createdAt: number;
+  audioDataKey: string | null; // IndexedDB key for uploaded audio
+}
+
 // ── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function SunoMaker() {
   // ─ Project
@@ -245,6 +335,22 @@ export default function SunoMaker() {
   const [vocal,        setVocal]        = useState("있음");
   const [language,     setLanguage]     = useState("한국어");
   const [promptLang,   setPromptLang]   = useState("영어");
+
+  // ─ Advanced Mode (sonic detail controls)
+  const [advancedMode,     setAdvancedMode]     = useState(false);
+  const [vocalDirection,   setVocalDirection]   = useState("자동");
+  const [venueMood,        setVenueMood]        = useState("자동");
+  const [energyCurve,      setEnergyCurve]      = useState("자동");
+  const [bpmFeel,          setBpmFeel]          = useState("자동");
+  const [hookStyle,        setHookStyle]        = useState("자동");
+  const [vocalProduction,  setVocalProduction]  = useState("자동");
+  const [songDevice,       setSongDevice]       = useState("자동");
+  const [detailedMoods,    setDetailedMoods]    = useState<string[]>([]);
+  const [avoidElementsAdv, setAvoidElementsAdv] = useState<string[]>([]);
+  const [instGuitar,       setInstGuitar]       = useState("자동");
+  const [instDrums,        setInstDrums]        = useState("자동");
+  const [instBass,         setInstBass]         = useState("자동");
+  const [instSynth,        setInstSynth]        = useState("자동: 장르에 맞게");
 
   // ─ Mastering
   const [platform,     setPlatform]     = useState("spotify");
@@ -302,6 +408,11 @@ export default function SunoMaker() {
             avoidElements: avoidEl, additionalRequests: addRequest,
             genre1, genre2, purpose, mood, intensity,
             bpmMode, bpm, duration, vocal, language, promptLanguage: promptLang,
+            advanced: advancedMode ? {
+              vocalDirection, venueMood, energyCurve, bpmFeel, hookStyle,
+              vocalProduction, songDevice, detailedMoods, avoidElementsAdvanced: avoidElementsAdv,
+              instruments: { guitar: instGuitar, drums: instDrums, bass: instBass, synth: instSynth },
+            } : null,
           }),
         });
         const data = await res.json();
@@ -318,6 +429,27 @@ export default function SunoMaker() {
     setResults(out);
     setLyricsOpen(out.map(() => false));
     setLoading(false);
+
+    // Auto-save to library for /library page
+    try {
+      const existing: LibraryTrack[] = JSON.parse(localStorage.getItem("suno_library_v1") || "[]");
+      const now = Date.now();
+      const newEntries: LibraryTrack[] = out.map((r, idx) => ({
+        id: `track-${now}-${idx}`,
+        title: r.suggestedTitle || (titleMode === "custom" ? title : "") || `${genre1} 트랙 ${idx + 1}`,
+        stylePrompt: r.stylePrompt,
+        lyrics: r.lyrics,
+        genre: [genre1, genre2].filter(Boolean).join(" + "),
+        mood,
+        vocal: `${vocal} (${language})`,
+        topic,
+        createdAt: now + idx,
+        audioDataKey: null,
+      }));
+      localStorage.setItem("suno_library_v1", JSON.stringify([...newEntries, ...existing].slice(0, 200)));
+    } catch (e) {
+      console.warn("Library save failed", e);
+    }
   };
 
   const copy = (text: string, key: string) => {
@@ -436,6 +568,7 @@ export default function SunoMaker() {
             { href: "/storyboard", icon: "🎬", label: "Storyboard" },
             { href: "/suno", icon: "🎵", label: "Suno Maker" },
             { href: "/detail", icon: "🛍️", label: "Detail Page" },
+            { href: "/library", icon: "📚", label: "My Library" },
           ].map(t => (
             <Link key={t.href} href={t.href} style={{
               display: "flex", alignItems: "center", gap: 5,
@@ -680,6 +813,183 @@ export default function SunoMaker() {
               </Field>
             </div>
           </SectionCard>
+        </div>
+
+        {/* ── ADVANCED MODE ── */}
+        <div style={{
+          background: "white", borderRadius: 18,
+          border: `1.5px solid ${advancedMode ? P : "#E5E7EB"}`,
+          padding: 0, marginBottom: 18, overflow: "hidden",
+          boxShadow: advancedMode ? "0 4px 20px rgba(124,58,237,0.12)" : "0 1px 3px rgba(0,0,0,0.04)",
+        }}>
+          {/* Toggle header */}
+          <button
+            onClick={() => setAdvancedMode(v => !v)}
+            style={{
+              width: "100%", padding: "18px 24px",
+              background: advancedMode ? `linear-gradient(135deg, ${P}10, ${PINK}10)` : "white",
+              border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}
+          >
+            <div style={{ textAlign: "left" }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 2 }}>
+                ✨ 고급 사운드 디테일 {advancedMode && <span style={{ color: P, fontSize: 11, marginLeft: 6 }}>ON</span>}
+              </div>
+              <div style={{ fontSize: 11, color: "#9CA3AF" }}>
+                보컬 디렉션 · 악기 · 분위기 · 에너지 곡선 · 장소 텍스처 · 금지 요소 11개 카테고리
+              </div>
+            </div>
+            <span style={{
+              fontSize: 14, color: advancedMode ? P : "#9CA3AF",
+              transform: advancedMode ? "rotate(180deg)" : "rotate(0)",
+              transition: "transform 0.2s",
+            }}>▼</span>
+          </button>
+
+          {advancedMode && (
+            <div style={{ padding: "20px 24px", borderTop: "1px solid #F3F4F6" }}>
+              {/* Presets */}
+              <div style={{ marginBottom: 22 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#6B7280", letterSpacing: 1, marginBottom: 8 }}>
+                  ⚡ 원클릭 프리셋 — 한 번에 여러 옵션 세팅
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {PRESETS.map(preset => (
+                    <button
+                      key={preset.name}
+                      onClick={() => {
+                        const s = preset.set;
+                        if (s.vocalDirection) setVocalDirection(s.vocalDirection as string);
+                        if (s.venueMood) setVenueMood(s.venueMood as string);
+                        if (s.energyCurve) setEnergyCurve(s.energyCurve as string);
+                        if (s.bpmFeel) setBpmFeel(s.bpmFeel as string);
+                        if (s.hookStyle) setHookStyle(s.hookStyle as string);
+                        if (s.vocalProduction) setVocalProduction(s.vocalProduction as string);
+                        if (s.detailedMoods) setDetailedMoods(s.detailedMoods as string[]);
+                      }}
+                      style={{
+                        padding: "8px 14px", borderRadius: 10,
+                        background: "#FAF5FF", border: `1.5px solid #DDD6FE`,
+                        fontSize: 12, fontWeight: 700, color: "#5B21B6", cursor: "pointer",
+                      }}
+                    >
+                      {preset.emoji} {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Group 1: Sonic identity (single-select) */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14, marginBottom: 18 }}>
+                <Field label="🎤 보컬 디렉션">
+                  <select value={vocalDirection} onChange={e => setVocalDirection(e.target.value)} style={selectStyle}>
+                    {VOCAL_DIRECTIONS.map(v => <option key={v}>{v}</option>)}
+                  </select>
+                </Field>
+                <Field label="🌅 장소·무드 텍스처">
+                  <select value={venueMood} onChange={e => setVenueMood(e.target.value)} style={selectStyle}>
+                    {VENUE_MOODS.map(v => <option key={v}>{v}</option>)}
+                  </select>
+                </Field>
+                <Field label="📈 에너지 곡선">
+                  <select value={energyCurve} onChange={e => setEnergyCurve(e.target.value)} style={selectStyle}>
+                    {ENERGY_CURVES.map(v => <option key={v}>{v}</option>)}
+                  </select>
+                </Field>
+                <Field label="🥁 BPM 느낌">
+                  <select value={bpmFeel} onChange={e => setBpmFeel(e.target.value)} style={selectStyle}>
+                    {BPM_FEELS.map(v => <option key={v}>{v}</option>)}
+                  </select>
+                </Field>
+                <Field label="🎵 후렴 스타일">
+                  <select value={hookStyle} onChange={e => setHookStyle(e.target.value)} style={selectStyle}>
+                    {HOOK_STYLES.map(v => <option key={v}>{v}</option>)}
+                  </select>
+                </Field>
+                <Field label="🎚️ 보컬 프로덕션">
+                  <select value={vocalProduction} onChange={e => setVocalProduction(e.target.value)} style={selectStyle}>
+                    {VOCAL_PRODUCTION.map(v => <option key={v}>{v}</option>)}
+                  </select>
+                </Field>
+                <Field label="🎼 곡 전개 장치">
+                  <select value={songDevice} onChange={e => setSongDevice(e.target.value)} style={selectStyle}>
+                    {SONG_DEVICES.map(v => <option key={v}>{v}</option>)}
+                  </select>
+                </Field>
+                <div />
+              </div>
+
+              {/* Group 2: Detailed moods (multi-select chips) */}
+              <Field label="🎨 분위기 세분화 (복수 선택)">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {DETAILED_MOODS_MULTI.map(m => {
+                    const active = detailedMoods.includes(m);
+                    return (
+                      <button key={m} onClick={() => setDetailedMoods(prev =>
+                        active ? prev.filter(x => x !== m) : [...prev, m]
+                      )} style={{
+                        padding: "5px 12px", borderRadius: 16, fontSize: 12, fontWeight: 600,
+                        background: active ? P : "#F3F0FF",
+                        color: active ? "white" : "#6B21A8",
+                        border: `1.5px solid ${active ? P : "#EDE9FE"}`,
+                        cursor: "pointer",
+                      }}>{m}</button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              {/* Group 3: Instruments */}
+              <div style={{ marginTop: 16, padding: "14px 16px", background: "#FAFAFB", borderRadius: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#6B7280", letterSpacing: 1, marginBottom: 10 }}>
+                  🎸 악기 디테일 (장르 자동 추론을 덮어쓰고 싶을 때만)
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                  <Field label="기타">
+                    <select value={instGuitar} onChange={e => setInstGuitar(e.target.value)} style={selectStyle}>
+                      {INSTRUMENT_GUITAR.map(v => <option key={v}>{v}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="드럼">
+                    <select value={instDrums} onChange={e => setInstDrums(e.target.value)} style={selectStyle}>
+                      {INSTRUMENT_DRUMS.map(v => <option key={v}>{v}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="베이스">
+                    <select value={instBass} onChange={e => setInstBass(e.target.value)} style={selectStyle}>
+                      {INSTRUMENT_BASS.map(v => <option key={v}>{v}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="신스">
+                    <select value={instSynth} onChange={e => setInstSynth(e.target.value)} style={selectStyle}>
+                      {INSTRUMENT_SYNTH.map(v => <option key={v}>{v}</option>)}
+                    </select>
+                  </Field>
+                </div>
+              </div>
+
+              {/* Group 4: Negative prompts (checkboxes) */}
+              <Field label="🚫 금지 요소 (선택한 것은 절대 생성하지 않음)">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {AVOID_ELEMENTS_OPTIONS.map(a => {
+                    const active = avoidElementsAdv.includes(a);
+                    return (
+                      <button key={a} onClick={() => setAvoidElementsAdv(prev =>
+                        active ? prev.filter(x => x !== a) : [...prev, a]
+                      )} style={{
+                        padding: "5px 12px", borderRadius: 16, fontSize: 12, fontWeight: 600,
+                        background: active ? "#FEE2E2" : "#F9FAFB",
+                        color: active ? "#991B1B" : "#6B7280",
+                        border: `1.5px solid ${active ? "#FCA5A5" : "#E5E7EB"}`,
+                        cursor: "pointer",
+                      }}>{active ? "✕ " : ""}{a}</button>
+                    );
+                  })}
+                </div>
+              </Field>
+            </div>
+          )}
         </div>
 
         {/* ── GENERATE BUTTON ── */}

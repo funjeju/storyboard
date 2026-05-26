@@ -1,4 +1,4 @@
-﻿import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
@@ -6,66 +6,84 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const isAlbum = body.projectType === "album";
+    const trackLabel = isAlbum ? `트랙 ${body.trackIndex || 1}/${body.trackCount}` : "싱글";
 
-    const system = `You are a professional music producer creating optimized prompts for Suno AI music generation.
-Generate a complete, production-ready Suno prompt based on the user's parameters.
+    // ── 1. Style Prompt (Suno "Style of Music" 필드용) ──────────────────────
+    const styleSystem = `You are a professional music producer who writes optimized style prompts for Suno AI.
+Suno's "Style of Music" field accepts a SHORT comma-separated description (max 120 characters is ideal, never exceed 200).
+DO NOT write lyrics. DO NOT use section tags like [Verse] or [Chorus].
+Write ONLY musical descriptors: genre, mood, instruments, tempo, vocal style, production notes.
+Output ONLY the style prompt string, nothing else.`;
 
-FORMAT RULES:
-- Use section tags: [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Final Chorus], [Outro]
-- Include ACTUAL LYRICS in each section (not placeholders)
-- End with a [Style: ...] tag containing: genre, mood, BPM, vocal style, instruments, production style
-- If no vocal: mark sections as [Instrumental Intro], etc., with mood/feel descriptions instead of lyrics
-- If topic is empty, create compelling original lyrics
+    const styleUser = `Write a Suno style prompt for this track (${trackLabel}):
+Genre: ${body.genre1}${body.genre2 ? `, ${body.genre2}` : ""}
+Mood: ${body.mood} | Intensity: ${body.intensity}
+Purpose: ${body.purpose || "general release"}
+BPM: ${body.bpmMode === "random" ? "auto" : body.bpm}
+Vocal: ${body.vocal} | Language: ${body.language}
+Extra context: ${body.additionalRequests || "none"}
+${body.topic ? `Theme: ${body.topic}` : ""}
 
-QUALITY STANDARDS:
-- Lyrics must rhyme naturally and fit the requested density/rhyme style
-- Hook must be memorable and standalone
-- Emotional arc: build through verse ??release in chorus
-- Style tag must be specific and actionable for Suno`;
+Output ONLY the comma-separated style descriptor. Example format:
+"emotional K-pop ballad, melancholic and nostalgic, male vocalist with husky tenor, piano melody with orchestral strings, 75 BPM, cinematic reverb, studio quality"`;
 
-    const userMsg = `Generate a Suno prompt with these parameters:
+    // ── 2. Lyrics (Suno Custom Mode용, 선택사항) ────────────────────────────
+    const lyricsSystem = `You are a professional songwriter writing lyrics for Suno AI's custom mode.
+Use Suno metatags: [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Final Chorus], [Outro]
+Write COMPLETE lyrics — never cut off mid-sentence.
+Lyrics language: ${body.language}
+Rhyme style: ${body.rhymeStyle || "natural"}
+Lyric density: ${body.lyricDensity || "medium"}
+Hook strength: ${body.hookStrength || "strong"}
+Structure: ${body.songStructure || "Verse-PreChorus-Chorus-Verse-Bridge-FinalChorus-Outro"}
+Output ONLY the lyrics with tags, nothing else.`;
 
-PROJECT: ${body.projectType === "album" ? `Album ??Track ${body.trackIndex || 1} of ${body.trackCount}` : "Single"}
-TITLE: ${body.title || "AI will decide"}
+    const lyricsUser = `Write complete song lyrics for (${trackLabel}):
+Topic: ${body.topic || "create a compelling original theme"}
+Hook idea: ${body.hookLyrics || "AI will create"}
+Avoid: ${body.avoidElements || "nothing specific"}
+Extra notes: ${body.additionalRequests || "none"}
 
-SONG CONTENT:
-- Topic: ${body.topic || "AI choice ??make something compelling"}
-- Hook Lyrics: ${body.hookLyrics || "AI generated"}
-- Structure: ${body.songStructure || "Intro-Verse-PreChorus-Chorus-Verse-Bridge-FinalChorus-Outro"}
-- Lyric Density: ${body.lyricDensity}
-- Hook Strength: ${body.hookStrength}
-- Rhyme Style: ${body.rhymeStyle}
-- Avoid: ${body.avoidElements || "nothing specific"}
-- Extra Notes: ${body.additionalRequests || "none"}
+Write ALL sections completely. Never truncate.`;
 
-STYLE:
-- Genre 1: ${body.genre1}
-- Genre 2: ${body.genre2 || "none"}
-- Purpose: ${body.purpose || "general release"}
-- Mood: ${body.mood}
-- Intensity: ${body.intensity}
-
-TECHNICAL:
-- BPM: ${body.bpmMode === "random" ? "AI choice (fit the genre)" : body.bpm}
-- Duration: ${body.duration}
-- Vocal: ${body.vocal}
-- Language: ${body.language}
-- Prompt Language: ${body.promptLanguage}
-
-Output the complete Suno prompt only. No explanation, no preamble.`;
-
-    const model = genAI.getGenerativeModel({
+    const styleModel = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: system,
+      systemInstruction: styleSystem,
     });
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: userMsg }] }],
-      generationConfig: { maxOutputTokens: 2000 },
+    const lyricsModel = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: lyricsSystem,
     });
 
-    const text = result.response.text();
-    return NextResponse.json({ prompt: text });
+    // 스타일 프롬프트는 항상 생성, 가사는 vocal이 있을 때만
+    const [styleResult, lyricsResult] = await Promise.all([
+      styleModel.generateContent({
+        contents: [{ role: "user", parts: [{ text: styleUser }] }],
+        generationConfig: { maxOutputTokens: 200 },
+      }),
+      body.vocal !== "없음" ? lyricsModel.generateContent({
+        contents: [{ role: "user", parts: [{ text: lyricsUser }] }],
+        generationConfig: { maxOutputTokens: 3000 },
+      }) : Promise.resolve(null),
+    ]);
+
+    const stylePrompt = styleResult.response.text().trim().replace(/^["']|["']$/g, "");
+    const lyrics = lyricsResult ? lyricsResult.response.text().trim() : null;
+
+    // 제목 제안
+    const titleModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const titleResult = await titleModel.generateContent({
+      contents: [{
+        role: "user",
+        parts: [{ text: `Suggest a short, evocative song title in ${body.language} for: ${stylePrompt}${body.topic ? `. Theme: ${body.topic}` : ""}. Reply with ONLY the title, nothing else.` }],
+      }],
+      generationConfig: { maxOutputTokens: 30 },
+    });
+    const suggestedTitle = titleResult.response.text().trim().replace(/^["']|["']$/g, "");
+
+    return NextResponse.json({ stylePrompt, lyrics, suggestedTitle });
   } catch (error) {
     console.error("Suno prompt API error:", error);
     return NextResponse.json({ error: "Prompt generation failed" }, { status: 500 });

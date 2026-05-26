@@ -263,9 +263,9 @@ export default function SunoMaker() {
   const [genCover,     setGenCover]     = useState(false);
 
   // ─ Results
-  const [generatedPrompts, setGeneratedPrompts] = useState<string[]>([]);
+  const [results, setResults] = useState<{ stylePrompt: string; lyrics: string | null; suggestedTitle: string }[]>([]);
   const [loading,          setLoading]          = useState(false);
-  const [copiedIdx,        setCopiedIdx]        = useState<number | null>(null);
+  const [copiedTarget,     setCopiedTarget]     = useState<string | null>(null);
 
   // ─ Audio
   const [audioFile,     setAudioFile]     = useState<File | null>(null);
@@ -282,11 +282,11 @@ export default function SunoMaker() {
   // ─ Generate Suno Prompts
   const generate = async () => {
     setLoading(true);
-    setGeneratedPrompts([]);
+    setResults([]);
     setMasterDone(false);
 
     const count = projectType === "album" ? trackCount : 1;
-    const prompts: string[] = [];
+    const out: typeof results = [];
 
     for (let i = 0; i < count; i++) {
       try {
@@ -304,20 +304,24 @@ export default function SunoMaker() {
           }),
         });
         const data = await res.json();
-        prompts.push(data.prompt || "생성 실패");
+        out.push({
+          stylePrompt: data.stylePrompt || "생성 실패",
+          lyrics: data.lyrics || null,
+          suggestedTitle: data.suggestedTitle || "",
+        });
       } catch {
-        prompts.push("생성 실패 — 다시 시도해주세요.");
+        out.push({ stylePrompt: "생성 실패 — 다시 시도해주세요.", lyrics: null, suggestedTitle: "" });
       }
     }
 
-    setGeneratedPrompts(prompts);
+    setResults(out);
     setLoading(false);
   };
 
-  const copyPrompt = (idx: number) => {
-    navigator.clipboard.writeText(generatedPrompts[idx]);
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 1800);
+  const copy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedTarget(key);
+    setTimeout(() => setCopiedTarget(null), 1800);
   };
 
   // ─ Audio Analysis
@@ -664,57 +668,120 @@ export default function SunoMaker() {
           )}
         </button>
 
-        {/* ── GENERATED PROMPTS ── */}
-        {generatedPrompts.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeUp 0.4s ease" }}>
-            {generatedPrompts.map((prompt, i) => (
-              <div key={i} style={{
-                background: "white", borderRadius: 20,
-                border: "1px solid #EDE9FE",
-                overflow: "hidden",
-                boxShadow: "0 2px 8px rgba(124,58,237,0.06)",
-              }}>
-                <div style={{
-                  background: "#F3F0FF", padding: "12px 20px",
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  borderBottom: "1px solid #EDE9FE",
-                }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: P }}>
-                    🎵 {projectType === "album" ? `Track ${i + 1}` : title || "Suno Prompt"}
-                  </span>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => copyPrompt(i)} style={{
+        {/* ── GENERATED RESULTS ── */}
+        {results.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, animation: "fadeUp 0.4s ease" }}>
+            {results.map((r, i) => (
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+                {/* 제목 제안 */}
+                {r.suggestedTitle && (
+                  <div style={{
+                    background: `linear-gradient(135deg, ${P}, ${PINK})`,
+                    borderRadius: 14, padding: "10px 20px",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", fontWeight: 700, letterSpacing: 1 }}>
+                        {projectType === "album" ? `TRACK ${i + 1}` : "TITLE SUGGESTION"}
+                      </div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "white" }}>{r.suggestedTitle}</div>
+                    </div>
+                    <button onClick={() => copy(r.suggestedTitle, `title-${i}`)} style={{
                       padding: "6px 14px", borderRadius: 8,
-                      background: copiedIdx === i ? "rgba(16,185,129,0.12)" : P,
-                      border: "none", fontSize: 11, fontWeight: 700,
-                      color: copiedIdx === i ? "#10B981" : "white",
-                      cursor: "pointer",
+                      background: "rgba(255,255,255,0.2)", border: "none",
+                      fontSize: 11, fontWeight: 700, color: "white", cursor: "pointer",
                     }}>
-                      {copiedIdx === i ? "✓ 복사됨" : "📋 복사"}
+                      {copiedTarget === `title-${i}` ? "✓ 복사됨" : "📋 복사"}
                     </button>
-                    <a
-                      href="https://suno.com" target="_blank" rel="noopener noreferrer"
-                      onClick={() => navigator.clipboard.writeText(prompt)}
-                      style={{
-                        padding: "6px 14px", borderRadius: 8,
-                        background: `linear-gradient(135deg, ${P}, ${PINK})`,
-                        border: "none", fontSize: 11, fontWeight: 700,
-                        color: "white", cursor: "pointer", textDecoration: "none",
-                        display: "inline-flex", alignItems: "center",
-                      }}
-                    >
-                      🌐 Suno 열기
-                    </a>
                   </div>
+                )}
+
+                {/* Style Prompt — Suno "Style of Music" 필드용 */}
+                <div style={{
+                  background: "white", borderRadius: 16,
+                  border: "2px solid #DDD6FE",
+                  overflow: "hidden",
+                  boxShadow: "0 2px 8px rgba(124,58,237,0.08)",
+                }}>
+                  <div style={{
+                    background: "#F3F0FF", padding: "10px 18px",
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    borderBottom: "1px solid #EDE9FE",
+                  }}>
+                    <div>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: P }}>🎨 Style Prompt</span>
+                      <span style={{ fontSize: 10, color: "#9CA3AF", marginLeft: 8 }}>Suno → "Style of Music" 필드에 붙여넣기</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => copy(r.stylePrompt, `style-${i}`)} style={{
+                        padding: "5px 12px", borderRadius: 8,
+                        background: copiedTarget === `style-${i}` ? "rgba(16,185,129,0.15)" : P,
+                        border: "none", fontSize: 11, fontWeight: 700,
+                        color: copiedTarget === `style-${i}` ? "#10B981" : "white",
+                        cursor: "pointer",
+                      }}>
+                        {copiedTarget === `style-${i}` ? "✓ 복사됨" : "📋 복사"}
+                      </button>
+                      <a
+                        href="https://suno.com" target="_blank" rel="noopener noreferrer"
+                        onClick={() => copy(r.stylePrompt, `suno-${i}`)}
+                        style={{
+                          padding: "5px 12px", borderRadius: 8,
+                          background: `linear-gradient(135deg, ${P}, ${PINK})`,
+                          fontSize: 11, fontWeight: 700, color: "white",
+                          textDecoration: "none", display: "inline-flex", alignItems: "center",
+                        }}
+                      >
+                        🌐 Suno 열기
+                      </a>
+                    </div>
+                  </div>
+                  <div style={{
+                    padding: "18px 20px",
+                    fontSize: 13, lineHeight: 1.8, color: "#1F2937",
+                    fontWeight: 500,
+                    background: "white",
+                  }}>{r.stylePrompt}</div>
                 </div>
-                <pre style={{
-                  margin: 0, padding: "20px",
-                  fontSize: 12, lineHeight: 1.8, color: "#374151",
-                  fontFamily: "'Space Mono', monospace",
-                  whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  maxHeight: 400, overflowY: "auto",
-                  background: "white",
-                }}>{prompt}</pre>
+
+                {/* Lyrics — Custom Mode용 (있을 때만) */}
+                {r.lyrics && (
+                  <div style={{
+                    background: "white", borderRadius: 16,
+                    border: "1px solid #E5E7EB",
+                    overflow: "hidden",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                  }}>
+                    <div style={{
+                      background: "#F9FAFB", padding: "10px 18px",
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      borderBottom: "1px solid #E5E7EB",
+                    }}>
+                      <div>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: "#374151" }}>📝 Lyrics</span>
+                        <span style={{ fontSize: 10, color: "#9CA3AF", marginLeft: 8 }}>Suno → Custom Mode → Lyrics 필드에 붙여넣기</span>
+                      </div>
+                      <button onClick={() => copy(r.lyrics!, `lyrics-${i}`)} style={{
+                        padding: "5px 12px", borderRadius: 8,
+                        background: copiedTarget === `lyrics-${i}` ? "rgba(16,185,129,0.15)" : "#F3F4F6",
+                        border: "1px solid #E5E7EB", fontSize: 11, fontWeight: 700,
+                        color: copiedTarget === `lyrics-${i}` ? "#10B981" : "#374151",
+                        cursor: "pointer",
+                      }}>
+                        {copiedTarget === `lyrics-${i}` ? "✓ 복사됨" : "📋 복사"}
+                      </button>
+                    </div>
+                    <pre style={{
+                      margin: 0, padding: "18px 20px",
+                      fontSize: 12, lineHeight: 2, color: "#374151",
+                      fontFamily: "'Space Mono', monospace",
+                      whiteSpace: "pre-wrap", wordBreak: "break-word",
+                      maxHeight: 400, overflowY: "auto",
+                      background: "white",
+                    }}>{r.lyrics}</pre>
+                  </div>
+                )}
               </div>
             ))}
 

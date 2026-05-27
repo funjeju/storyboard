@@ -65,6 +65,21 @@ ${adv.instruments?.synth && !adv.instruments.synth.startsWith("자동") ? `SYNTH
 ${(adv.avoidElementsAdvanced?.length ?? 0) > 0 ? `\n⛔ HARD AVOID LIST (must NEVER appear in the prompt): ${adv.avoidElementsAdvanced!.join(", ")} — do not include any vocabulary, descriptors, or sonic elements that would produce these` : ""}
 ═══════════════════════════════════════════════════════════` : "";
 
+    const lyricsCtx = body.lyricsContext as {
+      genre?: string; mood?: string; atmosphere?: string;
+      styleHint?: string; emotionSummary?: string;
+    } | null;
+
+    const lyricsContextBlock = lyricsCtx ? `
+
+═══ LYRICS CONTEXT (style MUST complement these lyrics) ═══
+Genre hint: ${lyricsCtx.genre || ""}
+Mood: ${lyricsCtx.mood || ""}
+Atmosphere: ${lyricsCtx.atmosphere || ""}
+Emotion: ${lyricsCtx.emotionSummary || ""}
+Style direction: ${lyricsCtx.styleHint || ""}
+═══════════════════════════════════════════════════════════` : "";
+
     const styleUser = `Write a maximally detailed Suno style prompt for this track (${trackLabel}).
 Every parameter below MUST be reflected in the sonic description:
 
@@ -76,7 +91,7 @@ VOCAL: ${body.vocal} (${body.language})
 PURPOSE: ${body.purpose || "general release"}
 THEME/CONTEXT: ${body.topic || "not specified"}
 AVOID: ${body.avoidElements || "nothing specific"}
-EXTRA DIRECTION: ${body.additionalRequests || "none"}${advancedBlock}
+EXTRA DIRECTION: ${body.additionalRequests || "none"}${advancedBlock}${lyricsContextBlock}
 
 This is the most important output. Be specific, cinematic, and precise.
 Remember the 1000-character hard limit — be DENSE, not wordy.`;

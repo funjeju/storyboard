@@ -5,7 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { upsertSunoTrack } from "@/lib/firestoreHelpers";
 import Link from "next/link";
 
-// ── CONSTANTS ──────────────────────────────────────────────────────────────
+// ── STYLE CONSTANTS ─────────────────────────────────────────────────────────
 const GENRES = [
   "K-Pop", "팝 / Pop", "힙합 / Hip-Hop", "R&B", "록 / Rock", "인디 / Indie",
   "EDM", "재즈 / Jazz", "클래식 / Classical", "발라드 / Ballad",
@@ -25,93 +25,86 @@ const STRUCTURES = [
   "브릿지", "마지막 후렴", "아웃트로",
 ];
 const PLATFORMS = [
-  { id: "spotify",  label: "Spotify",      lufs: -14, color: "#1DB954" },
-  { id: "apple",    label: "Apple Music",  lufs: -16, color: "#FC3C44" },
-  { id: "youtube",  label: "YouTube",      lufs: -14, color: "#FF0000" },
-  { id: "soundcloud", label: "SoundCloud", lufs: -8,  color: "#FF5500" },
+  { id: "spotify",    label: "Spotify",      lufs: -14, color: "#1DB954" },
+  { id: "apple",      label: "Apple Music",  lufs: -16, color: "#FC3C44" },
+  { id: "youtube",    label: "YouTube",      lufs: -14, color: "#FF0000" },
+  { id: "soundcloud", label: "SoundCloud",   lufs: -8,  color: "#FF5500" },
 ];
 
-// ── ADVANCED MODE OPTIONS ──────────────────────────────────────────────────
+// ── LYRICS CONSTANTS ────────────────────────────────────────────────────────
+const CORE_EMOTIONS = [
+  "설렘", "애틋함", "그리움", "슬픔", "분노", "기쁨",
+  "외로움", "희망", "절망", "행복", "불안", "평온",
+  "질투", "미련", "해방감", "혼란",
+];
+const SITUATIONS = [
+  "첫만남", "썸", "짝사랑", "재회", "고백 직전",
+  "여행", "멀어짐", "기다림", "이별 후", "운명적 만남",
+];
+const NARRATIVE_LABELS: Record<string, { v1: string; v2: string; bridge: string; outro: string }> = {
+  "첫만남":      { v1: "처음 마주친 순간의 감각적 묘사",     v2: "마음이 기울어지는 과정",          bridge: "말하지 못한 감정의 폭발",           outro: "여운 남는 설렘" },
+  "썸":          { v1: "아직 확실하지 않은 감정",             v2: "조금씩 가까워지는 거리",           bridge: "고백 직전의 긴장감",               outro: "어떻게 될지 모르는 설렘" },
+  "짝사랑":      { v1: "혼자 바라보는 마음",                  v2: "멀리서 지켜보는 일상",             bridge: "감정이 터지는 순간",               outro: "혼자 삭히는 여운" },
+  "재회":        { v1: "오랜만에 마주친 순간",                v2: "예전 감정이 다시 올라오는 과정",    bridge: "변한 것과 변하지 않은 것의 충돌",  outro: "다시 시작할 수 있을까의 열린 결말" },
+  "고백 직전":   { v1: "감정을 말해야 한다는 확신",           v2: "망설임과 용기 사이",               bridge: "결심의 순간",                      outro: "고백하거나 못 하거나의 열린 결말" },
+  "여행":        { v1: "낯선 곳에서의 자유로움",              v2: "그 순간 감정이 깊어짐",            bridge: "돌아가야 할 현실과의 대비",         outro: "여행이 남긴 흔적과 여운" },
+  "멀어짐":      { v1: "조금씩 멀어지는 거리감",              v2: "그 사이에서 혼자 애쓰는 마음",     bridge: "더 이상 잡을 수 없다는 깨달음",    outro: "조용한 이별" },
+  "기다림":      { v1: "기다리는 시간의 무게",                v2: "오지 않는 답에 지쳐가는 마음",     bridge: "기다림을 멈출 것인가의 선택",      outro: "기다림의 끝에 남는 것" },
+  "이별 후":     { v1: "익숙하던 것들이 낯설어진 일상",       v2: "지워지지 않는 기억과 흔적",        bridge: "이제는 보내야 한다는 것",          outro: "홀로 서는 법을 배우는 과정" },
+  "운명적 만남": { v1: "처음부터 다른 느낌",                  v2: "만날 수밖에 없었다는 확신",        bridge: "현실과 감정 사이의 갈등",          outro: "운명을 받아들이거나 거스르거나" },
+};
+const BACKGROUND_SCENES = [
+  "비 오는 밤", "새벽 카페", "해변", "드라이브", "공항",
+  "빈 거리", "지하철", "옥상", "캠프파이어", "창가",
+  "편의점", "지는 노을", "첫눈", "병원 복도",
+];
+const HOOK_STYLES_LYRICS = [
+  "감정 폭발형", "중독성 반복형", "속삭임 훅",
+  "고음 터짐형", "떼창형 (anthem)", "랩 섞임",
+];
+const PROHIBITION_CHIPS = [
+  "진부한 표현", "직접적 감정 서술", "종교적 언급",
+  "폭력적 묘사", "선정적 내용", "영어 섞기",
+  "일본어 섞기", "신체 직접 언급",
+];
+
+// ── ADVANCED (SONIC ONLY — lyrics items removed) ────────────────────────────
 const VOCAL_DIRECTIONS = [
   "자동", "속삭임 중심", "감성/허스키", "청량한 팝톤", "파워 보컬",
   "오페라틱/고딕", "거친 샤우팅 혼합", "듀엣/하모니 강조",
 ];
 const VENUE_MOODS = [
   "자동", "바다 파도", "바람 소리", "비 오는 거리", "화산/현무암 무드",
-  "도심 야경", "카페 감성", "드라이브", "캠프파이어", "새벽 공항",
-  "섬 여행 감성",
+  "도심 야경", "카페 감성", "드라이브", "캠프파이어", "새벽 공항", "섬 여행 감성",
 ];
 const ENERGY_CURVES = [
   "자동", "잔잔→폭발형", "처음부터 강렬함", "점층적 빌드업",
   "후렴 몰빵형", "브릿지 반전형", "마지막 대폭발형",
 ];
-const BPM_FEELS = [
-  "자동", "느리고 묵직함", "미드템포 그루브", "달리는 느낌", "댄서블",
-];
-const HOOK_STYLES = [
-  "자동", "떼창형(anthem)", "감정 폭발형", "중독성 반복형",
-  "속삭임 훅", "고음 터짐형", "랩 섞임",
-];
+const BPM_FEELS = ["자동", "느리고 묵직함", "미드템포 그루브", "달리는 느낌", "댄서블"];
 const VOCAL_PRODUCTION = [
   "자동", "생보컬 느낌", "리버브 많음", "오토튠 약간",
   "하모니 강조", "공간감 큼", "라디오/빈티지 질감",
-];
-const SONG_DEVICES = [
-  "자동", "브릿지 조바꿈", "템포 드롭", "브레이크다운",
-  "무반주 파트", "기타 솔로", "코러스 반복 엔딩",
-];
-const DETAILED_MOODS_MULTI = [
-  "몽환적", "고독한", "치명적", "설레는", "영화적", "광활한",
-  "여름밤", "새벽 감성", "미스터리", "bittersweet(아련함)",
-];
-const AVOID_ELEMENTS_OPTIONS = [
-  "과한 EDM", "과한 샤우팅", "밝은 분위기", "유치한 가사톤",
-  "과한 신스", "재즈 느낌", "펑크 느낌", "트랩 비트",
 ];
 const INSTRUMENT_GUITAR = ["자동", "클린", "디스토션", "헤비 리프", "앰비언트", "빈티지"];
 const INSTRUMENT_DRUMS  = ["자동", "타이트", "묵직함", "트라이벌", "더블킥", "라이브 밴드 느낌"];
 const INSTRUMENT_BASS   = ["자동", "서브 강함", "펑키", "왜곡", "자연스러움"];
 const INSTRUMENT_SYNTH  = ["자동: 장르에 맞게", "없음", "약함", "중간", "강함"];
 
-// One-click presets that set multiple advanced fields at once
 const PRESETS: { name: string; emoji: string; set: Record<string, string | string[]> }[] = [
-  { name: "제주 새벽 드라이브", emoji: "🌅", set: {
-    vocalDirection: "속삭임 중심", venueMood: "드라이브", energyCurve: "점층적 빌드업",
-    bpmFeel: "미드템포 그루브", hookStyle: "속삭임 훅", vocalProduction: "리버브 많음",
-    detailedMoods: ["새벽 감성", "영화적", "광활한"],
-  } },
-  { name: "여름밤 시티팝", emoji: "🌃", set: {
-    vocalDirection: "청량한 팝톤", venueMood: "도심 야경", energyCurve: "잔잔→폭발형",
-    bpmFeel: "댄서블", hookStyle: "중독성 반복형", vocalProduction: "공간감 큼",
-    detailedMoods: ["여름밤", "설레는"],
-  } },
-  { name: "겨울 아침 카페", emoji: "☕", set: {
-    vocalDirection: "감성/허스키", venueMood: "카페 감성", energyCurve: "처음부터 강렬함",
-    bpmFeel: "느리고 묵직함", hookStyle: "속삭임 훅", vocalProduction: "생보컬 느낌",
-    detailedMoods: ["고독한", "bittersweet(아련함)"],
-  } },
-  { name: "광활한 영화 OST", emoji: "🎬", set: {
-    vocalDirection: "오페라틱/고딕", venueMood: "화산/현무암 무드", energyCurve: "마지막 대폭발형",
-    bpmFeel: "느리고 묵직함", hookStyle: "고음 터짐형", vocalProduction: "공간감 큼",
-    detailedMoods: ["영화적", "광활한", "치명적"],
-  } },
-  { name: "비 오는 밤 R&B", emoji: "🌧️", set: {
-    vocalDirection: "감성/허스키", venueMood: "비 오는 거리", energyCurve: "잔잔→폭발형",
-    bpmFeel: "미드템포 그루브", hookStyle: "감정 폭발형", vocalProduction: "리버브 많음",
-    detailedMoods: ["몽환적", "치명적", "bittersweet(아련함)"],
-  } },
-  { name: "섬 여행 인디팝", emoji: "🏝️", set: {
-    vocalDirection: "청량한 팝톤", venueMood: "섬 여행 감성", energyCurve: "처음부터 강렬함",
-    bpmFeel: "달리는 느낌", hookStyle: "떼창형(anthem)", vocalProduction: "생보컬 느낌",
-    detailedMoods: ["여름밤", "설레는", "광활한"],
-  } },
+  { name: "제주 새벽 드라이브", emoji: "🌅", set: { vocalDirection: "속삭임 중심", venueMood: "드라이브",      energyCurve: "점층적 빌드업",       bpmFeel: "미드템포 그루브", vocalProduction: "리버브 많음" } },
+  { name: "여름밤 시티팝",     emoji: "🌃", set: { vocalDirection: "청량한 팝톤",   venueMood: "도심 야경",      energyCurve: "잔잔→폭발형",         bpmFeel: "댄서블",         vocalProduction: "공간감 큼"  } },
+  { name: "겨울 아침 카페",   emoji: "☕", set: { vocalDirection: "감성/허스키",   venueMood: "카페 감성",      energyCurve: "처음부터 강렬함",     bpmFeel: "느리고 묵직함",  vocalProduction: "생보컬 느낌" } },
+  { name: "광활한 영화 OST",  emoji: "🎬", set: { vocalDirection: "오페라틱/고딕", venueMood: "화산/현무암 무드", energyCurve: "마지막 대폭발형",    bpmFeel: "느리고 묵직함",  vocalProduction: "공간감 큼"  } },
+  { name: "비 오는 밤 R&B",  emoji: "🌧️", set: { vocalDirection: "감성/허스키",   venueMood: "비 오는 거리",   energyCurve: "잔잔→폭발형",         bpmFeel: "미드템포 그루브", vocalProduction: "리버브 많음" } },
+  { name: "섬 여행 인디팝",   emoji: "🏝️", set: { vocalDirection: "청량한 팝톤",   venueMood: "섬 여행 감성",   energyCurve: "처음부터 강렬함",     bpmFeel: "달리는 느낌",    vocalProduction: "생보컬 느낌" } },
 ];
 
-// ── STYLES ─────────────────────────────────────────────────────────────────
+// ── COLORS ──────────────────────────────────────────────────────────────────
 const P = "#7C3AED";
 const PINK = "#EC4899";
 
-// ── AUDIO UTILS ────────────────────────────────────────────────────────────
+// ── AUDIO UTILS ─────────────────────────────────────────────────────────────
 function calculateLUFS(buffer: AudioBuffer): number {
   let sum = 0, count = 0;
   for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
@@ -121,23 +114,18 @@ function calculateLUFS(buffer: AudioBuffer): number {
   const rms = Math.sqrt(sum / Math.max(count, 1));
   return Math.round((20 * Math.log10(rms || 0.0001)) * 10) / 10;
 }
-
 function getPeak(buffer: AudioBuffer): number {
   let peak = 0;
   for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
     const data = buffer.getChannelData(ch);
-    for (let i = 0; i < data.length; i++) {
-      if (Math.abs(data[i]) > peak) peak = Math.abs(data[i]);
-    }
+    for (let i = 0; i < data.length; i++) { if (Math.abs(data[i]) > peak) peak = Math.abs(data[i]); }
   }
   return Math.round(20 * Math.log10(peak || 0.0001) * 10) / 10;
 }
-
 function detectBPM(buffer: AudioBuffer): number {
-  const ch = buffer.getChannelData(0);
-  const sr = buffer.sampleRate;
-  const winSamples = Math.floor(sr * 0.1); // 100ms windows
-  const maxWin = Math.min(Math.floor(ch.length / winSamples), 300); // first 30s
+  const ch = buffer.getChannelData(0), sr = buffer.sampleRate;
+  const winSamples = Math.floor(sr * 0.1);
+  const maxWin = Math.min(Math.floor(ch.length / winSamples), 300);
   const energies: number[] = [];
   for (let i = 0; i < maxWin; i++) {
     let e = 0;
@@ -147,104 +135,78 @@ function detectBPM(buffer: AudioBuffer): number {
   const mean = energies.reduce((a, b) => a + b, 0) / energies.length;
   const peaks: number[] = [];
   for (let i = 1; i < energies.length - 1; i++) {
-    if (energies[i] > mean * 1.4 && energies[i] > energies[i - 1] && energies[i] > energies[i + 1]) {
-      peaks.push(i);
-    }
+    if (energies[i] > mean * 1.4 && energies[i] > energies[i - 1] && energies[i] > energies[i + 1]) peaks.push(i);
   }
   if (peaks.length < 2) return 120;
   const intervals: number[] = [];
   for (let i = 1; i < peaks.length; i++) intervals.push(peaks[i] - peaks[i - 1]);
   const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-  const bpm = 60 / (avg * 0.1);
-  return Math.max(60, Math.min(220, Math.round(bpm)));
+  return Math.max(60, Math.min(220, Math.round(60 / (avg * 0.1))));
 }
-
-async function applyMastering(
-  audioBuffer: AudioBuffer,
-  targetLUFS: number,
-  gainSlider: number, // 0-100 clarity adjustment
-): Promise<AudioBuffer> {
+async function applyMastering(audioBuffer: AudioBuffer, targetLUFS: number, gainSlider: number): Promise<AudioBuffer> {
   const currentLUFS = calculateLUFS(audioBuffer);
   const gainDb = targetLUFS - currentLUFS;
   const gainLinear = Math.pow(10, gainDb / 20) * (0.7 + gainSlider * 0.006);
   const peak = getPeak(audioBuffer);
-  const maxGain = Math.pow(10, (-1 - peak) / 20); // True peak -1 dBTP
+  const maxGain = Math.pow(10, (-1 - peak) / 20);
   const safeGain = Math.min(gainLinear, maxGain);
-
-  const offline = new OfflineAudioContext(
-    audioBuffer.numberOfChannels,
-    audioBuffer.length,
-    audioBuffer.sampleRate,
-  );
+  const offline = new OfflineAudioContext(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
   const src = offline.createBufferSource();
   src.buffer = audioBuffer;
   const gain = offline.createGain();
   gain.gain.value = safeGain;
-  src.connect(gain);
-  gain.connect(offline.destination);
-  src.start(0);
+  src.connect(gain); gain.connect(offline.destination); src.start(0);
   return offline.startRendering();
 }
-
 function encodeWAV(buffer: AudioBuffer): Blob {
-  const numCh = buffer.numberOfChannels;
-  const numSamples = buffer.length;
-  const sampleRate = buffer.sampleRate;
-  const bitsPerSample = 16;
-  const blockAlign = numCh * (bitsPerSample / 8);
-  const dataSize = numSamples * blockAlign;
+  const numCh = buffer.numberOfChannels, numSamples = buffer.length, sampleRate = buffer.sampleRate;
+  const bitsPerSample = 16, blockAlign = numCh * 2, dataSize = numSamples * blockAlign;
   const ab = new ArrayBuffer(44 + dataSize);
   const view = new DataView(ab);
-  const ws = (offset: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); };
-  ws(0, "RIFF"); view.setUint32(4, 36 + dataSize, true);
-  ws(8, "WAVE"); ws(12, "fmt ");
-  view.setUint32(16, 16, true); view.setUint16(20, 1, true);
-  view.setUint16(22, numCh, true); view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * blockAlign, true);
-  view.setUint16(32, blockAlign, true); view.setUint16(34, bitsPerSample, true);
-  ws(36, "data"); view.setUint32(40, dataSize, true);
+  const ws = (o: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0,"RIFF"); view.setUint32(4,36+dataSize,true); ws(8,"WAVE"); ws(12,"fmt ");
+  view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,numCh,true);
+  view.setUint32(24,sampleRate,true); view.setUint32(28,sampleRate*blockAlign,true);
+  view.setUint16(32,blockAlign,true); view.setUint16(34,16,true); ws(36,"data"); view.setUint32(40,dataSize,true);
   let offset = 44;
   for (let i = 0; i < numSamples; i++) {
     for (let ch = 0; ch < numCh; ch++) {
       const s = Math.max(-1, Math.min(1, buffer.getChannelData(ch)[i]));
-      view.setInt16(offset, s < 0 ? s * 32768 : s * 32767, true);
-      offset += 2;
+      view.setInt16(offset, s < 0 ? s * 32768 : s * 32767, true); offset += 2;
     }
   }
   return new Blob([ab], { type: "audio/wav" });
 }
 
-// ── SMALL UI COMPONENTS ────────────────────────────────────────────────────
-function Spin({ size = 16, color = P }: { size?: number; color?: string }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: "50%", flexShrink: 0,
-      border: `2px solid rgba(124,58,237,0.15)`,
-      borderTop: `2px solid ${color}`,
-      animation: "spin 0.8s linear infinite",
-    }} />
-  );
+// ── TYPES ────────────────────────────────────────────────────────────────────
+interface LibraryTrack {
+  id: string; title: string; stylePrompt: string; lyrics: string | null;
+  genre: string; mood: string; vocal: string; topic: string;
+  createdAt: number; audioDataKey: string | null;
+}
+interface LyricsResult {
+  lyrics: string;
+  narrativeUsed: { verse1: string; verse2: string; bridge: string; outro: string };
+  symbolVariations: string[];
+  hookLine: string;
+  narrativeStructure: { v1: string; v2: string; bridge: string; outro: string };
+}
+interface LyricsContext {
+  genre: string; mood: string; atmosphere: string;
+  styleHint: string; emotionSummary?: string;
+  suggestedMood?: string; suggestedGenre?: string;
 }
 
-function SectionCard({ num, title, children }: { num: string; title: string; children: React.ReactNode }) {
+// ── SMALL UI HELPERS ─────────────────────────────────────────────────────────
+function Spin({ size = 16, color = P }: { size?: number; color?: string }) {
+  return <div style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0, border: `2px solid rgba(124,58,237,0.15)`, borderTop: `2px solid ${color}`, animation: "spin 0.8s linear infinite" }} />;
+}
+
+function SectionCard({ num, title, children, accent = P }: { num: string; title: string; children: React.ReactNode; accent?: string }) {
   return (
-    <div style={{
-      background: "white", borderRadius: 20,
-      border: "1px solid #EDE9FE",
-      overflow: "hidden",
-      boxShadow: "0 2px 8px rgba(124,58,237,0.06)",
-    }}>
-      <div style={{
-        background: `linear-gradient(135deg, ${P}, ${PINK})`,
-        padding: "14px 24px",
-        display: "flex", alignItems: "center", gap: 12,
-      }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: "50%",
-          background: "rgba(255,255,255,0.2)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 12, fontWeight: 800, color: "white",
-        }}>{num}</div>
+    <div style={{ background: "white", borderRadius: 20, border: "1px solid #EDE9FE", overflow: "hidden", boxShadow: "0 2px 8px rgba(124,58,237,0.06)" }}>
+      <div style={{ background: `linear-gradient(135deg, ${accent}, ${PINK})`, padding: "14px 24px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "white" }}>{num}</div>
         <span style={{ fontSize: 15, fontWeight: 700, color: "white" }}>{title}</span>
       </div>
       <div style={{ padding: "24px" }}>{children}</div>
@@ -252,11 +214,12 @@ function SectionCard({ num, title, children }: { num: string; title: string; chi
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#6B21A8", letterSpacing: 1.2, marginBottom: 7 }}>
-        {label}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 7 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#6B21A8", letterSpacing: 1.2 }}>{label}</div>
+        {hint && <div style={{ fontSize: 10, color: "#9CA3AF" }}>{hint}</div>}
       </div>
       {children}
     </div>
@@ -264,140 +227,155 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 14px",
-  background: "#FAFAFA", border: "1.5px solid #EDE9FE",
-  borderRadius: 10, fontSize: 13, color: "#1A1A2E",
-  fontFamily: "inherit", outline: "none",
-  transition: "border-color 0.15s",
+  width: "100%", padding: "10px 14px", background: "#FAFAFA",
+  border: "1.5px solid #EDE9FE", borderRadius: 10,
+  fontSize: 13, color: "#1A1A2E", fontFamily: "inherit", outline: "none",
 };
+const selectStyle: React.CSSProperties = { ...inputStyle, cursor: "pointer", appearance: "none" };
 
-const selectStyle: React.CSSProperties = {
-  ...inputStyle, cursor: "pointer", appearance: "none",
-};
+function Chip({ label, selected, onClick, color = P }: { label: string; selected: boolean; onClick: () => void; color?: string }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "6px 14px", borderRadius: 100, border: `1.5px solid ${selected ? color : "#E5E7EB"}`,
+      background: selected ? color : "white", color: selected ? "white" : "#4B5563",
+      fontSize: 12, fontWeight: selected ? 700 : 500, cursor: "pointer",
+      transition: "all 0.15s", flexShrink: 0,
+    }}>{label}</button>
+  );
+}
 
-function Slider({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
+function SliderField({ label, value, onChange, leftLabel, rightLabel }: {
+  label: string; value: number; onChange: (v: number) => void;
+  leftLabel?: string; rightLabel?: string;
+}) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "#6B21A8" }}>{label}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#6B21A8" }}>{label}</span>
         <span style={{ fontSize: 11, fontWeight: 700, color: P }}>{value}%</span>
       </div>
-      <input
-        type="range" min={0} max={100} value={value}
-        onChange={e => onChange(Number(e.target.value))}
-        style={{ width: "100%", accentColor: P, height: 4 }}
-      />
+      {(leftLabel || rightLabel) && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+          <span style={{ fontSize: 10, color: "#9CA3AF" }}>{leftLabel}</span>
+          <span style={{ fontSize: 10, color: "#9CA3AF" }}>{rightLabel}</span>
+        </div>
+      )}
+      <input type="range" min={0} max={100} value={value} onChange={e => onChange(Number(e.target.value))}
+        style={{ width: "100%", accentColor: P, height: 4 }} />
     </div>
   );
 }
 
-// ── TYPES ──────────────────────────────────────────────────────────────────
-interface LibraryTrack {
-  id: string;
-  title: string;
-  stylePrompt: string;
-  lyrics: string | null;
-  genre: string;
-  mood: string;
-  vocal: string;
-  topic: string;
-  createdAt: number;
-  audioDataKey: string | null; // IndexedDB key for uploaded audio
-}
-
-// ── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 export default function SunoMaker() {
   const { user, signIn } = useAuth();
 
+  // ─ App Flow
+  const [appMode, setAppMode]         = useState<"select" | "path-a" | "path-b">("select");
+  const [pathAStep, setPathAStep]     = useState<"choose" | "paste" | "create" | "style">("choose");
+  const [pathBLyricsShown, setPathBLyricsShown] = useState(false);
+
   // ─ Project
-  const [projectType,  setProjectType]  = useState<"single" | "album">("single");
-  const [trackCount,   setTrackCount]   = useState(1);
-  const [titleMode,    setTitleMode]    = useState<"custom" | "random">("custom");
-  const [title,        setTitle]        = useState("");
+  const [projectType, setProjectType] = useState<"single" | "album">("single");
+  const [trackCount,  setTrackCount]  = useState(1);
+  const [titleMode,   setTitleMode]   = useState<"custom" | "random">("custom");
+  const [title,       setTitle]       = useState("");
 
-  // ─ Song Content
-  const [topic,        setTopic]        = useState("");
-  const [hookLyrics,   setHookLyrics]   = useState("");
-  const [structure,    setStructure]    = useState<string[]>(STRUCTURES);
-  const [lyricDensity, setLyricDensity] = useState("중");
-  const [hookStrength, setHookStrength] = useState("보통");
-  const [rhymeStyle,   setRhymeStyle]   = useState("자연스러운 라임");
-  const [avoidEl,      setAvoidEl]      = useState("");
-  const [addRequest,   setAddRequest]   = useState("");
+  // ─ Style Form
+  const [topic,       setTopic]       = useState("");
+  const [structure,   setStructure]   = useState<string[]>(STRUCTURES);
+  const [avoidEl,     setAvoidEl]     = useState("");
+  const [addRequest,  setAddRequest]  = useState("");
+  const [genre1,      setGenre1]      = useState("K-Pop");
+  const [genre2,      setGenre2]      = useState("");
+  const [purpose,     setPurpose]     = useState("일반 릴리즈");
+  const [mood,        setMood]        = useState("감성적인 / Emotional");
+  const [intensity,   setIntensity]   = useState("랜덤");
+  const [bpmMode,     setBpmMode]     = useState<"random" | "custom">("random");
+  const [bpm,         setBpm]         = useState("");
+  const [duration,    setDuration]    = useState("3분");
+  const [vocal,       setVocal]       = useState("있음");
+  const [language,    setLanguage]    = useState("한국어");
+  const [promptLang,  setPromptLang]  = useState("영어");
 
-  // ─ Style
-  const [genre1,       setGenre1]       = useState("K-Pop");
-  const [genre2,       setGenre2]       = useState("");
-  const [purpose,      setPurpose]      = useState("일반 릴리즈");
-  const [mood,         setMood]         = useState("감성적인 / Emotional");
-  const [intensity,    setIntensity]    = useState("랜덤");
+  // ─ Advanced Sonic Controls (lyrics items removed)
+  const [advancedMode,    setAdvancedMode]    = useState(false);
+  const [vocalDirection,  setVocalDirection]  = useState("자동");
+  const [venueMood,       setVenueMood]       = useState("자동");
+  const [energyCurve,     setEnergyCurve]     = useState("자동");
+  const [bpmFeel,         setBpmFeel]         = useState("자동");
+  const [vocalProduction, setVocalProduction] = useState("자동");
+  const [instGuitar,      setInstGuitar]      = useState("자동");
+  const [instDrums,       setInstDrums]       = useState("자동");
+  const [instBass,        setInstBass]        = useState("자동");
+  const [instSynth,       setInstSynth]       = useState("자동: 장르에 맞게");
 
-  // ─ Technical
-  const [bpmMode,      setBpmMode]      = useState<"random" | "custom">("random");
-  const [bpm,          setBpm]          = useState("");
-  const [duration,     setDuration]     = useState("3분");
-  const [vocal,        setVocal]        = useState("있음");
-  const [language,     setLanguage]     = useState("한국어");
-  const [promptLang,   setPromptLang]   = useState("영어");
-
-  // ─ Advanced Mode (sonic detail controls)
-  const [advancedMode,     setAdvancedMode]     = useState(false);
-  const [vocalDirection,   setVocalDirection]   = useState("자동");
-  const [venueMood,        setVenueMood]        = useState("자동");
-  const [energyCurve,      setEnergyCurve]      = useState("자동");
-  const [bpmFeel,          setBpmFeel]          = useState("자동");
-  const [hookStyle,        setHookStyle]        = useState("자동");
-  const [vocalProduction,  setVocalProduction]  = useState("자동");
-  const [songDevice,       setSongDevice]       = useState("자동");
-  const [detailedMoods,    setDetailedMoods]    = useState<string[]>([]);
-  const [avoidElementsAdv, setAvoidElementsAdv] = useState<string[]>([]);
-  const [instGuitar,       setInstGuitar]       = useState("자동");
-  const [instDrums,        setInstDrums]        = useState("자동");
-  const [instBass,         setInstBass]         = useState("자동");
-  const [instSynth,        setInstSynth]        = useState("자동: 장르에 맞게");
-
-  // ─ Mastering
-  const [platform,     setPlatform]     = useState("spotify");
-  const [clarity,      setClarity]      = useState(70);
-  const [bassWeight,   setBassWeight]   = useState(60);
-  const [stereoWidth,  setStereoWidth]  = useState(65);
-  const [silenceTrim,  setSilenceTrim]  = useState(true);
-  const [volNorm,      setVolNorm]      = useState(false);
-
-  // ─ Publishing
-  const [artistName,   setArtistName]   = useState("");
-  const [albumName,    setAlbumName]    = useState("");
-  const [releaseDate,  setReleaseDate]  = useState("");
-  const [copyright,    setCopyright]    = useState("");
-  const [coverArt,     setCoverArt]     = useState<string | null>(null);
-  const [genCover,     setGenCover]     = useState(false);
+  // ─ Lyrics Form (7 items)
+  const [lyricsInputType,   setLyricsInputType]   = useState<"full" | "keywords">("full");
+  const [lyricsRawText,     setLyricsRawText]     = useState("");
+  const [analyzingLyrics,   setAnalyzingLyrics]   = useState(false);
+  const [lyricsContext,     setLyricsContext]      = useState<LyricsContext | null>(null);
+  const [lyricsEmotions,    setLyricsEmotions]    = useState<string[]>([]);
+  const [emotionIntensity,  setEmotionIntensity]  = useState(60);
+  const [lyricsSituation,   setLyricsSituation]   = useState("");
+  const [situationDetail,   setSituationDetail]   = useState("");
+  const [backgroundScenes,  setBackgroundScenes]  = useState<string[]>([]);
+  const [symbolKeywords,    setSymbolKeywords]     = useState<string[]>([]);
+  const [symbolInput,       setSymbolInput]        = useState("");
+  const [lyricProhibitions, setLyricProhibitions] = useState<string[]>([]);
+  const [prohibitionCustom, setProhibitionCustom] = useState("");
+  const [lyricsHookStyles,  setLyricsHookStyles]  = useState<string[]>([]);
+  const [expressionTone,    setExpressionTone]    = useState(50);
+  const [lyricsLanguage,    setLyricsLanguage]    = useState<"한국어" | "영어">("한국어");
+  const [lyricsInspiration, setLyricsInspiration] = useState("");
 
   // ─ Results
-  const [results, setResults] = useState<{ stylePrompt: string; lyrics: string | null; suggestedTitle: string }[]>([]);
+  const [results,          setResults]          = useState<{ stylePrompt: string; lyrics: string | null; suggestedTitle: string }[]>([]);
   const [loading,          setLoading]          = useState(false);
   const [copiedTarget,     setCopiedTarget]     = useState<string | null>(null);
   const [lyricsOpen,       setLyricsOpen]       = useState<boolean[]>([]);
+  const [generatingLyrics, setGeneratingLyrics] = useState(false);
+  const [lyricsResult,     setLyricsResult]     = useState<LyricsResult | null>(null);
 
   // ─ Audio
-  const [audioFile,     setAudioFile]     = useState<File | null>(null);
-  const [audioBuffer,   setAudioBuffer]   = useState<AudioBuffer | null>(null);
-  const [analysis,      setAnalysis]      = useState<{ bpm: number; lufs: number; peak: number; duration: number } | null>(null);
-  const [analyzing,     setAnalyzing]     = useState(false);
-  const [mastering,     setMastering]     = useState(false);
-  const [masterDone,    setMasterDone]    = useState(false);
-  const [dragOver,      setDragOver]      = useState(false);
+  const [audioFile,   setAudioFile]   = useState<File | null>(null);
+  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [analysis,    setAnalysis]    = useState<{ bpm: number; lufs: number; peak: number; duration: number } | null>(null);
+  const [analyzing,   setAnalyzing]   = useState(false);
+  const [mastering,   setMastering]   = useState(false);
+  const [masterDone,  setMasterDone]  = useState(false);
+  const [dragOver,    setDragOver]    = useState(false);
+  const [platform,    setPlatform]    = useState("spotify");
+  const [clarity,     setClarity]     = useState(70);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // ─ Publishing
+  const [artistName,  setArtistName]  = useState("");
+  const [albumName,   setAlbumName]   = useState("");
+  const [releaseDate, setReleaseDate] = useState("");
+  const [copyright,   setCopyright]   = useState("");
+  const [coverArt,    setCoverArt]    = useState<string | null>(null);
+  const [genCover,    setGenCover]    = useState(false);
+
+  const fileInputRef  = useRef<HTMLInputElement>(null);
   const masterBlobRef = useRef<Blob | null>(null);
+  const lyricsTopRef  = useRef<HTMLDivElement>(null);
 
-  // ─ Generate Suno Prompts
+  // ── FUNCTIONS ──────────────────────────────────────────────────────────────
+
+  // Generate style prompt
   const generate = async () => {
     setLoading(true);
     setResults([]);
     setMasterDone(false);
-
     const count = projectType === "album" ? trackCount : 1;
     const out: typeof results = [];
+
+    const isAutoOrEmpty = (v?: string) => !v || v === "자동" || v.startsWith("자동");
+    const advPayload = advancedMode ? {
+      vocalDirection, venueMood, energyCurve, bpmFeel,
+      vocalProduction, avoidElementsAdvanced: [],
+      instruments: { guitar: instGuitar, drums: instDrums, bass: instBass, synth: instSynth },
+    } : null;
 
     for (let i = 0; i < count; i++) {
       try {
@@ -407,16 +385,12 @@ export default function SunoMaker() {
           body: JSON.stringify({
             projectType, trackCount, trackIndex: i + 1,
             title: titleMode === "random" ? "" : title,
-            topic, hookLyrics, songStructure: structure.join("-"),
-            lyricDensity, hookStrength, rhymeStyle,
+            topic, songStructure: structure.join("-"),
             avoidElements: avoidEl, additionalRequests: addRequest,
             genre1, genre2, purpose, mood, intensity,
             bpmMode, bpm, duration, vocal, language, promptLanguage: promptLang,
-            advanced: advancedMode ? {
-              vocalDirection, venueMood, energyCurve, bpmFeel, hookStyle,
-              vocalProduction, songDevice, detailedMoods, avoidElementsAdvanced: avoidElementsAdv,
-              instruments: { guitar: instGuitar, drums: instDrums, bass: instBass, synth: instSynth },
-            } : null,
+            advanced: advPayload,
+            lyricsContext: lyricsContext || null,
           }),
         });
         const data = await res.json();
@@ -434,94 +408,122 @@ export default function SunoMaker() {
     setLyricsOpen(out.map(() => false));
     setLoading(false);
 
-    // Auto-save to library (localStorage + Firestore when logged in)
+    // Auto-save to library
     try {
       const existing: LibraryTrack[] = JSON.parse(localStorage.getItem("suno_library_v1") || "[]");
       const now = Date.now();
       const newEntries: LibraryTrack[] = out.map((r, idx) => ({
         id: `track-${now}-${idx}`,
         title: r.suggestedTitle || (titleMode === "custom" ? title : "") || `${genre1} 트랙 ${idx + 1}`,
-        stylePrompt: r.stylePrompt,
-        lyrics: r.lyrics,
-        genre: [genre1, genre2].filter(Boolean).join(" + "),
-        mood,
-        vocal: `${vocal} (${language})`,
-        topic,
-        createdAt: now + idx,
-        audioDataKey: null,
+        stylePrompt: r.stylePrompt, lyrics: r.lyrics,
+        genre: [genre1, genre2].filter(Boolean).join(" + "), mood, vocal: `${vocal} (${language})`,
+        topic, createdAt: now + idx, audioDataKey: null,
       }));
       localStorage.setItem("suno_library_v1", JSON.stringify([...newEntries, ...existing].slice(0, 200)));
-
-      // Cloud sync when logged in
       if (user) {
         for (const entry of newEntries) {
           upsertSunoTrack(user.uid, {
-            id: entry.id,
-            title: entry.title,
-            stylePrompt: entry.stylePrompt,
-            lyrics: entry.lyrics,
-            genre: entry.genre,
-            mood: entry.mood,
-            vocal: entry.vocal,
-            topic: entry.topic,
-            createdAt: entry.createdAt,
-            updatedAt: Date.now(),
-            status: "completed",
-            audioStoragePath: null,
-            audioUrl: null,
-          }).catch(e => console.warn("Firestore suno save failed", e));
+            id: entry.id, title: entry.title, stylePrompt: entry.stylePrompt, lyrics: entry.lyrics,
+            genre: entry.genre, mood: entry.mood, vocal: entry.vocal, topic: entry.topic,
+            createdAt: entry.createdAt, updatedAt: Date.now(),
+            status: "completed", audioStoragePath: null, audioUrl: null,
+          }).catch(e => console.warn("Cloud save failed", e));
         }
       }
-    } catch (e) {
-      console.warn("Library save failed", e);
-    }
+    } catch { /* silent */ }
   };
 
+  // Analyze pasted lyrics/keywords
+  const analyzeLyrics = async () => {
+    if (!lyricsRawText.trim()) return;
+    setAnalyzingLyrics(true);
+    try {
+      const res = await fetch("/api/lyrics-analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: lyricsRawText, type: lyricsInputType }),
+      });
+      const data: LyricsContext & { suggestedMood?: string; suggestedGenre?: string } = await res.json();
+      setLyricsContext(data);
+      if (data.suggestedMood) setMood(data.suggestedMood);
+      if (data.suggestedGenre) setGenre1(data.suggestedGenre);
+      setPathAStep("style");
+    } catch { /* silent */ }
+    setAnalyzingLyrics(false);
+  };
+
+  // Generate lyrics
+  const generateLyrics = async () => {
+    setGeneratingLyrics(true);
+    setLyricsResult(null);
+    try {
+      const res = await fetch("/api/lyrics-gen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          emotions: lyricsEmotions,
+          emotionIntensity,
+          situation: lyricsSituation,
+          situationDetail,
+          scenes: backgroundScenes,
+          symbolKeywords,
+          prohibitions: lyricProhibitions,
+          prohibitionCustom,
+          hookStyles: lyricsHookStyles,
+          expressionTone,
+          language: lyricsLanguage,
+          lyricsInspiration,
+          styleContext: lyricsContext,
+        }),
+      });
+      const data: LyricsResult = await res.json();
+      setLyricsResult(data);
+      // After lyrics created in Path A → move to style step
+      if (appMode === "path-a") {
+        // Extract simple context from the generated lyrics form params
+        setLyricsContext(prev => prev || {
+          genre: genre1, mood: mood,
+          atmosphere: backgroundScenes.join(", "),
+          styleHint: `감정: ${lyricsEmotions.join(", ")}. 상황: ${lyricsSituation}`,
+        });
+        setPathAStep("style");
+      }
+    } catch { /* silent */ }
+    setGeneratingLyrics(false);
+  };
+
+  // Copy helper
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedTarget(key);
     setTimeout(() => setCopiedTarget(null), 1800);
   };
 
-  // ─ Audio Analysis
+  // Audio analysis
   const analyzeFile = useCallback(async (file: File) => {
-    setAudioFile(file);
-    setAnalyzing(true);
-    setAnalysis(null);
-    setMasterDone(false);
+    setAudioFile(file); setAnalyzing(true); setAnalysis(null); setMasterDone(false);
     try {
       const arrayBuffer = await file.arrayBuffer();
       const ctx = new AudioContext();
       const decoded = await ctx.decodeAudioData(arrayBuffer);
       setAudioBuffer(decoded);
-      setAnalysis({
-        bpm: detectBPM(decoded),
-        lufs: calculateLUFS(decoded),
-        peak: getPeak(decoded),
-        duration: Math.round(decoded.duration),
-      });
+      setAnalysis({ bpm: detectBPM(decoded), lufs: calculateLUFS(decoded), peak: getPeak(decoded), duration: Math.round(decoded.duration) });
     } catch { /* silent */ }
     setAnalyzing(false);
   }, []);
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
+    e.preventDefault(); setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file && (file.type.startsWith("audio/") || file.name.match(/\.(mp3|wav|flac|aac|ogg)$/i))) {
-      analyzeFile(file);
-    }
+    if (file && (file.type.startsWith("audio/") || file.name.match(/\.(mp3|wav|flac|aac|ogg)$/i))) analyzeFile(file);
   };
 
-  // ─ Master & Export
   const handleMaster = async () => {
     if (!audioBuffer) return;
     setMastering(true);
     try {
       const plt = PLATFORMS.find(p => p.id === platform)!;
-      const mastered = await applyMastering(audioBuffer, plt.lufs, clarity);
-      const wav = encodeWAV(mastered);
-      masterBlobRef.current = wav;
+      masterBlobRef.current = encodeWAV(await applyMastering(audioBuffer, plt.lufs, clarity));
       setMasterDone(true);
     } catch { /* silent */ }
     setMastering(false);
@@ -530,22 +532,16 @@ export default function SunoMaker() {
   const downloadMastered = () => {
     if (!masterBlobRef.current) return;
     const url = URL.createObjectURL(masterBlobRef.current);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${title || "mastered"}_mastered.wav`;
-    a.click();
+    const a = document.createElement("a"); a.href = url;
+    a.download = `${title || "mastered"}_mastered.wav`; a.click();
     URL.revokeObjectURL(url);
   };
 
-  // ─ Cover Art
   const generateCover = async () => {
     setGenCover(true);
     try {
-      const prompt = `Album cover art for a ${genre1} ${mood} music track titled "${title || "Untitled"}". ${topic}. Professional music album cover, high quality digital art, 1:1 square format.`;
-      const res = await fetch("/api/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+      const res = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: `Album cover art for a ${genre1} ${mood} music track titled "${title || "Untitled"}". ${topic}. Professional music album cover, high quality digital art, 1:1 square format.` }),
       });
       const data = await res.json();
       if (data.imageUrl) setCoverArt(data.imageUrl);
@@ -553,933 +549,899 @@ export default function SunoMaker() {
     setGenCover(false);
   };
 
-  const targetLUFS = PLATFORMS.find(p => p.id === platform)?.lufs ?? -14;
-  const currentPlatform = PLATFORMS.find(p => p.id === platform)!;
+  // ── APPLY PRESET ────────────────────────────────────────────────────────────
+  const applyPreset = (set: Record<string, string | string[]>) => {
+    if (set.vocalDirection) setVocalDirection(set.vocalDirection as string);
+    if (set.venueMood)      setVenueMood(set.venueMood as string);
+    if (set.energyCurve)    setEnergyCurve(set.energyCurve as string);
+    if (set.bpmFeel)        setBpmFeel(set.bpmFeel as string);
+    if (set.vocalProduction) setVocalProduction(set.vocalProduction as string);
+  };
 
-  // ── RENDER ────────────────────────────────────────────────────────────────
-  return (
-    <div style={{ minHeight: "100vh", background: "#F8F5FF", fontFamily: "'Noto Sans KR', -apple-system, sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;800&display=swap');
-        * { box-sizing: border-box; }
-        @keyframes spin { to { transform: rotate(360deg) } }
-        @keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-        input[type=range]::-webkit-slider-thumb { width:16px; height:16px; border-radius:50%; background:${P}; cursor:pointer; -webkit-appearance:none; box-shadow:0 2px 6px rgba(124,58,237,0.4); }
-        input[type=range]::-webkit-slider-runnable-track { height:4px; border-radius:2px; background:#EDE9FE; }
-        select option { background: white; color: #1A1A2E; }
-        input:focus, textarea:focus, select:focus { border-color: ${P} !important; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
-      `}</style>
+  const narrative = lyricsSituation ? NARRATIVE_LABELS[lyricsSituation] : null;
 
-      {/* ── TOP NAV ── */}
-      <nav style={{
-        background: "white", borderBottom: "1px solid #EDE9FE",
-        padding: "0 32px", height: 42, display: "flex", alignItems: "center",
-        justifyContent: "space-between", position: "sticky", top: 0, zIndex: 101,
-        boxShadow: "0 1px 3px rgba(124,58,237,0.06)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 7, textDecoration: "none" }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: 7,
-              background: `linear-gradient(135deg, ${P}, ${PINK})`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 11, color: "white", fontWeight: 800,
-            }}>✦</div>
-            <span style={{ fontSize: 12, fontWeight: 800, color: "#111827" }}>AI Studio</span>
+  // ── SHARED STYLES ───────────────────────────────────────────────────────────
+  const globalStyle = `
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;800&display=swap');
+    * { box-sizing: border-box; }
+    @keyframes spin { to { transform: rotate(360deg) } }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+    input[type=range]::-webkit-slider-thumb { width:16px;height:16px;border-radius:50%;background:${P};cursor:pointer;-webkit-appearance:none;box-shadow:0 2px 6px rgba(124,58,237,0.4); }
+    input[type=range]::-webkit-slider-runnable-track { height:4px;border-radius:2px;background:#EDE9FE; }
+    select option { background:white;color:#1A1A2E; }
+    input:focus,textarea:focus,select:focus { border-color:${P}!important;box-shadow:0 0 0 3px rgba(124,58,237,0.1); }
+    .chip-row { display:flex;flex-wrap:wrap;gap:8px; }
+  `;
+
+  // ── TOP NAV ─────────────────────────────────────────────────────────────────
+  const Nav = () => (
+    <nav style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"0 32px", height:42, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:101, boxShadow:"0 1px 3px rgba(124,58,237,0.06)" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <Link href="/" style={{ display:"flex", alignItems:"center", gap:7, textDecoration:"none" }}>
+          <div style={{ width:24, height:24, borderRadius:7, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"white", fontWeight:800 }}>✦</div>
+          <span style={{ fontSize:12, fontWeight:800, color:"#111827" }}>AI Studio</span>
+        </Link>
+        <div style={{ width:1, height:14, background:"#E5E7EB" }} />
+        {[{ href:"/storyboard",icon:"🎬",label:"Storyboard" },{ href:"/suno",icon:"🎵",label:"Suno Maker" },{ href:"/detail",icon:"🛍️",label:"Detail Page" },{ href:"/library",icon:"📚",label:"My Library" }].map(t => (
+          <Link key={t.href} href={t.href} style={{ display:"flex", alignItems:"center", gap:5, textDecoration:"none", padding:"4px 10px", borderRadius:6, background:t.href==="/suno"?"rgba(124,58,237,0.08)":"transparent" }}>
+            <span style={{ fontSize:12 }}>{t.icon}</span>
+            <span style={{ fontSize:12, fontWeight:600, color:t.href==="/suno"?P:"#6B7280" }}>{t.label}</span>
           </Link>
-          <div style={{ width: 1, height: 14, background: "#E5E7EB" }} />
-          {[
-            { href: "/storyboard", icon: "🎬", label: "Storyboard" },
-            { href: "/suno", icon: "🎵", label: "Suno Maker" },
-            { href: "/detail", icon: "🛍️", label: "Detail Page" },
-            { href: "/library", icon: "📚", label: "My Library" },
-          ].map(t => (
-            <Link key={t.href} href={t.href} style={{
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "3px 9px", borderRadius: 7, textDecoration: "none",
-              background: t.href === "/suno" ? "#F5F3FF" : "transparent",
-              border: t.href === "/suno" ? `1px solid #DDD6FE` : "1px solid transparent",
-              fontSize: 11, fontWeight: 600,
-              color: t.href === "/suno" ? P : "#9CA3AF",
-            }}>
-              <span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}
-            </Link>
+        ))}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+        {user ? (
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ width:7, height:7, borderRadius:"50%", background:"#10B981" }} />
+            <span style={{ fontSize:11, color:"#6B7280", fontWeight:500 }}>☁️ 동기화 중</span>
+          </div>
+        ) : (
+          <button onClick={signIn} style={{ padding:"6px 14px", background:"white", border:`1.5px solid ${P}`, borderRadius:8, fontSize:11, fontWeight:600, color:P, cursor:"pointer" }}>
+            로그인하면 클라우드 저장
+          </button>
+        )}
+      </div>
+    </nav>
+  );
+
+  // ── SHARED BOTTOM: Audio Analysis + Publishing ───────────────────────────────
+  const SharedBottom = () => (
+    <div style={{ marginTop:40, display:"flex", flexDirection:"column", gap:24 }}>
+      <SectionCard num="🎚" title="오디오 분석 · 마스터링">
+        <div
+          onDrop={handleDrop} onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onClick={() => fileInputRef.current?.click()}
+          style={{ border:"2px dashed #DDD6FE", borderRadius:14, padding:"40px 24px", textAlign:"center", cursor:"pointer", background:dragOver?"rgba(124,58,237,0.04)":"#FAFAFA", marginBottom:audioFile?20:0 }}>
+          <input ref={fileInputRef} type="file" accept="audio/*" style={{ display:"none" }} onChange={e => { if (e.target.files?.[0]) analyzeFile(e.target.files[0]); }} />
+          <div style={{ fontSize:32, marginBottom:8 }}>🎵</div>
+          <div style={{ fontSize:14, fontWeight:600, color:"#374151", marginBottom:4 }}>오디오 파일을 드래그하거나 클릭</div>
+          <div style={{ fontSize:12, color:"#9CA3AF" }}>MP3, WAV, FLAC, AAC 지원</div>
+        </div>
+        {analyzing && <div style={{ display:"flex", alignItems:"center", gap:10, color:P, padding:"12px 0" }}><Spin /> 분석 중...</div>}
+        {analysis && (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+              {[
+                ["BPM", analysis.bpm, ""],
+                ["LUFS", analysis.lufs, "dB"],
+                ["Peak", analysis.peak, "dBTP"],
+                ["길이", `${Math.floor(analysis.duration/60)}:${String(analysis.duration%60).padStart(2,"0")}`, ""],
+              ].map(([label, val]) => (
+                <div key={label as string} style={{ background:"rgba(124,58,237,0.04)", border:"1px solid #EDE9FE", borderRadius:12, padding:"14px", textAlign:"center" }}>
+                  <div style={{ fontSize:11, color:"#9CA3AF", fontWeight:600, marginBottom:4 }}>{label as string}</div>
+                  <div style={{ fontSize:20, fontWeight:800, color:P }}>{String(val)}</div>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, color:"#6B21A8", letterSpacing:1.2, marginBottom:10 }}>마스터링 플랫폼</div>
+              <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                {PLATFORMS.map(plt => {
+                  const sel = platform === plt.id;
+                  return (
+                    <button key={plt.id} onClick={() => setPlatform(plt.id)} style={{
+                      padding:"8px 16px", borderRadius:10,
+                      border: sel ? ("2px solid " + plt.color) : "2px solid #E5E7EB",
+                      background: sel ? (plt.color + "22") : "white",
+                      color: sel ? plt.color : "#374151",
+                      fontSize:12, fontWeight:600, cursor:"pointer",
+                    }}>
+                      {plt.label} <span style={{ fontSize:10, color:"#9CA3AF" }}>({plt.lufs} LUFS)</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:12 }}>
+              <button onClick={handleMaster} disabled={mastering} style={{ flex:1, padding:"12px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:12, color:"white", fontSize:14, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                {mastering ? <><Spin size={14} color="white" /> 마스터링 중...</> : "🎚 마스터링 적용"}
+              </button>
+              {masterDone && (
+                <button onClick={downloadMastered} style={{ flex:1, padding:"12px", background:"#10B981", border:"none", borderRadius:12, color:"white", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                  ⬇️ WAV 다운로드
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard num="📦" title="퍼블리싱 패키지">
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+          {([["아티스트 이름", artistName, setArtistName],["앨범 이름", albumName, setAlbumName],["발매일", releaseDate, setReleaseDate],["저작권 표기", copyright, setCopyright]] as [string, string, (v:string)=>void][]).map(([label, val, setter]) => (
+            <div key={label}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#6B21A8", letterSpacing:1.2, marginBottom:7 }}>{label}</div>
+              <input value={val} onChange={e => setter(e.target.value)} placeholder={label} style={inputStyle} />
+            </div>
           ))}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {user ? (
-            <>
-              <span style={{ fontSize: 10, color: "#059669" }}>☁️ 동기화 중</span>
-              {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 22, height: 22, borderRadius: "50%" }} />}
-            </>
-          ) : (
-            <button
-              onClick={signIn}
-              style={{ fontSize: 10, color: P, fontWeight: 700, background: "transparent", border: `1px solid ${P}`, borderRadius: 6, padding: "3px 9px", cursor: "pointer" }}
-            >
-              로그인하면 클라우드 저장
-            </button>
-          )}
+        <div style={{ marginTop:20 }}>
+          <button onClick={generateCover} disabled={genCover} style={{ padding:"10px 20px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:10, color:"white", fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:8 }}>
+            {genCover ? <><Spin size={12} color="white" /> 생성 중...</> : "🎨 커버 아트 생성"}
+          </button>
+          {coverArt && <img src={coverArt} alt="cover" style={{ marginTop:16, width:200, height:200, objectFit:"cover", borderRadius:12, display:"block" }} />}
         </div>
-      </nav>
+      </SectionCard>
+    </div>
+  );
 
-      {/* ── HEADER ── */}
-      <header style={{
-        background: `linear-gradient(135deg, ${P}, ${PINK})`,
-        padding: "0 40px",
-        height: 52,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        position: "sticky", top: 42, zIndex: 100,
-        boxShadow: "0 4px 20px rgba(124,58,237,0.35)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 20 }}>🎵</span>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "white", letterSpacing: -0.3 }}>Suno Music Maker</div>
-            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.7)", letterSpacing: 2 }}>PROMPT · MASTER · PUBLISH</div>
+  // ── MODE SELECTOR SCREEN ─────────────────────────────────────────────────────
+  if (appMode === "select") {
+    return (
+      <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
+        <style>{globalStyle}</style>
+        <Nav />
+        <div style={{ maxWidth:860, margin:"0 auto", padding:"72px 40px" }}>
+          {/* Header */}
+          <div style={{ textAlign:"center", marginBottom:56, animation:"fadeUp 0.4s ease both" }}>
+            <div style={{ fontSize:44, marginBottom:16 }}>🎵</div>
+            <h1 style={{ fontSize:34, fontWeight:800, color:"#0F172A", letterSpacing:-1, marginBottom:12 }}>
+              어디서부터 시작할까요?
+            </h1>
+            <p style={{ fontSize:15, color:"#6B7280", lineHeight:1.7 }}>
+              가사를 먼저 쓰거나, 사운드 스타일을 먼저 잡거나 —<br />
+              원하는 방식으로 음악을 만들어보세요.
+            </p>
+          </div>
+
+          {/* Two big mode cards */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, marginBottom:40 }}>
+            {/* Path A: Lyrics First */}
+            <button
+              onClick={() => { setAppMode("path-a"); setPathAStep("choose"); }}
+              style={{ background:"white", border:`2px solid ${P}`, borderRadius:24, padding:"40px 32px", cursor:"pointer", textAlign:"left", transition:"all 0.2s", boxShadow:"0 4px 16px rgba(124,58,237,0.12)" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform="translateY(-4px)"; (e.currentTarget as HTMLElement).style.boxShadow="0 16px 40px rgba(124,58,237,0.2)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform="translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow="0 4px 16px rgba(124,58,237,0.12)"; }}
+            >
+              <div style={{ fontSize:40, marginBottom:16 }}>✍️</div>
+              <div style={{ fontSize:20, fontWeight:800, color:"#0F172A", marginBottom:8 }}>가사 먼저 만들기</div>
+              <div style={{ fontSize:13, color:"#6B7280", lineHeight:1.7, marginBottom:20 }}>
+                스토리가 담긴 가사를 먼저 쓰고<br />어울리는 사운드를 입힙니다.
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {["이미 쓴 가사 붙여넣기 → 스타일 추출", "키워드로 영감 제공 → 스타일 추출", "7가지 항목으로 가사 직접 생성"].map(f => (
+                  <div key={f} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <div style={{ width:16, height:16, borderRadius:4, background:`rgba(124,58,237,0.1)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, color:P, fontWeight:800, flexShrink:0 }}>✓</div>
+                    <span style={{ fontSize:12, color:"#374151" }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop:24, padding:"10px 20px", background:`linear-gradient(135deg,${P},${PINK})`, borderRadius:10, fontSize:13, fontWeight:700, color:"white", textAlign:"center" }}>
+                가사 먼저 만들기 →
+              </div>
+            </button>
+
+            {/* Path B: Style First */}
+            <button
+              onClick={() => { setAppMode("path-b"); setPathBLyricsShown(false); }}
+              style={{ background:"white", border:"2px solid #E5E7EB", borderRadius:24, padding:"40px 32px", cursor:"pointer", textAlign:"left", transition:"all 0.2s", boxShadow:"0 4px 16px rgba(0,0,0,0.06)" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform="translateY(-4px)"; (e.currentTarget as HTMLElement).style.boxShadow="0 16px 40px rgba(0,0,0,0.12)"; (e.currentTarget as HTMLElement).style.borderColor="#9CA3AF"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform="translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow="0 4px 16px rgba(0,0,0,0.06)"; (e.currentTarget as HTMLElement).style.borderColor="#E5E7EB"; }}
+            >
+              <div style={{ fontSize:40, marginBottom:16 }}>🎛️</div>
+              <div style={{ fontSize:20, fontWeight:800, color:"#0F172A", marginBottom:8 }}>스타일 프롬프트 먼저</div>
+              <div style={{ fontSize:13, color:"#6B7280", lineHeight:1.7, marginBottom:20 }}>
+                먼저 음악의 장르·분위기·사운드를 잡고<br />가사를 스타일에 맞춰 생성합니다.
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {["장르 + 무드 + 보컬 + 어드밴스드 설정", "Suno 스타일 프롬프트 자동 생성", "생성된 스타일 기반으로 가사 제작"].map(f => (
+                  <div key={f} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <div style={{ width:16, height:16, borderRadius:4, background:"rgba(0,0,0,0.05)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, color:"#6B7280", fontWeight:800, flexShrink:0 }}>✓</div>
+                    <span style={{ fontSize:12, color:"#374151" }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop:24, padding:"10px 20px", background:"#1F2937", borderRadius:10, fontSize:13, fontWeight:700, color:"white", textAlign:"center" }}>
+                스타일 프롬프트 먼저 →
+              </div>
+            </button>
+          </div>
+
+          <div style={{ textAlign:"center", fontSize:12, color:"#9CA3AF" }}>
+            Powered by <span style={{ color:P, fontWeight:600 }}>Gemini 2.5 Flash</span> + <span style={{ color:PINK, fontWeight:600 }}>Suno AI</span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {[["①", "프롬프트"], ["②", "마스터링"], ["③", "퍼블리싱"]].map(([n, l]) => (
-            <div key={n} style={{
-              padding: "4px 12px",
-              background: "rgba(255,255,255,0.15)",
-              borderRadius: 20, fontSize: 11, fontWeight: 600, color: "white",
-            }}>{n} {l}</div>
+      </div>
+    );
+  }
+
+  // ── SHARED: LYRICS FORM (7 items) ────────────────────────────────────────────
+  const LyricsForm = () => (
+    <div style={{ display:"flex", flexDirection:"column", gap:28 }}>
+      {/* 1. Core Emotions */}
+      <Field label="① 핵심 감정" hint="최대 3개">
+        <div className="chip-row" style={{ marginBottom:12 }}>
+          {CORE_EMOTIONS.map(e => (
+            <Chip key={e} label={e}
+              selected={lyricsEmotions.includes(e)}
+              onClick={() => {
+                if (lyricsEmotions.includes(e)) setLyricsEmotions(prev => prev.filter(x => x !== e));
+                else if (lyricsEmotions.length < 3) setLyricsEmotions(prev => [...prev, e]);
+              }}
+            />
           ))}
         </div>
-      </header>
+        <SliderField label="감정 강도" value={emotionIntensity} onChange={setEmotionIntensity} leftLabel="극도로 절제" rightLabel="폭발적" />
+      </Field>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 28px 100px", display: "flex", flexDirection: "column", gap: 20 }}>
-
-        {/* ── 01 PROJECT ── */}
-        <div style={{ animation: "fadeUp 0.4s ease 0.05s both" }}>
-          <SectionCard num="01" title="프로젝트 기본">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-              <Field label="생성 분류">
-                <div style={{ display: "flex", gap: 8 }}>
-                  {(["single", "album"] as const).map(t => (
-                    <button key={t} onClick={() => setProjectType(t)} style={{
-                      flex: 1, padding: "9px", borderRadius: 10, fontSize: 12, fontWeight: 700,
-                      background: projectType === t ? P : "#F3F0FF",
-                      color: projectType === t ? "white" : "#6B21A8",
-                      border: `1.5px solid ${projectType === t ? P : "#EDE9FE"}`,
-                      cursor: "pointer",
-                    }}>
-                      {t === "single" ? "싱글" : "앨범"}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              {projectType === "album" && (
-                <Field label="곡 수 (1~30)">
-                  <input
-                    type="number" min={1} max={30} value={trackCount}
-                    onChange={e => setTrackCount(Math.min(30, Math.max(1, Number(e.target.value))))}
-                    style={inputStyle}
-                  />
-                </Field>
-              )}
-              <Field label="제목">
-                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                  {(["custom", "random"] as const).map(m => (
-                    <button key={m} onClick={() => setTitleMode(m)} style={{
-                      flex: 1, padding: "7px", borderRadius: 8, fontSize: 11, fontWeight: 700,
-                      background: titleMode === m ? P : "#F3F0FF",
-                      color: titleMode === m ? "white" : "#6B21A8",
-                      border: `1.5px solid ${titleMode === m ? P : "#EDE9FE"}`,
-                      cursor: "pointer",
-                    }}>
-                      {m === "custom" ? "직접입력" : "AI 랜덤"}
-                    </button>
-                  ))}
-                </div>
-                {titleMode === "custom" && (
-                  <input value={title} onChange={e => setTitle(e.target.value)}
-                    placeholder="곡 제목..." style={inputStyle} />
-                )}
-              </Field>
-            </div>
-          </SectionCard>
+      {/* 2. Situation */}
+      <Field label="② 상황 · 스토리">
+        <div className="chip-row" style={{ marginBottom:12 }}>
+          {SITUATIONS.map(s => (
+            <Chip key={s} label={s} selected={lyricsSituation === s} onClick={() => setLyricsSituation(prev => prev === s ? "" : s)} />
+          ))}
         </div>
-
-        {/* ── 02 SONG CONTENT ── */}
-        <div style={{ animation: "fadeUp 0.4s ease 0.1s both" }}>
-          <SectionCard num="02" title="곡 구조 · 내용">
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <Field label="곡 주제">
-                <textarea value={topic} onChange={e => setTopic(e.target.value)} rows={2}
-                  placeholder="곡의 주제나 이야기 (비우면 AI가 자동 생성)..."
-                  style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }} />
-              </Field>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field label="후킹 가사 (핵심 훅)">
-                  <textarea value={hookLyrics} onChange={e => setHookLyrics(e.target.value)} rows={2}
-                    placeholder="기억에 남을 핵심 가사 (비우면 AI 생성)..."
-                    style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }} />
-                </Field>
-                <Field label="피하고 싶은 요소">
-                  <textarea value={avoidEl} onChange={e => setAvoidEl(e.target.value)} rows={2}
-                    placeholder="예: 어두운 가사, 욕설, 특정 악기..."
-                    style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }} />
-                </Field>
-              </div>
-
-              {/* Structure */}
-              <Field label="곡 구성 (클릭으로 포함/제외)">
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {STRUCTURES.map(s => {
-                    const active = structure.includes(s);
-                    return (
-                      <button key={s} onClick={() => setStructure(prev =>
-                        active ? prev.filter(x => x !== s) : [...prev, s]
-                      )} style={{
-                        padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600,
-                        background: active ? P : "#F3F0FF",
-                        color: active ? "white" : "#6B21A8",
-                        border: `1.5px solid ${active ? P : "#EDE9FE"}`,
-                        cursor: "pointer", transition: "all 0.15s",
-                      }}>{s}</button>
-                    );
-                  })}
+        {/* Narrative Structure Preview */}
+        {narrative && (
+          <div style={{ background:"rgba(124,58,237,0.04)", border:"1.5px solid rgba(124,58,237,0.15)", borderRadius:12, padding:"14px 16px", marginBottom:12 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:P, letterSpacing:1.5, marginBottom:10 }}>📖 서사 구조 미리보기</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {([["1절", narrative.v1], ["2절", narrative.v2], ["브릿지", narrative.bridge], ["아웃트로", narrative.outro]] as [string, string][]).map(([label, desc]) => (
+                <div key={label} style={{ display:"flex", gap:10 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:P, minWidth:42, paddingTop:1 }}>{label}</div>
+                  <div style={{ fontSize:12, color:"#4B5563", lineHeight:1.5 }}>{desc}</div>
                 </div>
-              </Field>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                <Field label="가사 밀도">
-                  <select value={lyricDensity} onChange={e => setLyricDensity(e.target.value)} style={selectStyle}>
-                    {["저", "중", "고"].map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="훅 강조">
-                  <select value={hookStrength} onChange={e => setHookStrength(e.target.value)} style={selectStyle}>
-                    {["약함", "보통", "강함"].map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="라임 스타일">
-                  <select value={rhymeStyle} onChange={e => setRhymeStyle(e.target.value)} style={selectStyle}>
-                    {["자연스러운 라임", "강한 반복", "없음"].map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-              </div>
-              <Field label="추가 요청사항">
-                <input value={addRequest} onChange={e => setAddRequest(e.target.value)}
-                  placeholder="예: 2절은 영어로, 브릿지에서 조바꿈..."
-                  style={inputStyle} />
-              </Field>
-            </div>
-          </SectionCard>
-        </div>
-
-        {/* ── 03 STYLE ── */}
-        <div style={{ animation: "fadeUp 0.4s ease 0.15s both" }}>
-          <SectionCard num="03" title="음악 스타일">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
-              <Field label="장르 1">
-                <select value={genre1} onChange={e => setGenre1(e.target.value)} style={selectStyle}>
-                  {GENRES.map(g => <option key={g}>{g}</option>)}
-                </select>
-              </Field>
-              <Field label="장르 2 (보조)">
-                <select value={genre2} onChange={e => setGenre2(e.target.value)} style={selectStyle}>
-                  <option value="">없음</option>
-                  {GENRES.map(g => <option key={g}>{g}</option>)}
-                </select>
-              </Field>
-              <Field label="분위기">
-                <select value={mood} onChange={e => setMood(e.target.value)} style={selectStyle}>
-                  {MOODS.map(m => <option key={m}>{m}</option>)}
-                </select>
-              </Field>
-              <Field label="곡 강도">
-                <select value={intensity} onChange={e => setIntensity(e.target.value)} style={selectStyle}>
-                  {["랜덤", "약", "중", "강"].map(v => <option key={v}>{v}</option>)}
-                </select>
-              </Field>
-              <Field label="곡의 용도">
-                <select value={purpose} onChange={e => setPurpose(e.target.value)} style={selectStyle}>
-                  {PURPOSES.map(p => <option key={p}>{p}</option>)}
-                </select>
-              </Field>
-            </div>
-          </SectionCard>
-        </div>
-
-        {/* ── 04 TECHNICAL ── */}
-        <div style={{ animation: "fadeUp 0.4s ease 0.2s both" }}>
-          <SectionCard num="04" title="기술 파라미터">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16 }}>
-              <Field label="BPM">
-                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                  {(["random", "custom"] as const).map(m => (
-                    <button key={m} onClick={() => setBpmMode(m)} style={{
-                      flex: 1, padding: "6px", borderRadius: 8, fontSize: 11, fontWeight: 700,
-                      background: bpmMode === m ? P : "#F3F0FF",
-                      color: bpmMode === m ? "white" : "#6B21A8",
-                      border: `1.5px solid ${bpmMode === m ? P : "#EDE9FE"}`,
-                      cursor: "pointer",
-                    }}>{m === "random" ? "랜덤" : "직접"}</button>
-                  ))}
-                </div>
-                {bpmMode === "custom" && (
-                  <input type="number" min={60} max={220} value={bpm}
-                    onChange={e => setBpm(e.target.value)}
-                    placeholder="60~220" style={inputStyle} />
-                )}
-              </Field>
-              <Field label="곡 길이">
-                <select value={duration} onChange={e => setDuration(e.target.value)} style={selectStyle}>
-                  {["1분", "2분", "3분", "4분"].map(v => <option key={v}>{v}</option>)}
-                </select>
-              </Field>
-              <Field label="보컬">
-                <select value={vocal} onChange={e => setVocal(e.target.value)} style={selectStyle}>
-                  {["있음", "없음 (인스트루멘탈)", "남성", "여성", "듀엣"].map(v => <option key={v}>{v}</option>)}
-                </select>
-              </Field>
-              <Field label="언어">
-                <select value={language} onChange={e => setLanguage(e.target.value)} style={selectStyle}>
-                  {["한국어", "영어", "한영 혼합", "없음"].map(v => <option key={v}>{v}</option>)}
-                </select>
-              </Field>
-              <Field label="프롬프트 언어">
-                <select value={promptLang} onChange={e => setPromptLang(e.target.value)} style={selectStyle}>
-                  {["영어", "한국어"].map(v => <option key={v}>{v}</option>)}
-                </select>
-              </Field>
-            </div>
-          </SectionCard>
-        </div>
-
-        {/* ── ADVANCED MODE ── */}
-        <div style={{
-          background: "white", borderRadius: 18,
-          border: `1.5px solid ${advancedMode ? P : "#E5E7EB"}`,
-          padding: 0, marginBottom: 18, overflow: "hidden",
-          boxShadow: advancedMode ? "0 4px 20px rgba(124,58,237,0.12)" : "0 1px 3px rgba(0,0,0,0.04)",
-        }}>
-          {/* Toggle header */}
-          <button
-            onClick={() => setAdvancedMode(v => !v)}
-            style={{
-              width: "100%", padding: "18px 24px",
-              background: advancedMode ? `linear-gradient(135deg, ${P}10, ${PINK}10)` : "white",
-              border: "none", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}
-          >
-            <div style={{ textAlign: "left" }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 2 }}>
-                ✨ 고급 사운드 디테일 {advancedMode && <span style={{ color: P, fontSize: 11, marginLeft: 6 }}>ON</span>}
-              </div>
-              <div style={{ fontSize: 11, color: "#9CA3AF" }}>
-                보컬 디렉션 · 악기 · 분위기 · 에너지 곡선 · 장소 텍스처 · 금지 요소 11개 카테고리
-              </div>
-            </div>
-            <span style={{
-              fontSize: 14, color: advancedMode ? P : "#9CA3AF",
-              transform: advancedMode ? "rotate(180deg)" : "rotate(0)",
-              transition: "transform 0.2s",
-            }}>▼</span>
-          </button>
-
-          {advancedMode && (
-            <div style={{ padding: "20px 24px", borderTop: "1px solid #F3F4F6" }}>
-              {/* Presets */}
-              <div style={{ marginBottom: 22 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: "#6B7280", letterSpacing: 1, marginBottom: 8 }}>
-                  ⚡ 원클릭 프리셋 — 한 번에 여러 옵션 세팅
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {PRESETS.map(preset => (
-                    <button
-                      key={preset.name}
-                      onClick={() => {
-                        const s = preset.set;
-                        if (s.vocalDirection) setVocalDirection(s.vocalDirection as string);
-                        if (s.venueMood) setVenueMood(s.venueMood as string);
-                        if (s.energyCurve) setEnergyCurve(s.energyCurve as string);
-                        if (s.bpmFeel) setBpmFeel(s.bpmFeel as string);
-                        if (s.hookStyle) setHookStyle(s.hookStyle as string);
-                        if (s.vocalProduction) setVocalProduction(s.vocalProduction as string);
-                        if (s.detailedMoods) setDetailedMoods(s.detailedMoods as string[]);
-                      }}
-                      style={{
-                        padding: "8px 14px", borderRadius: 10,
-                        background: "#FAF5FF", border: `1.5px solid #DDD6FE`,
-                        fontSize: 12, fontWeight: 700, color: "#5B21B6", cursor: "pointer",
-                      }}
-                    >
-                      {preset.emoji} {preset.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Group 1: Sonic identity (single-select) */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14, marginBottom: 18 }}>
-                <Field label="🎤 보컬 디렉션">
-                  <select value={vocalDirection} onChange={e => setVocalDirection(e.target.value)} style={selectStyle}>
-                    {VOCAL_DIRECTIONS.map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="🌅 장소·무드 텍스처">
-                  <select value={venueMood} onChange={e => setVenueMood(e.target.value)} style={selectStyle}>
-                    {VENUE_MOODS.map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="📈 에너지 곡선">
-                  <select value={energyCurve} onChange={e => setEnergyCurve(e.target.value)} style={selectStyle}>
-                    {ENERGY_CURVES.map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="🥁 BPM 느낌">
-                  <select value={bpmFeel} onChange={e => setBpmFeel(e.target.value)} style={selectStyle}>
-                    {BPM_FEELS.map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="🎵 후렴 스타일">
-                  <select value={hookStyle} onChange={e => setHookStyle(e.target.value)} style={selectStyle}>
-                    {HOOK_STYLES.map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="🎚️ 보컬 프로덕션">
-                  <select value={vocalProduction} onChange={e => setVocalProduction(e.target.value)} style={selectStyle}>
-                    {VOCAL_PRODUCTION.map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-                <Field label="🎼 곡 전개 장치">
-                  <select value={songDevice} onChange={e => setSongDevice(e.target.value)} style={selectStyle}>
-                    {SONG_DEVICES.map(v => <option key={v}>{v}</option>)}
-                  </select>
-                </Field>
-                <div />
-              </div>
-
-              {/* Group 2: Detailed moods (multi-select chips) */}
-              <Field label="🎨 분위기 세분화 (복수 선택)">
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {DETAILED_MOODS_MULTI.map(m => {
-                    const active = detailedMoods.includes(m);
-                    return (
-                      <button key={m} onClick={() => setDetailedMoods(prev =>
-                        active ? prev.filter(x => x !== m) : [...prev, m]
-                      )} style={{
-                        padding: "5px 12px", borderRadius: 16, fontSize: 12, fontWeight: 600,
-                        background: active ? P : "#F3F0FF",
-                        color: active ? "white" : "#6B21A8",
-                        border: `1.5px solid ${active ? P : "#EDE9FE"}`,
-                        cursor: "pointer",
-                      }}>{m}</button>
-                    );
-                  })}
-                </div>
-              </Field>
-
-              {/* Group 3: Instruments */}
-              <div style={{ marginTop: 16, padding: "14px 16px", background: "#FAFAFB", borderRadius: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: "#6B7280", letterSpacing: 1, marginBottom: 10 }}>
-                  🎸 악기 디테일 (장르 자동 추론을 덮어쓰고 싶을 때만)
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-                  <Field label="기타">
-                    <select value={instGuitar} onChange={e => setInstGuitar(e.target.value)} style={selectStyle}>
-                      {INSTRUMENT_GUITAR.map(v => <option key={v}>{v}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="드럼">
-                    <select value={instDrums} onChange={e => setInstDrums(e.target.value)} style={selectStyle}>
-                      {INSTRUMENT_DRUMS.map(v => <option key={v}>{v}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="베이스">
-                    <select value={instBass} onChange={e => setInstBass(e.target.value)} style={selectStyle}>
-                      {INSTRUMENT_BASS.map(v => <option key={v}>{v}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="신스">
-                    <select value={instSynth} onChange={e => setInstSynth(e.target.value)} style={selectStyle}>
-                      {INSTRUMENT_SYNTH.map(v => <option key={v}>{v}</option>)}
-                    </select>
-                  </Field>
-                </div>
-              </div>
-
-              {/* Group 4: Negative prompts (checkboxes) */}
-              <Field label="🚫 금지 요소 (선택한 것은 절대 생성하지 않음)">
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {AVOID_ELEMENTS_OPTIONS.map(a => {
-                    const active = avoidElementsAdv.includes(a);
-                    return (
-                      <button key={a} onClick={() => setAvoidElementsAdv(prev =>
-                        active ? prev.filter(x => x !== a) : [...prev, a]
-                      )} style={{
-                        padding: "5px 12px", borderRadius: 16, fontSize: 12, fontWeight: 600,
-                        background: active ? "#FEE2E2" : "#F9FAFB",
-                        color: active ? "#991B1B" : "#6B7280",
-                        border: `1.5px solid ${active ? "#FCA5A5" : "#E5E7EB"}`,
-                        cursor: "pointer",
-                      }}>{active ? "✕ " : ""}{a}</button>
-                    );
-                  })}
-                </div>
-              </Field>
-            </div>
-          )}
-        </div>
-
-        {/* ── GENERATE BUTTON ── */}
-        <button onClick={generate} disabled={loading} style={{
-          width: "100%", padding: "17px",
-          background: loading ? "rgba(124,58,237,0.4)" : `linear-gradient(135deg, ${P}, ${PINK})`,
-          border: "none", borderRadius: 16,
-          fontSize: 16, fontWeight: 800, color: "white",
-          cursor: loading ? "wait" : "pointer",
-          boxShadow: loading ? "none" : "0 8px 24px rgba(124,58,237,0.35)",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-          transition: "all 0.3s", letterSpacing: 0.5,
-          animation: "fadeUp 0.4s ease 0.25s both",
-        }}>
-          {loading ? (
-            <><Spin size={18} /><span>AI가 {projectType === "album" ? `${trackCount}곡` : "프롬프트"} 생성 중...</span></>
-          ) : (
-            `🎵 Suno 프롬프트 생성 — ${projectType === "album" ? `앨범 ${trackCount}곡` : "싱글"}`
-          )}
-        </button>
-
-        {/* ── GENERATED RESULTS ── */}
-        {results.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, animation: "fadeUp 0.4s ease" }}>
-            {results.map((r, i) => (
-              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-                {/* 제목 제안 */}
-                {r.suggestedTitle && (
-                  <div style={{
-                    background: `linear-gradient(135deg, ${P}, ${PINK})`,
-                    borderRadius: 14, padding: "10px 20px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", fontWeight: 700, letterSpacing: 1 }}>
-                        {projectType === "album" ? `TRACK ${i + 1}` : "TITLE SUGGESTION"}
-                      </div>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: "white" }}>{r.suggestedTitle}</div>
-                    </div>
-                    <button onClick={() => copy(r.suggestedTitle, `title-${i}`)} style={{
-                      padding: "6px 14px", borderRadius: 8,
-                      background: "rgba(255,255,255,0.2)", border: "none",
-                      fontSize: 11, fontWeight: 700, color: "white", cursor: "pointer",
-                    }}>
-                      {copiedTarget === `title-${i}` ? "✓ 복사됨" : "📋 복사"}
-                    </button>
-                  </div>
-                )}
-
-                {/* ── Style Prompt (MAIN) ── */}
-                <div style={{
-                  background: "white", borderRadius: 20,
-                  border: `2px solid ${P}`,
-                  overflow: "hidden",
-                  boxShadow: `0 4px 24px rgba(124,58,237,0.12)`,
-                }}>
-                  <div style={{
-                    background: `linear-gradient(135deg, ${P}15, ${PINK}10)`,
-                    padding: "14px 20px",
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    borderBottom: `1px solid ${P}25`,
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 18 }}>🎨</span>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: P }}>Style Prompt</div>
-                        <div style={{ fontSize: 10, color: "#9CA3AF" }}>Suno → &quot;Style of Music&quot; 필드에 붙여넣기</div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => copy(r.stylePrompt, `style-${i}`)} style={{
-                        padding: "7px 16px", borderRadius: 9,
-                        background: copiedTarget === `style-${i}` ? "rgba(16,185,129,0.15)" : P,
-                        border: "none", fontSize: 12, fontWeight: 700,
-                        color: copiedTarget === `style-${i}` ? "#10B981" : "white",
-                        cursor: "pointer",
-                      }}>
-                        {copiedTarget === `style-${i}` ? "✓ 복사됨" : "📋 복사"}
-                      </button>
-                      <a
-                        href="https://suno.com" target="_blank" rel="noopener noreferrer"
-                        onClick={() => copy(r.stylePrompt, `suno-${i}`)}
-                        style={{
-                          padding: "7px 16px", borderRadius: 9,
-                          background: `linear-gradient(135deg, ${P}, ${PINK})`,
-                          fontSize: 12, fontWeight: 700, color: "white",
-                          textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5,
-                        }}
-                      >
-                        🌐 Suno 열기
-                      </a>
-                    </div>
-                  </div>
-                  <div style={{
-                    padding: "22px 24px",
-                    fontSize: 13, lineHeight: 1.9, color: "#1F2937",
-                    fontWeight: 500, letterSpacing: 0.1,
-                  }}>{r.stylePrompt}</div>
-                  <div style={{
-                    padding: "8px 24px 16px",
-                    fontSize: 11,
-                    color: r.stylePrompt.length > 1000 ? "#DC2626" : r.stylePrompt.length > 900 ? "#F59E0B" : "#9CA3AF",
-                    fontWeight: 600,
-                    display: "flex", alignItems: "center", gap: 6,
-                  }}>
-                    {r.stylePrompt.length > 1000 ? "⚠️" : "✓"} {r.stylePrompt.length} / 1000자
-                    {r.stylePrompt.length > 1000 && <span style={{ marginLeft: 4 }}>(Suno 한도 초과 — 잘릴 수 있음)</span>}
-                  </div>
-                </div>
-
-                {/* ── Lyrics (접힌 상태, 별도 영역) ── */}
-                {r.lyrics && (
-                  <div style={{
-                    background: "white", borderRadius: 14,
-                    border: "1px solid #E5E7EB",
-                    overflow: "hidden",
-                  }}>
-                    <button
-                      onClick={() => setLyricsOpen(prev => prev.map((v, idx) => idx === i ? !v : v))}
-                      style={{
-                        width: "100%", padding: "12px 18px",
-                        background: "#F9FAFB", border: "none", cursor: "pointer",
-                        display: "flex", justifyContent: "space-between", alignItems: "center",
-                        borderBottom: lyricsOpen[i] ? "1px solid #E5E7EB" : "none",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 14 }}>📝</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>가사 (Lyrics)</span>
-                        <span style={{ fontSize: 10, color: "#9CA3AF" }}>Custom Mode용 · 별도 작업 예정</span>
-                      </div>
-                      <span style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 600 }}>
-                        {lyricsOpen[i] ? "▲ 접기" : "▼ 펼치기"}
-                      </span>
-                    </button>
-                    {lyricsOpen[i] && (
-                      <div>
-                        <div style={{ padding: "8px 18px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB", display: "flex", justifyContent: "flex-end" }}>
-                          <button onClick={() => copy(r.lyrics!, `lyrics-${i}`)} style={{
-                            padding: "5px 12px", borderRadius: 8,
-                            background: copiedTarget === `lyrics-${i}` ? "rgba(16,185,129,0.15)" : "#F3F4F6",
-                            border: "1px solid #E5E7EB", fontSize: 11, fontWeight: 700,
-                            color: copiedTarget === `lyrics-${i}` ? "#10B981" : "#374151",
-                            cursor: "pointer",
-                          }}>
-                            {copiedTarget === `lyrics-${i}` ? "✓ 복사됨" : "📋 복사"}
-                          </button>
-                        </div>
-                        <pre style={{
-                          margin: 0, padding: "18px 20px",
-                          fontSize: 12, lineHeight: 2, color: "#374151",
-                          fontFamily: "'Space Mono', monospace",
-                          whiteSpace: "pre-wrap", wordBreak: "break-word",
-                          maxHeight: 400, overflowY: "auto",
-                          background: "white",
-                        }}>{r.lyrics}</pre>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {/* Pipeline indicator */}
-            <div style={{
-              background: "white", borderRadius: 14, padding: "14px 20px",
-              border: "1px solid #EDE9FE",
-              display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center",
-            }}>
-              <span style={{ fontSize: 10, color: "#9CA3AF", letterSpacing: 1.5, marginRight: 4 }}>PIPELINE</span>
-              {["① 설정 완료 ✓", "② 프롬프트 생성 ✓", "③ Suno에서 생성 후 WAV 다운로드", "④ 아래에 Import → 마스터링", "⑤ 퍼블리싱 패키지"].map((s, i) => (
-                <span key={i} style={{
-                  fontSize: 11, padding: "4px 11px", borderRadius: 20,
-                  background: i < 2 ? "rgba(16,185,129,0.12)" : "rgba(124,58,237,0.07)",
-                  color: i < 2 ? "#10B981" : P,
-                  border: `1px solid ${i < 2 ? "rgba(16,185,129,0.25)" : "#EDE9FE"}`,
-                  fontWeight: 600,
-                }}>{s}</span>
               ))}
             </div>
           </div>
         )}
+        <input value={situationDetail} onChange={e => setSituationDetail(e.target.value)}
+          placeholder="상황을 한 줄로 설명해주세요 (예: 비 오는 날 카페에서 재회한 두 사람)" style={inputStyle} />
+      </Field>
 
-        {/* ── 05 AUDIO IMPORT ── */}
-        <div style={{ animation: "fadeUp 0.4s ease 0.3s both" }}>
-          <SectionCard num="05" title="오디오 Import · 분석">
-            {/* Drop zone */}
-            <div
-              onDrop={handleDrop}
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: `2px dashed ${dragOver ? P : "#C4B5FD"}`,
-                borderRadius: 16, padding: "40px 24px",
-                textAlign: "center", cursor: "pointer",
-                background: dragOver ? "rgba(124,58,237,0.05)" : "#FAFBFF",
-                transition: "all 0.2s",
-                marginBottom: audioFile ? 20 : 0,
-              }}
-            >
-              <div style={{ fontSize: 36, marginBottom: 12 }}>
-                {analyzing ? <Spin size={36} /> : "🎧"}
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: P, marginBottom: 6 }}>
-                {analyzing ? "분석 중..." : audioFile ? audioFile.name : "WAV / MP3 / FLAC 드래그 또는 클릭"}
-              </div>
-              <div style={{ fontSize: 12, color: "#9CA3AF" }}>
-                Suno에서 생성한 파일을 여기에 Import하세요
-              </div>
-            </div>
-            <input ref={fileInputRef} type="file" accept="audio/*" style={{ display: "none" }}
-              onChange={e => { if (e.target.files?.[0]) analyzeFile(e.target.files[0]); }} />
-
-            {/* Analysis Results */}
-            {analysis && (
-              <div style={{
-                display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12,
-                animation: "fadeUp 0.35s ease",
-              }}>
-                {[
-                  { label: "BPM", value: analysis.bpm, unit: "bpm", icon: "🥁" },
-                  { label: "Integrated", value: analysis.lufs, unit: "LUFS", icon: "📊" },
-                  { label: "True Peak", value: analysis.peak, unit: "dBTP", icon: "📈" },
-                  { label: "Duration", value: `${Math.floor(analysis.duration/60)}:${String(analysis.duration%60).padStart(2,"0")}`, unit: "", icon: "⏱" },
-                ].map(({ label, value, unit, icon }) => (
-                  <div key={label} style={{
-                    background: "#F3F0FF", borderRadius: 12, padding: "14px 16px",
-                    border: "1px solid #EDE9FE", textAlign: "center",
-                  }}>
-                    <div style={{ fontSize: 20, marginBottom: 6 }}>{icon}</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: P, lineHeight: 1 }}>
-                      {value}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{unit || " "}</div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#6B21A8", letterSpacing: 1, marginTop: 4 }}>
-                      {label}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
-        </div>
-
-        {/* ── 06 MASTERING ── */}
-        <div style={{ animation: "fadeUp 0.4s ease 0.35s both" }}>
-          <SectionCard num="06" title="마스터링">
-            {/* Platform selector */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6B21A8", letterSpacing: 1.2, marginBottom: 12 }}>
-                타겟 플랫폼
-              </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {PLATFORMS.map(plt => (
-                  <button key={plt.id} onClick={() => setPlatform(plt.id)} style={{
-                    padding: "10px 18px", borderRadius: 12, fontSize: 13, fontWeight: 700,
-                    background: platform === plt.id ? plt.color : "#F3F0FF",
-                    color: platform === plt.id ? "white" : "#6B21A8",
-                    border: `1.5px solid ${platform === plt.id ? plt.color : "#EDE9FE"}`,
-                    cursor: "pointer", transition: "all 0.15s",
-                  }}>
-                    {plt.label}
-                    <span style={{ fontSize: 10, opacity: 0.8, marginLeft: 6 }}>{plt.lufs} LUFS</span>
-                  </button>
-                ))}
-              </div>
-              <div style={{
-                marginTop: 12, padding: "10px 16px", background: "#F3F0FF",
-                borderRadius: 10, fontSize: 12, color: "#6B21A8",
-              }}>
-                타겟: <strong>{currentPlatform.label}</strong> 기준 <strong>{targetLUFS} LUFS</strong> · True Peak <strong>-1 dBTP</strong>
-                {analysis && (
-                  <span style={{ marginLeft: 12, color: analysis.lufs > targetLUFS ? "#EF4444" : "#10B981" }}>
-                    현재 {analysis.lufs} LUFS → {targetLUFS > analysis.lufs ? "+" : ""}{Math.round((targetLUFS - analysis.lufs) * 10) / 10} dB 조정 필요
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Sliders */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-              <Slider label="톤 선명도 / Clarity" value={clarity} onChange={setClarity} />
-              <Slider label="저역 무게감 / Bass" value={bassWeight} onChange={setBassWeight} />
-              <Slider label="스테레오 폭 / Width" value={stereoWidth} onChange={setStereoWidth} />
-            </div>
-
-            {/* Checkboxes */}
-            <div style={{ display: "flex", gap: 20, marginBottom: 24 }}>
-              {[
-                { label: "앞뒤 무음 정리", val: silenceTrim, set: setSilenceTrim },
-                { label: "앨범 단위 볼륨 통일", val: volNorm, set: setVolNorm },
-              ].map(({ label, val, set }) => (
-                <label key={label} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                  <input type="checkbox" checked={val} onChange={e => set(e.target.checked)}
-                    style={{ accentColor: P, width: 16, height: 16 }} />
-                  <span style={{ fontSize: 13, color: "#374151" }}>{label}</span>
-                </label>
-              ))}
-            </div>
-
-            {/* Master button */}
-            <button onClick={handleMaster} disabled={!audioBuffer || mastering} style={{
-              width: "100%", padding: "14px",
-              background: !audioBuffer ? "rgba(124,58,237,0.3)" : mastering ? "rgba(124,58,237,0.5)" : `linear-gradient(135deg, ${P}, ${PINK})`,
-              border: "none", borderRadius: 14,
-              fontSize: 14, fontWeight: 800, color: "white",
-              cursor: !audioBuffer || mastering ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              boxShadow: audioBuffer && !mastering ? "0 6px 20px rgba(124,58,237,0.3)" : "none",
-            }}>
-              {mastering ? (
-                <><Spin size={16} color="white" /> 마스터링 처리 중...</>
-              ) : (
-                "⚡ 마스터링 적용 & WAV 내보내기"
-              )}
-            </button>
-
-            {masterDone && (
-              <button onClick={downloadMastered} style={{
-                width: "100%", padding: "13px", marginTop: 10,
-                background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.3)",
-                borderRadius: 14, fontSize: 14, fontWeight: 700,
-                color: "#10B981", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}>
-                ✓ 마스터링 완료 — WAV 다운로드
-              </button>
-            )}
-          </SectionCard>
-        </div>
-
-        {/* ── 07 PUBLISHING ── */}
-        <div style={{ animation: "fadeUp 0.4s ease 0.4s both" }}>
-          <SectionCard num="07" title="퍼블리싱 패키지">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-              <Field label="아티스트명">
-                <input value={artistName} onChange={e => setArtistName(e.target.value)}
-                  placeholder="아티스트 이름" style={inputStyle} />
-              </Field>
-              <Field label="앨범명">
-                <input value={albumName} onChange={e => setAlbumName(e.target.value)}
-                  placeholder="앨범 또는 싱글 제목" style={inputStyle} />
-              </Field>
-              <Field label="릴리즈 날짜">
-                <input type="date" value={releaseDate} onChange={e => setReleaseDate(e.target.value)}
-                  style={inputStyle} />
-              </Field>
-              <Field label="저작권자">
-                <input value={copyright} onChange={e => setCopyright(e.target.value)}
-                  placeholder="© 2025 Artist Name" style={inputStyle} />
-              </Field>
-            </div>
-
-            {/* Cover Art */}
-            <Field label="커버아트">
-              <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                <div style={{
-                  width: 140, height: 140, borderRadius: 14,
-                  border: "2px dashed #C4B5FD",
-                  background: "#F3F0FF",
-                  overflow: "hidden",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0,
-                }}>
-                  {coverArt ? (
-                    <img src={coverArt} alt="cover" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : genCover ? (
-                    <Spin size={28} />
-                  ) : (
-                    <span style={{ fontSize: 32 }}>🎨</span>
-                  )}
-                </div>
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <button onClick={generateCover} disabled={genCover} style={{
-                    padding: "10px 16px",
-                    background: genCover ? "rgba(124,58,237,0.3)" : `linear-gradient(135deg, ${P}, ${PINK})`,
-                    border: "none", borderRadius: 10,
-                    fontSize: 12, fontWeight: 700, color: "white",
-                    cursor: genCover ? "wait" : "pointer",
-                    display: "flex", alignItems: "center", gap: 6,
-                  }}>
-                    {genCover ? <><Spin size={12} color="white" /> 생성 중...</> : "✦ AI 커버아트 생성"}
-                  </button>
-                  <label style={{
-                    padding: "10px 16px",
-                    background: "#F3F0FF", border: "1.5px solid #EDE9FE",
-                    borderRadius: 10, fontSize: 12, fontWeight: 700,
-                    color: P, cursor: "pointer", textAlign: "center",
-                  }}>
-                    📁 이미지 업로드
-                    <input type="file" accept="image/*" style={{ display: "none" }}
-                      onChange={e => {
-                        const f = e.target.files?.[0];
-                        if (f) { const url = URL.createObjectURL(f); setCoverArt(url); }
-                      }} />
-                  </label>
-                  <div style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.5 }}>
-                    권장: 3000×3000px, JPG/PNG<br />
-                    DistroKid · TuneCore 기준
-                  </div>
-                </div>
-              </div>
-            </Field>
-
-            {/* Distribution targets */}
-            <div style={{ marginTop: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#6B21A8", letterSpacing: 1.2, marginBottom: 10 }}>
-                배포 플랫폼
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                {["DistroKid", "TuneCore", "기타 배포사"].map(d => (
-                  <div key={d} style={{
-                    padding: "8px 16px", borderRadius: 10,
-                    background: "#F3F0FF", border: "1.5px solid #EDE9FE",
-                    fontSize: 12, fontWeight: 600, color: "#6B21A8",
-                  }}>{d}</div>
-                ))}
-              </div>
-            </div>
-
-            {/* Download package */}
-            <button
+      {/* 3. Background Scene */}
+      <Field label="③ 배경 · 장면" hint="최대 3개">
+        <div className="chip-row">
+          {BACKGROUND_SCENES.map(s => (
+            <Chip key={s} label={s} selected={backgroundScenes.includes(s)}
               onClick={() => {
-                const meta = {
-                  title: title || "Untitled",
-                  artist: artistName, album: albumName,
-                  releaseDate, copyright,
-                  genre: genre1, mood, platform: currentPlatform.label,
-                  targetLUFS,
-                };
-                const blob = new Blob([JSON.stringify(meta, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url; a.download = `${title || "release"}_metadata.json`;
-                a.click(); URL.revokeObjectURL(url);
+                if (backgroundScenes.includes(s)) setBackgroundScenes(prev => prev.filter(x => x !== s));
+                else if (backgroundScenes.length < 3) setBackgroundScenes(prev => [...prev, s]);
               }}
-              style={{
-                width: "100%", padding: "13px", marginTop: 20,
-                background: `linear-gradient(135deg, ${P}, ${PINK})`,
-                border: "none", borderRadius: 14,
-                fontSize: 14, fontWeight: 800, color: "white",
-                cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                boxShadow: "0 6px 20px rgba(124,58,237,0.3)",
-              }}
-            >
-              📦 퍼블리싱 패키지 다운로드 (메타데이터 JSON)
-            </button>
-          </SectionCard>
+            />
+          ))}
         </div>
+      </Field>
+
+      {/* 4. Symbol Keywords — tag input */}
+      <Field label="④ 키워드 · 상징어" hint="3~7개, Enter로 추가">
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:8 }}>
+          {symbolKeywords.map(kw => (
+            <span key={kw} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 12px", background:`rgba(124,58,237,0.08)`, border:`1.5px solid ${P}`, borderRadius:100, fontSize:12, color:P, fontWeight:600 }}>
+              {kw}
+              <button onClick={() => setSymbolKeywords(prev => prev.filter(x => x !== kw))}
+                style={{ background:"none", border:"none", cursor:"pointer", color:P, fontSize:14, lineHeight:1, padding:0, marginTop:-1 }}>×</button>
+            </span>
+          ))}
+          {symbolKeywords.length < 7 && (
+            <input value={symbolInput} onChange={e => setSymbolInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && symbolInput.trim()) {
+                  e.preventDefault();
+                  setSymbolKeywords(prev => [...prev, symbolInput.trim()]);
+                  setSymbolInput("");
+                }
+              }}
+              placeholder={symbolKeywords.length === 0 ? "예: 파도, 창문, 기차..." : "추가..."}
+              style={{ ...inputStyle, width:"auto", flex:1, minWidth:120 }} />
+          )}
+        </div>
+        <div style={{ fontSize:10, color:"#9CA3AF" }}>상징어는 가사 전체에 변주되어 반복됩니다. (파도→tide→물결→잠기다)</div>
+      </Field>
+
+      {/* 5. Prohibitions */}
+      <Field label="⑤ 금지 요소">
+        <div className="chip-row" style={{ marginBottom:10 }}>
+          {PROHIBITION_CHIPS.map(p => (
+            <Chip key={p} label={p} color="#EF4444" selected={lyricProhibitions.includes(p)}
+              onClick={() => {
+                if (lyricProhibitions.includes(p)) setLyricProhibitions(prev => prev.filter(x => x !== p));
+                else setLyricProhibitions(prev => [...prev, p]);
+              }}
+            />
+          ))}
+        </div>
+        <input value={prohibitionCustom} onChange={e => setProhibitionCustom(e.target.value)}
+          placeholder="직접 입력 (예: 계절 묘사 없이, 날씨 언급 금지...)" style={inputStyle} />
+      </Field>
+
+      {/* 6. Hook Style */}
+      <Field label="⑥ 후킹 스타일" hint="최대 2개">
+        <div className="chip-row">
+          {HOOK_STYLES_LYRICS.map(h => (
+            <Chip key={h} label={h} selected={lyricsHookStyles.includes(h)}
+              onClick={() => {
+                if (lyricsHookStyles.includes(h)) setLyricsHookStyles(prev => prev.filter(x => x !== h));
+                else if (lyricsHookStyles.length < 2) setLyricsHookStyles(prev => [...prev, h]);
+              }}
+            />
+          ))}
+        </div>
+      </Field>
+
+      {/* 7. Expression Tone + Language */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:20, alignItems:"end" }}>
+        <Field label="⑦ 표현 톤">
+          <SliderField label="" value={expressionTone} onChange={setExpressionTone} leftLabel="직설적·솔직" rightLabel="시적·은유" />
+        </Field>
+        <Field label="언어">
+          <div style={{ display:"flex", gap:0, borderRadius:10, overflow:"hidden", border:`1.5px solid ${P}` }}>
+            {(["한국어", "영어"] as const).map(lng => (
+              <button key={lng} onClick={() => setLyricsLanguage(lng)} style={{
+                padding:"8px 18px", background:lyricsLanguage === lng ? P : "white",
+                color:lyricsLanguage === lng ? "white" : P,
+                border:"none", cursor:"pointer", fontSize:13, fontWeight:700, transition:"all 0.15s",
+              }}>{lng === "한국어" ? "KOR" : "ENG"}</button>
+            ))}
+          </div>
+        </Field>
       </div>
     </div>
   );
+
+  // ── SHARED: STYLE FORM ───────────────────────────────────────────────────────
+  const StyleForm = () => (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      {/* LyricsContext Banner */}
+      {lyricsContext && (
+        <div style={{ background:"rgba(124,58,237,0.06)", border:"1.5px solid rgba(124,58,237,0.2)", borderRadius:14, padding:"14px 18px" }}>
+          <div style={{ fontSize:11, fontWeight:700, color:P, letterSpacing:1, marginBottom:8 }}>✨ 가사 분석 결과가 반영되었습니다</div>
+          <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:"4px 12px", fontSize:12 }}>
+            {lyricsContext.genre && <><span style={{ color:"#9CA3AF" }}>장르</span><span style={{ color:"#1F2937", fontWeight:500 }}>{lyricsContext.genre}</span></>}
+            {lyricsContext.mood && <><span style={{ color:"#9CA3AF" }}>분위기</span><span style={{ color:"#1F2937", fontWeight:500 }}>{lyricsContext.mood}</span></>}
+            {lyricsContext.styleHint && <><span style={{ color:"#9CA3AF" }}>방향</span><span style={{ color:"#1F2937", fontWeight:500 }}>{lyricsContext.styleHint}</span></>}
+          </div>
+        </div>
+      )}
+
+      {/* Project Type */}
+      <div style={{ display:"flex", gap:10 }}>
+        {(["single","album"] as const).map(pt => (
+          <button key={pt} onClick={() => setProjectType(pt)} style={{
+            padding:"8px 20px", borderRadius:10, border:`1.5px solid ${projectType===pt?P:"#E5E7EB"}`,
+            background:projectType===pt?P:"white", color:projectType===pt?"white":"#374151",
+            fontSize:13, fontWeight:600, cursor:"pointer",
+          }}>{pt === "single" ? "🎵 싱글" : "💿 앨범"}</button>
+        ))}
+        {projectType === "album" && (
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:12, color:"#6B7280" }}>트랙 수</span>
+            <select value={trackCount} onChange={e => setTrackCount(Number(e.target.value))} style={{ ...selectStyle, width:60 }}>
+              {[2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Title */}
+      <div style={{ display:"flex", gap:10 }}>
+        {(["custom","random"] as const).map(tm => (
+          <button key={tm} onClick={() => setTitleMode(tm)} style={{
+            padding:"6px 14px", borderRadius:8, border:`1.5px solid ${titleMode===tm?P:"#E5E7EB"}`,
+            background:titleMode===tm?"rgba(124,58,237,0.08)":"transparent",
+            color:titleMode===tm?P:"#6B7280", fontSize:12, fontWeight:600, cursor:"pointer",
+          }}>{tm === "custom" ? "직접 입력" : "🎲 AI 추천"}</button>
+        ))}
+      </div>
+      {titleMode === "custom" && (
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="곡 제목" style={inputStyle} />
+      )}
+
+      {/* Genre + Mood */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        <Field label="장르 1">
+          <select value={genre1} onChange={e => setGenre1(e.target.value)} style={selectStyle}>
+            {GENRES.map(g => <option key={g}>{g}</option>)}
+          </select>
+        </Field>
+        <Field label="장르 2 (선택)">
+          <select value={genre2} onChange={e => setGenre2(e.target.value)} style={selectStyle}>
+            <option value="">없음</option>
+            {GENRES.filter(g => g !== genre1).map(g => <option key={g}>{g}</option>)}
+          </select>
+        </Field>
+        <Field label="무드">
+          <select value={mood} onChange={e => setMood(e.target.value)} style={selectStyle}>
+            {MOODS.map(m => <option key={m}>{m}</option>)}
+          </select>
+        </Field>
+        <Field label="강도">
+          <select value={intensity} onChange={e => setIntensity(e.target.value)} style={selectStyle}>
+            {["랜덤","극도로 강렬한","강한","중간","잔잔한","극도로 부드러운"].map(v => <option key={v}>{v}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      {/* BPM + Vocal */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        <Field label="BPM">
+          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+            {(["random","custom"] as const).map(bm => (
+              <button key={bm} onClick={() => setBpmMode(bm)} style={{ padding:"5px 12px", borderRadius:7, border:`1.5px solid ${bpmMode===bm?P:"#E5E7EB"}`, background:bpmMode===bm?"rgba(124,58,237,0.08)":"transparent", color:bpmMode===bm?P:"#6B7280", fontSize:11, fontWeight:600, cursor:"pointer" }}>
+                {bm === "random" ? "자동" : "직접 입력"}
+              </button>
+            ))}
+          </div>
+          {bpmMode === "custom" && <input value={bpm} onChange={e => setBpm(e.target.value)} placeholder="예: 128" style={inputStyle} />}
+        </Field>
+        <Field label="보컬">
+          <select value={vocal} onChange={e => setVocal(e.target.value)} style={selectStyle}>
+            {["있음","여성 보컬","남성 보컬","혼성","없음 (인스트루멘탈)"].map(v => <option key={v}>{v}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      {/* Purpose + Topic */}
+      <Field label="사용 목적">
+        <div className="chip-row">
+          {PURPOSES.map(p => (
+            <Chip key={p} label={p} selected={purpose===p} onClick={() => setPurpose(p)} />
+          ))}
+        </div>
+      </Field>
+      <Field label="주제 / 테마">
+        <textarea value={topic} onChange={e => setTopic(e.target.value)}
+          placeholder="곡의 주제나 테마를 간단히 적어주세요 (예: 제주 해변에서의 마지막 여름)"
+          style={{ ...inputStyle, height:70, resize:"vertical" }} />
+      </Field>
+      <Field label="추가 요청사항">
+        <textarea value={addRequest} onChange={e => setAddRequest(e.target.value)}
+          placeholder="특별히 원하는 사운드나 스타일이 있으면 적어주세요"
+          style={{ ...inputStyle, height:60, resize:"vertical" }} />
+      </Field>
+
+      {/* Advanced Toggle */}
+      <div>
+        <button onClick={() => setAdvancedMode(!advancedMode)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 16px", background:advancedMode?"rgba(124,58,237,0.08)":"white", border:`1.5px solid ${advancedMode?P:"#E5E7EB"}`, borderRadius:10, cursor:"pointer", fontSize:13, fontWeight:600, color:advancedMode?P:"#374151" }}>
+          <span style={{ fontSize:14 }}>⚙️</span>
+          고급 사운드 설정 {advancedMode?"▲":"▼"}
+        </button>
+        {advancedMode && (
+          <div style={{ marginTop:16, display:"flex", flexDirection:"column", gap:20, padding:"20px", background:"rgba(124,58,237,0.03)", border:"1.5px solid rgba(124,58,237,0.12)", borderRadius:14 }}>
+            {/* Presets */}
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, color:"#6B21A8", letterSpacing:1.2, marginBottom:10 }}>빠른 프리셋</div>
+              <div className="chip-row">
+                {PRESETS.map(pr => (
+                  <button key={pr.name} onClick={() => { applyPreset(pr.set); setAdvancedMode(true); }} style={{ padding:"6px 14px", borderRadius:100, border:"1.5px solid #E5E7EB", background:"white", fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
+                    {pr.emoji} {pr.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+              {[["보컬 방향", vocalDirection, setVocalDirection, VOCAL_DIRECTIONS],["공간/장소", venueMood, setVenueMood, VENUE_MOODS],["에너지 커브", energyCurve, setEnergyCurve, ENERGY_CURVES],["BPM 질감", bpmFeel, setBpmFeel, BPM_FEELS],["보컬 프로덕션", vocalProduction, setVocalProduction, VOCAL_PRODUCTION]].map(([label, val, setter, opts]) => (
+                <Field key={label as string} label={label as string}>
+                  <select value={val as string} onChange={e => (setter as (v: string) => void)(e.target.value)} style={selectStyle}>
+                    {(opts as string[]).map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </Field>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, color:"#6B21A8", letterSpacing:1.2, marginBottom:10 }}>악기 설정</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                {[["기타", instGuitar, setInstGuitar, INSTRUMENT_GUITAR],["드럼", instDrums, setInstDrums, INSTRUMENT_DRUMS],["베이스", instBass, setInstBass, INSTRUMENT_BASS],["신스", instSynth, setInstSynth, INSTRUMENT_SYNTH]].map(([label, val, setter, opts]) => (
+                  <Field key={label as string} label={label as string}>
+                    <select value={val as string} onChange={e => (setter as (v: string) => void)(e.target.value)} style={selectStyle}>
+                      {(opts as string[]).map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </Field>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ── SHARED: RESULTS PANEL ─────────────────────────────────────────────────────
+  const ResultsPanel = () => {
+    if (!results.length && !lyricsResult) return null;
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
+        {/* Style Prompt Results */}
+        {results.map((r, i) => (
+          <div key={i} style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden", animation:"fadeUp 0.4s ease both" }}>
+            <div style={{ background:`linear-gradient(135deg,${P},${PINK})`, padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ color:"white", fontWeight:700, fontSize:15 }}>
+                {results.length > 1 ? `트랙 ${i + 1}` : "스타일 프롬프트"} {r.suggestedTitle && `— ${r.suggestedTitle}`}
+              </div>
+              <button onClick={() => copy(r.stylePrompt, `style-${i}`)} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                {copiedTarget === `style-${i}` ? "✓ 복사됨" : "복사"}
+              </button>
+            </div>
+            <div style={{ padding:"20px 24px" }}>
+              <div style={{ fontSize:13, color:"#374151", lineHeight:1.8, background:"#FAFAFA", borderRadius:10, padding:"16px", border:"1px solid #F3F4F6" }}>
+                {r.stylePrompt}
+              </div>
+              <div style={{ marginTop:8, fontSize:11, color:"#9CA3AF", textAlign:"right" }}>
+                {r.stylePrompt.length} / 1000자
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Lyrics Result */}
+        {lyricsResult && (
+          <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden", animation:"fadeUp 0.4s ease both" }}>
+            <div style={{ background:"linear-gradient(135deg,#1E3A5F,#2563EB)", padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ color:"white", fontWeight:700, fontSize:15 }}>생성된 가사</div>
+              <button onClick={() => copy(lyricsResult.lyrics, "lyrics-gen")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                {copiedTarget === "lyrics-gen" ? "✓ 복사됨" : "복사"}
+              </button>
+            </div>
+            <div style={{ padding:"20px 24px" }}>
+              {lyricsResult.hookLine && (
+                <div style={{ background:"rgba(37,99,235,0.06)", border:"1.5px solid rgba(37,99,235,0.15)", borderRadius:10, padding:"10px 14px", marginBottom:16, fontSize:14, fontWeight:700, color:"#1E3A5F" }}>
+                  🎯 핵심 라인: &quot;{lyricsResult.hookLine}&quot;
+                </div>
+              )}
+              <pre style={{ fontSize:13, color:"#374151", lineHeight:1.9, whiteSpace:"pre-wrap", background:"#FAFAFA", borderRadius:10, padding:"16px", border:"1px solid #F3F4F6", fontFamily:"inherit", margin:0 }}>
+                {lyricsResult.lyrics}
+              </pre>
+              {lyricsResult.symbolVariations?.length > 0 && (
+                <div style={{ marginTop:14, fontSize:12, color:"#6B7280" }}>
+                  <span style={{ fontWeight:600 }}>상징어 변주: </span>
+                  {lyricsResult.symbolVariations.join(" · ")}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── PATH A: LYRICS FIRST ─────────────────────────────────────────────────────
+  if (appMode === "path-a") {
+    return (
+      <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
+        <style>{globalStyle}</style>
+        <Nav />
+
+        {/* Step indicator */}
+        <div style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"12px 40px" }}>
+          <div style={{ maxWidth:780, margin:"0 auto", display:"flex", alignItems:"center", gap:8 }}>
+            <button onClick={() => setAppMode("select")} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:0 }}>← 처음으로</button>
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+              {[{ step:"choose", label:"가사 입력" }, { step:"create", label:"가사 생성" }, { step:"style", label:"스타일 프롬프트" }].map(({ step, label }, idx) => {
+                const stepOrder = { choose:0, paste:0, create:1, style:2 };
+                const currentOrder = stepOrder[pathAStep as keyof typeof stepOrder];
+                const isActive = stepOrder[step as keyof typeof stepOrder] === currentOrder;
+                const isDone = stepOrder[step as keyof typeof stepOrder] < currentOrder;
+                return (
+                  <div key={step} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <div style={{ width:24, height:24, borderRadius:"50%", background:isDone?"#10B981":isActive?P:"#E5E7EB", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:isDone||isActive?"white":"#9CA3AF", fontWeight:700 }}>
+                      {isDone ? "✓" : idx + 1}
+                    </div>
+                    <span style={{ fontSize:12, fontWeight:isActive?700:500, color:isActive?P:isDone?"#10B981":"#9CA3AF" }}>{label}</span>
+                    {idx < 2 && <div style={{ width:24, height:1, background:"#E5E7EB" }} />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ maxWidth:780, margin:"0 auto", padding:"40px 40px 80px" }}>
+          {/* STEP: choose */}
+          {pathAStep === "choose" && (
+            <div style={{ animation:"fadeUp 0.4s ease both" }}>
+              <h2 style={{ fontSize:22, fontWeight:800, color:"#0F172A", marginBottom:8 }}>가사를 어떻게 준비하셨나요?</h2>
+              <p style={{ fontSize:14, color:"#6B7280", marginBottom:32 }}>준비된 가사가 있으면 붙여넣고, 없으면 직접 만들어드릴게요.</p>
+              <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+                <button onClick={() => setPathAStep("paste")} style={{ padding:"24px 28px", background:"white", border:`2px solid ${P}`, borderRadius:18, cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow=`0 8px 24px rgba(124,58,237,0.15)`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow="none"; }}>
+                  <div style={{ fontSize:24, marginBottom:8 }}>📋</div>
+                  <div style={{ fontSize:16, fontWeight:700, color:"#0F172A", marginBottom:4 }}>이미 가사가 있어요</div>
+                  <div style={{ fontSize:13, color:"#6B7280" }}>완성된 가사 또는 키워드/영감 구절을 붙여넣어 스타일을 추출합니다.</div>
+                </button>
+                <button onClick={() => setPathAStep("create")} style={{ padding:"24px 28px", background:"white", border:"2px solid #E5E7EB", borderRadius:18, cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor="#9CA3AF"; (e.currentTarget as HTMLElement).style.boxShadow="0 8px 24px rgba(0,0,0,0.08)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor="#E5E7EB"; (e.currentTarget as HTMLElement).style.boxShadow="none"; }}>
+                  <div style={{ fontSize:24, marginBottom:8 }}>✍️</div>
+                  <div style={{ fontSize:16, fontWeight:700, color:"#0F172A", marginBottom:4 }}>가사를 새로 만들게요</div>
+                  <div style={{ fontSize:13, color:"#6B7280" }}>7가지 항목을 입력하면 AI가 스토리가 있는 가사를 만들어드립니다.</div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP: paste */}
+          {pathAStep === "paste" && (
+            <div style={{ animation:"fadeUp 0.4s ease both" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+                <button onClick={() => setPathAStep("choose")} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:13 }}>← 뒤로</button>
+                <h2 style={{ fontSize:22, fontWeight:800, color:"#0F172A", margin:0 }}>가사 / 영감 붙여넣기</h2>
+              </div>
+              <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", padding:"24px" }}>
+                {/* Type toggle */}
+                <div style={{ display:"flex", gap:0, borderRadius:10, overflow:"hidden", border:`1.5px solid ${P}`, width:"fit-content", marginBottom:16 }}>
+                  {(["full","keywords"] as const).map(t => (
+                    <button key={t} onClick={() => setLyricsInputType(t)} style={{ padding:"8px 20px", background:lyricsInputType===t?P:"white", color:lyricsInputType===t?"white":P, border:"none", cursor:"pointer", fontSize:13, fontWeight:600, transition:"all 0.15s" }}>
+                      {t === "full" ? "완성된 가사" : "키워드 / 영감 구절"}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={lyricsRawText} onChange={e => setLyricsRawText(e.target.value)}
+                  placeholder={lyricsInputType === "full"
+                    ? "가사 전문을 붙여넣어 주세요. AI가 분위기·장르·스타일을 분석합니다."
+                    : "영감이 되는 구절이나 키워드를 자유롭게 적어주세요.\n예: '빗소리, 창문, 혼자인 새벽, 보내야 한다는 걸 알면서도'"}
+                  style={{ ...inputStyle, height:200, resize:"vertical", marginBottom:16 }} />
+                <button onClick={analyzeLyrics} disabled={!lyricsRawText.trim() || analyzingLyrics} style={{
+                  width:"100%", padding:"14px", background:lyricsRawText.trim()?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB",
+                  border:"none", borderRadius:12, fontSize:14, fontWeight:700,
+                  color:lyricsRawText.trim()?"white":"#9CA3AF", cursor:lyricsRawText.trim()?"pointer":"not-allowed",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                }}>
+                  {analyzingLyrics ? <><Spin size={14} color="white" /> 분석 중...</> : "🔍 분석하고 스타일로 →"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP: create (lyrics form) */}
+          {pathAStep === "create" && (
+            <div style={{ animation:"fadeUp 0.4s ease both" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+                <button onClick={() => setPathAStep("choose")} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:13 }}>← 뒤로</button>
+                <h2 style={{ fontSize:22, fontWeight:800, color:"#0F172A", margin:0 }}>가사 생성하기</h2>
+              </div>
+              <SectionCard num="✍" title="가사 생성 설정">
+                <LyricsForm />
+              </SectionCard>
+              <div style={{ marginTop:24 }}>
+                <button onClick={generateLyrics} disabled={generatingLyrics} style={{
+                  width:"100%", padding:"16px", background:`linear-gradient(135deg,${P},${PINK})`,
+                  border:"none", borderRadius:14, fontSize:15, fontWeight:800, color:"white",
+                  cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+                  boxShadow:`0 8px 24px rgba(124,58,237,0.35)`,
+                }}>
+                  {generatingLyrics ? <><Spin size={16} color="white" /> 가사 생성 중...</> : "✍️ 가사 생성하기"}
+                </button>
+              </div>
+
+              {/* Lyrics Result + Continue to Style */}
+              {lyricsResult && (
+                <div style={{ marginTop:32, display:"flex", flexDirection:"column", gap:20, animation:"fadeUp 0.4s ease both" }}>
+                  <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden" }}>
+                    <div style={{ background:"linear-gradient(135deg,#1E3A5F,#2563EB)", padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <div style={{ color:"white", fontWeight:700, fontSize:15 }}>생성된 가사</div>
+                      <button onClick={() => copy(lyricsResult.lyrics, "lyrics-a")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                        {copiedTarget === "lyrics-a" ? "✓ 복사됨" : "복사"}
+                      </button>
+                    </div>
+                    <div style={{ padding:"20px 24px" }}>
+                      {lyricsResult.hookLine && (
+                        <div style={{ background:"rgba(37,99,235,0.06)", border:"1.5px solid rgba(37,99,235,0.15)", borderRadius:10, padding:"10px 14px", marginBottom:16, fontSize:14, fontWeight:700, color:"#1E3A5F" }}>
+                          🎯 핵심 라인: &quot;{lyricsResult.hookLine}&quot;
+                        </div>
+                      )}
+                      <pre style={{ fontSize:13, color:"#374151", lineHeight:1.9, whiteSpace:"pre-wrap", background:"#FAFAFA", borderRadius:10, padding:"16px", border:"1px solid #F3F4F6", fontFamily:"inherit", margin:0 }}>
+                        {lyricsResult.lyrics}
+                      </pre>
+                    </div>
+                  </div>
+                  <button onClick={() => setPathAStep("style")} style={{
+                    width:"100%", padding:"16px", background:`linear-gradient(135deg,${P},${PINK})`,
+                    border:"none", borderRadius:14, fontSize:15, fontWeight:800, color:"white",
+                    cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+                    boxShadow:`0 8px 24px rgba(124,58,237,0.35)`,
+                  }}>
+                    🎛️ 스타일 프롬프트 만들기 →
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP: style (Path A) */}
+          {pathAStep === "style" && (
+            <div style={{ animation:"fadeUp 0.4s ease both" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24 }}>
+                <button onClick={() => setPathAStep(lyricsResult ? "create" : "paste")} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:13 }}>← 뒤로</button>
+                <h2 style={{ fontSize:22, fontWeight:800, color:"#0F172A", margin:0 }}>스타일 프롬프트 생성</h2>
+              </div>
+              <SectionCard num="🎛" title="스타일 설정">
+                <StyleForm />
+              </SectionCard>
+              <div style={{ marginTop:24 }}>
+                <button onClick={generate} disabled={loading} style={{
+                  width:"100%", padding:"16px", background:`linear-gradient(135deg,${P},${PINK})`,
+                  border:"none", borderRadius:14, fontSize:15, fontWeight:800, color:"white",
+                  cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+                  boxShadow:`0 8px 24px rgba(124,58,237,0.35)`,
+                }}>
+                  {loading ? <><Spin size={16} color="white" /> 스타일 프롬프트 생성 중...</> : "✨ Suno 스타일 프롬프트 생성"}
+                </button>
+              </div>
+              {results.length > 0 && (
+                <div style={{ marginTop:32 }}>
+                  <ResultsPanel />
+                </div>
+              )}
+              {/* Audio + Publishing (shared bottom) */}
+              <SharedBottom />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── PATH B: STYLE FIRST ──────────────────────────────────────────────────────
+  if (appMode === "path-b") {
+    return (
+      <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
+        <style>{globalStyle}</style>
+        <Nav />
+
+        {/* Step indicator */}
+        <div style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"12px 40px" }}>
+          <div style={{ maxWidth:780, margin:"0 auto", display:"flex", alignItems:"center", gap:8 }}>
+            <button onClick={() => setAppMode("select")} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:0 }}>← 처음으로</button>
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+              {[{ label:"스타일 설정" }, { label:"가사 생성" }, { label:"완성" }].map(({ label }, idx) => {
+                const current = !results.length ? 0 : !lyricsResult ? 1 : 2;
+                const isActive = idx === current, isDone = idx < current;
+                return (
+                  <div key={label} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <div style={{ width:24, height:24, borderRadius:"50%", background:isDone?"#10B981":isActive?P:"#E5E7EB", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:isDone||isActive?"white":"#9CA3AF", fontWeight:700 }}>
+                      {isDone ? "✓" : idx + 1}
+                    </div>
+                    <span style={{ fontSize:12, fontWeight:isActive?700:500, color:isActive?P:isDone?"#10B981":"#9CA3AF" }}>{label}</span>
+                    {idx < 2 && <div style={{ width:24, height:1, background:"#E5E7EB" }} />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ maxWidth:780, margin:"0 auto", padding:"40px 40px 80px" }}>
+          {/* Style Form */}
+          <SectionCard num="🎛" title="스타일 설정">
+            <StyleForm />
+          </SectionCard>
+          <div style={{ marginTop:24 }}>
+            <button onClick={generate} disabled={loading} style={{
+              width:"100%", padding:"16px", background:`linear-gradient(135deg,${P},${PINK})`,
+              border:"none", borderRadius:14, fontSize:15, fontWeight:800, color:"white",
+              cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+              boxShadow:`0 8px 24px rgba(124,58,237,0.35)`,
+            }}>
+              {loading ? <><Spin size={16} color="white" /> 스타일 프롬프트 생성 중...</> : "✨ Suno 스타일 프롬프트 생성"}
+            </button>
+          </div>
+
+          {/* Style Prompt Result */}
+          {results.length > 0 && (
+            <div style={{ marginTop:32, display:"flex", flexDirection:"column", gap:24, animation:"fadeUp 0.4s ease both" }}>
+              {results.map((r, i) => (
+                <div key={i} style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden" }}>
+                  <div style={{ background:`linear-gradient(135deg,${P},${PINK})`, padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div style={{ color:"white", fontWeight:700, fontSize:15 }}>
+                      {results.length > 1 ? `트랙 ${i + 1}` : "스타일 프롬프트"} {r.suggestedTitle && `— ${r.suggestedTitle}`}
+                    </div>
+                    <button onClick={() => copy(r.stylePrompt, `style-b-${i}`)} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                      {copiedTarget === `style-b-${i}` ? "✓ 복사됨" : "복사"}
+                    </button>
+                  </div>
+                  <div style={{ padding:"20px 24px" }}>
+                    <div style={{ fontSize:13, color:"#374151", lineHeight:1.8, background:"#FAFAFA", borderRadius:10, padding:"16px", border:"1px solid #F3F4F6" }}>
+                      {r.stylePrompt}
+                    </div>
+                    <div style={{ marginTop:8, fontSize:11, color:"#9CA3AF", textAlign:"right" }}>{r.stylePrompt.length} / 1000자</div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Lyrics Confirmation Banner + Form */}
+              <div ref={lyricsTopRef} style={{ background:"linear-gradient(135deg,rgba(124,58,237,0.06),rgba(236,72,153,0.04))", border:`1.5px solid ${P}`, borderRadius:20, overflow:"hidden", animation:"fadeUp 0.4s ease 0.2s both" }}>
+                <div style={{ background:`linear-gradient(135deg,${P},${PINK})`, padding:"16px 24px", display:"flex", alignItems:"center", gap:12 }}>
+                  <span style={{ fontSize:20 }}>✨</span>
+                  <div>
+                    <div style={{ fontSize:14, fontWeight:800, color:"white" }}>스타일 프롬프트를 기반으로 이대로 가사를 생성할까요?</div>
+                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.8)", marginTop:2 }}>설정을 조정하거나 바로 가사 생성하기를 누르세요</div>
+                  </div>
+                  <button onClick={() => setPathBLyricsShown(!pathBLyricsShown)} style={{ marginLeft:"auto", padding:"6px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                    {pathBLyricsShown ? "접기 ▲" : "설정 보기 ▼"}
+                  </button>
+                </div>
+
+                <div style={{ padding:"24px" }}>
+                  {/* Always-visible: KOR/ENG toggle + direct generate */}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: pathBLyricsShown ? 24 : 0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <span style={{ fontSize:13, color:"#374151", fontWeight:600 }}>가사 언어</span>
+                      <div style={{ display:"flex", gap:0, borderRadius:10, overflow:"hidden", border:`1.5px solid ${P}` }}>
+                        {(["한국어","영어"] as const).map(lng => (
+                          <button key={lng} onClick={() => setLyricsLanguage(lng)} style={{ padding:"7px 16px", background:lyricsLanguage===lng?P:"white", color:lyricsLanguage===lng?"white":P, border:"none", cursor:"pointer", fontSize:13, fontWeight:700, transition:"all 0.15s" }}>
+                            {lng === "한국어" ? "KOR" : "ENG"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button onClick={generateLyrics} disabled={generatingLyrics} style={{
+                      padding:"12px 28px", background:`linear-gradient(135deg,${P},${PINK})`,
+                      border:"none", borderRadius:12, fontSize:14, fontWeight:800, color:"white",
+                      cursor:"pointer", display:"flex", alignItems:"center", gap:8,
+                      boxShadow:`0 6px 20px rgba(124,58,237,0.3)`,
+                    }}>
+                      {generatingLyrics ? <><Spin size={14} color="white" /> 생성 중...</> : "✍️ 가사 생성하기"}
+                    </button>
+                  </div>
+
+                  {pathBLyricsShown && (
+                    <div style={{ marginTop:8, borderTop:"1px solid #EDE9FE", paddingTop:24 }}>
+                      <LyricsForm />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lyrics Result */}
+              {lyricsResult && (
+                <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden", animation:"fadeUp 0.4s ease both" }}>
+                  <div style={{ background:"linear-gradient(135deg,#1E3A5F,#2563EB)", padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div style={{ color:"white", fontWeight:700, fontSize:15 }}>생성된 가사</div>
+                    <button onClick={() => copy(lyricsResult.lyrics, "lyrics-b")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                      {copiedTarget === "lyrics-b" ? "✓ 복사됨" : "복사"}
+                    </button>
+                  </div>
+                  <div style={{ padding:"20px 24px" }}>
+                    {lyricsResult.hookLine && (
+                      <div style={{ background:"rgba(37,99,235,0.06)", border:"1.5px solid rgba(37,99,235,0.15)", borderRadius:10, padding:"10px 14px", marginBottom:16, fontSize:14, fontWeight:700, color:"#1E3A5F" }}>
+                        🎯 핵심 라인: &quot;{lyricsResult.hookLine}&quot;
+                      </div>
+                    )}
+                    <pre style={{ fontSize:13, color:"#374151", lineHeight:1.9, whiteSpace:"pre-wrap", background:"#FAFAFA", borderRadius:10, padding:"16px", border:"1px solid #F3F4F6", fontFamily:"inherit", margin:0 }}>
+                      {lyricsResult.lyrics}
+                    </pre>
+                    {lyricsResult.symbolVariations?.length > 0 && (
+                      <div style={{ marginTop:14, fontSize:12, color:"#6B7280" }}>
+                        <span style={{ fontWeight:600 }}>상징어 변주: </span>
+                        {lyricsResult.symbolVariations.join(" · ")}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <SharedBottom />
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }

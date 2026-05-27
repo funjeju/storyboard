@@ -576,7 +576,7 @@ export default function SunoMaker() {
   `;
 
   // ── TOP NAV ─────────────────────────────────────────────────────────────────
-  const Nav = () => (
+  const renderNav = () => (
     <nav style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"0 32px", height:42, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:101, boxShadow:"0 1px 3px rgba(124,58,237,0.06)" }}>
       <div style={{ display:"flex", alignItems:"center", gap:14 }}>
         <Link href="/" style={{ display:"flex", alignItems:"center", gap:7, textDecoration:"none" }}>
@@ -607,7 +607,7 @@ export default function SunoMaker() {
   );
 
   // ── SHARED BOTTOM: Audio Analysis + Publishing ───────────────────────────────
-  const SharedBottom = () => (
+  const renderSharedBottom = () => (
     <div style={{ marginTop:40, display:"flex", flexDirection:"column", gap:24 }}>
       <SectionCard num="🎚" title="오디오 분석 · 마스터링">
         <div
@@ -693,7 +693,7 @@ export default function SunoMaker() {
     return (
       <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
         <style>{globalStyle}</style>
-        <Nav />
+        {renderNav()}
         <div style={{ maxWidth:860, margin:"0 auto", padding:"72px 40px" }}>
           {/* Header */}
           <div style={{ textAlign:"center", marginBottom:56, animation:"fadeUp 0.4s ease both" }}>
@@ -769,7 +769,7 @@ export default function SunoMaker() {
   }
 
   // ── SHARED: LYRICS FORM (7 items) ────────────────────────────────────────────
-  const LyricsForm = () => (
+  const renderLyricsForm = () => (
     <div style={{ display:"flex", flexDirection:"column", gap:28 }}>
       {/* 1. Core Emotions */}
       <Field label="① 핵심 감정" hint="최대 3개">
@@ -903,7 +903,7 @@ export default function SunoMaker() {
   );
 
   // ── SHARED: STYLE FORM ───────────────────────────────────────────────────────
-  const StyleForm = () => (
+  const renderStyleForm = () => (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
       {/* LyricsContext Banner */}
       {lyricsContext && (
@@ -1060,7 +1060,7 @@ export default function SunoMaker() {
   );
 
   // ── SHARED: RESULTS PANEL ─────────────────────────────────────────────────────
-  const ResultsPanel = () => {
+  const renderResultsPanel = () => {
     if (!results.length && !lyricsResult) return null;
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
@@ -1122,7 +1122,7 @@ export default function SunoMaker() {
     return (
       <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
         <style>{globalStyle}</style>
-        <Nav />
+        {renderNav()}
 
         {/* Step indicator */}
         <div style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"12px 40px" }}>
@@ -1215,7 +1215,7 @@ export default function SunoMaker() {
                 <h2 style={{ fontSize:22, fontWeight:800, color:"#0F172A", margin:0 }}>가사 생성하기</h2>
               </div>
               <SectionCard num="✍" title="가사 생성 설정">
-                <LyricsForm />
+                {renderLyricsForm()}
               </SectionCard>
               <div style={{ marginTop:24 }}>
                 <button onClick={generateLyrics} disabled={generatingLyrics} style={{
@@ -1270,7 +1270,7 @@ export default function SunoMaker() {
                 <h2 style={{ fontSize:22, fontWeight:800, color:"#0F172A", margin:0 }}>스타일 프롬프트 생성</h2>
               </div>
               <SectionCard num="🎛" title="스타일 설정">
-                <StyleForm />
+                {renderStyleForm()}
               </SectionCard>
               <div style={{ marginTop:24 }}>
                 <button onClick={generate} disabled={loading} style={{
@@ -1284,11 +1284,11 @@ export default function SunoMaker() {
               </div>
               {results.length > 0 && (
                 <div style={{ marginTop:32 }}>
-                  <ResultsPanel />
+                  {renderResultsPanel()}
                 </div>
               )}
               {/* Audio + Publishing (shared bottom) */}
-              <SharedBottom />
+              {renderSharedBottom()}
             </div>
           )}
         </div>
@@ -1301,7 +1301,7 @@ export default function SunoMaker() {
     return (
       <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
         <style>{globalStyle}</style>
-        <Nav />
+        {renderNav()}
 
         {/* Step indicator */}
         <div style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"12px 40px" }}>
@@ -1328,7 +1328,7 @@ export default function SunoMaker() {
         <div style={{ maxWidth:780, margin:"0 auto", padding:"40px 40px 80px" }}>
           {/* Style Form */}
           <SectionCard num="🎛" title="스타일 설정">
-            <StyleForm />
+            {renderStyleForm()}
           </SectionCard>
           <div style={{ marginTop:24 }}>
             <button onClick={generate} disabled={loading} style={{
@@ -1401,7 +1401,7 @@ export default function SunoMaker() {
 
                   {pathBLyricsShown && (
                     <div style={{ marginTop:8, borderTop:"1px solid #EDE9FE", paddingTop:24 }}>
-                      <LyricsForm />
+                      {renderLyricsForm()}
                     </div>
                   )}
                 </div>
@@ -1437,7 +1437,7 @@ export default function SunoMaker() {
             </div>
           )}
 
-          <SharedBottom />
+          {renderSharedBottom()}
         </div>
       </div>
     );

@@ -356,16 +356,78 @@ export default function SunoMaker() {
   const [coverArt,    setCoverArt]    = useState<string | null>(null);
   const [genCover,    setGenCover]    = useState(false);
 
+  // ─ Save state
+  const [savedIndices,   setSavedIndices]   = useState<Set<number>>(new Set());
+  const [lyricsSaved,    setLyricsSaved]    = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const masterBlobRef = useRef<Blob | null>(null);
   const lyricsTopRef  = useRef<HTMLDivElement>(null);
 
   // ── FUNCTIONS ──────────────────────────────────────────────────────────────
 
+  // Save result to library (requires login)
+  const saveResultToLibrary = (i: number) => {
+    if (!user) { setShowLoginModal(true); return; }
+    const r = results[i];
+    const now = Date.now();
+    const entry: LibraryTrack = {
+      id: `track-${now}-${i}`,
+      title: r.suggestedTitle || (titleMode === "custom" ? title : "") || `${genre1} 트랙`,
+      stylePrompt: r.stylePrompt,
+      lyrics: lyricsResult?.lyrics || r.lyrics || null,
+      genre: [genre1, genre2].filter(Boolean).join(" + "),
+      mood, vocal: `${vocal} (${language})`, topic,
+      createdAt: now, audioDataKey: null,
+    };
+    try {
+      const existing: LibraryTrack[] = JSON.parse(localStorage.getItem("suno_library_v1") || "[]");
+      // Remove duplicate id if exists
+      localStorage.setItem("suno_library_v1", JSON.stringify([entry, ...existing.filter(e => e.id !== entry.id)].slice(0, 200)));
+    } catch { /* silent */ }
+    upsertSunoTrack(user.uid, {
+      id: entry.id, title: entry.title, stylePrompt: entry.stylePrompt, lyrics: entry.lyrics,
+      genre: entry.genre, mood: entry.mood, vocal: entry.vocal, topic: entry.topic,
+      createdAt: entry.createdAt, updatedAt: now,
+      status: "completed", audioStoragePath: null, audioUrl: null,
+    }).catch(e => console.warn("Cloud save failed", e));
+    setSavedIndices(prev => new Set([...prev, i]));
+  };
+
+  // Save lyrics to library (requires login)
+  const saveLyricsToLibrary = () => {
+    if (!user) { setShowLoginModal(true); return; }
+    if (!lyricsResult) return;
+    const now = Date.now();
+    const entry: LibraryTrack = {
+      id: `lyrics-${now}`,
+      title: title || (lyricsEmotions.length ? lyricsEmotions.join(" · ") + " 가사" : "생성된 가사"),
+      stylePrompt: results[0]?.stylePrompt || "",
+      lyrics: lyricsResult.lyrics,
+      genre: [genre1, genre2].filter(Boolean).join(" + "),
+      mood, vocal: `${vocal} (${lyricsLanguage})`,
+      topic: situationDetail || lyricsSituation || "",
+      createdAt: now, audioDataKey: null,
+    };
+    try {
+      const existing: LibraryTrack[] = JSON.parse(localStorage.getItem("suno_library_v1") || "[]");
+      localStorage.setItem("suno_library_v1", JSON.stringify([entry, ...existing].slice(0, 200)));
+    } catch { /* silent */ }
+    upsertSunoTrack(user.uid, {
+      id: entry.id, title: entry.title, stylePrompt: entry.stylePrompt, lyrics: entry.lyrics,
+      genre: entry.genre, mood: entry.mood, vocal: entry.vocal, topic: entry.topic,
+      createdAt: entry.createdAt, updatedAt: now,
+      status: "completed", audioStoragePath: null, audioUrl: null,
+    }).catch(e => console.warn("Cloud save failed", e));
+    setLyricsSaved(true);
+  };
+
   // Generate style prompt
   const generate = async () => {
     setLoading(true);
     setResults([]);
+    setSavedIndices(new Set());
     setMasterDone(false);
     const count = projectType === "album" ? trackCount : 1;
     const out: typeof results = [];
@@ -407,30 +469,6 @@ export default function SunoMaker() {
     setResults(out);
     setLyricsOpen(out.map(() => false));
     setLoading(false);
-
-    // Auto-save to library
-    try {
-      const existing: LibraryTrack[] = JSON.parse(localStorage.getItem("suno_library_v1") || "[]");
-      const now = Date.now();
-      const newEntries: LibraryTrack[] = out.map((r, idx) => ({
-        id: `track-${now}-${idx}`,
-        title: r.suggestedTitle || (titleMode === "custom" ? title : "") || `${genre1} 트랙 ${idx + 1}`,
-        stylePrompt: r.stylePrompt, lyrics: r.lyrics,
-        genre: [genre1, genre2].filter(Boolean).join(" + "), mood, vocal: `${vocal} (${language})`,
-        topic, createdAt: now + idx, audioDataKey: null,
-      }));
-      localStorage.setItem("suno_library_v1", JSON.stringify([...newEntries, ...existing].slice(0, 200)));
-      if (user) {
-        for (const entry of newEntries) {
-          upsertSunoTrack(user.uid, {
-            id: entry.id, title: entry.title, stylePrompt: entry.stylePrompt, lyrics: entry.lyrics,
-            genre: entry.genre, mood: entry.mood, vocal: entry.vocal, topic: entry.topic,
-            createdAt: entry.createdAt, updatedAt: Date.now(),
-            status: "completed", audioStoragePath: null, audioUrl: null,
-          }).catch(e => console.warn("Cloud save failed", e));
-        }
-      }
-    } catch { /* silent */ }
   };
 
   // Analyze pasted lyrics/keywords
@@ -607,6 +645,47 @@ export default function SunoMaker() {
   );
 
   // ── SHARED BOTTOM: Audio Analysis + Publishing ───────────────────────────────
+  // ── LOGIN MODAL ──────────────────────────────────────────────────────────────
+  const renderLoginModal = () => {
+    if (!showLoginModal) return null;
+    return (
+      <div
+        onClick={() => setShowLoginModal(false)}
+        style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ background:"white", borderRadius:24, padding:"40px 36px", maxWidth:400, width:"90%", textAlign:"center", boxShadow:"0 24px 64px rgba(0,0,0,0.2)", animation:"fadeUp 0.3s ease both" }}>
+          <div style={{ width:60, height:60, borderRadius:18, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, margin:"0 auto 20px" }}>
+            📚
+          </div>
+          <h2 style={{ fontSize:20, fontWeight:800, color:"#0F172A", marginBottom:10 }}>
+            저장하려면 로그인이 필요해요
+          </h2>
+          <p style={{ fontSize:14, color:"#6B7280", lineHeight:1.7, marginBottom:28 }}>
+            생성한 스타일 프롬프트와 가사를<br />
+            마이 라이브러리에 저장하고 언제든 불러올 수 있어요.
+          </p>
+          <button
+            onClick={() => { setShowLoginModal(false); signIn(); }}
+            style={{ width:"100%", padding:"14px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:14, fontSize:14, fontWeight:700, color:"#374151", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10, marginBottom:12, boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}>
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+              <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+              <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+            </svg>
+            Google로 로그인
+          </button>
+          <button
+            onClick={() => setShowLoginModal(false)}
+            style={{ width:"100%", padding:"10px", background:"transparent", border:"none", fontSize:13, color:"#9CA3AF", cursor:"pointer" }}>
+            취소 (생성 결과는 유지됩니다)
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderSharedBottom = () => (
     <div style={{ marginTop:40, display:"flex", flexDirection:"column", gap:24 }}>
       <SectionCard num="🎚" title="오디오 분석 · 마스터링">
@@ -693,6 +772,7 @@ export default function SunoMaker() {
     return (
       <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
         <style>{globalStyle}</style>
+        {renderLoginModal()}
         {renderNav()}
         <div style={{ maxWidth:860, margin:"0 auto", padding:"72px 40px" }}>
           {/* Header */}
@@ -1071,9 +1151,14 @@ export default function SunoMaker() {
               <div style={{ color:"white", fontWeight:700, fontSize:15 }}>
                 {results.length > 1 ? `트랙 ${i + 1}` : "스타일 프롬프트"} {r.suggestedTitle && `— ${r.suggestedTitle}`}
               </div>
-              <button onClick={() => copy(r.stylePrompt, `style-${i}`)} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
-                {copiedTarget === `style-${i}` ? "✓ 복사됨" : "복사"}
-              </button>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={() => copy(r.stylePrompt, `style-${i}`)} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                  {copiedTarget === `style-${i}` ? "✓ 복사됨" : "복사"}
+                </button>
+                <button onClick={() => saveResultToLibrary(i)} style={{ padding:"5px 14px", background:savedIndices.has(i)?"rgba(16,185,129,0.85)":"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
+                  {savedIndices.has(i) ? "✓ 저장됨" : "📚 저장"}
+                </button>
+              </div>
             </div>
             <div style={{ padding:"20px 24px" }}>
               <div style={{ fontSize:13, color:"#374151", lineHeight:1.8, background:"#FAFAFA", borderRadius:10, padding:"16px", border:"1px solid #F3F4F6" }}>
@@ -1091,9 +1176,14 @@ export default function SunoMaker() {
           <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden", animation:"fadeUp 0.4s ease both" }}>
             <div style={{ background:"linear-gradient(135deg,#1E3A5F,#2563EB)", padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <div style={{ color:"white", fontWeight:700, fontSize:15 }}>생성된 가사</div>
-              <button onClick={() => copy(lyricsResult.lyrics, "lyrics-gen")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
-                {copiedTarget === "lyrics-gen" ? "✓ 복사됨" : "복사"}
-              </button>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={() => copy(lyricsResult.lyrics, "lyrics-gen")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                  {copiedTarget === "lyrics-gen" ? "✓ 복사됨" : "복사"}
+                </button>
+                <button onClick={saveLyricsToLibrary} style={{ padding:"5px 14px", background:lyricsSaved?"rgba(16,185,129,0.85)":"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
+                  {lyricsSaved ? "✓ 저장됨" : "📚 저장"}
+                </button>
+              </div>
             </div>
             <div style={{ padding:"20px 24px" }}>
               {lyricsResult.hookLine && (
@@ -1122,6 +1212,7 @@ export default function SunoMaker() {
     return (
       <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
         <style>{globalStyle}</style>
+        {renderLoginModal()}
         {renderNav()}
 
         {/* Step indicator */}
@@ -1234,9 +1325,14 @@ export default function SunoMaker() {
                   <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden" }}>
                     <div style={{ background:"linear-gradient(135deg,#1E3A5F,#2563EB)", padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                       <div style={{ color:"white", fontWeight:700, fontSize:15 }}>생성된 가사</div>
-                      <button onClick={() => copy(lyricsResult.lyrics, "lyrics-a")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
-                        {copiedTarget === "lyrics-a" ? "✓ 복사됨" : "복사"}
-                      </button>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button onClick={() => copy(lyricsResult.lyrics, "lyrics-a")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                          {copiedTarget === "lyrics-a" ? "✓ 복사됨" : "복사"}
+                        </button>
+                        <button onClick={saveLyricsToLibrary} style={{ padding:"5px 14px", background:lyricsSaved?"rgba(16,185,129,0.85)":"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
+                          {lyricsSaved ? "✓ 저장됨" : "📚 저장"}
+                        </button>
+                      </div>
                     </div>
                     <div style={{ padding:"20px 24px" }}>
                       {lyricsResult.hookLine && (
@@ -1301,6 +1397,7 @@ export default function SunoMaker() {
     return (
       <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
         <style>{globalStyle}</style>
+        {renderLoginModal()}
         {renderNav()}
 
         {/* Step indicator */}
@@ -1350,9 +1447,14 @@ export default function SunoMaker() {
                     <div style={{ color:"white", fontWeight:700, fontSize:15 }}>
                       {results.length > 1 ? `트랙 ${i + 1}` : "스타일 프롬프트"} {r.suggestedTitle && `— ${r.suggestedTitle}`}
                     </div>
-                    <button onClick={() => copy(r.stylePrompt, `style-b-${i}`)} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
-                      {copiedTarget === `style-b-${i}` ? "✓ 복사됨" : "복사"}
-                    </button>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={() => copy(r.stylePrompt, `style-b-${i}`)} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                        {copiedTarget === `style-b-${i}` ? "✓ 복사됨" : "복사"}
+                      </button>
+                      <button onClick={() => saveResultToLibrary(i)} style={{ padding:"5px 14px", background:savedIndices.has(i)?"rgba(16,185,129,0.85)":"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
+                        {savedIndices.has(i) ? "✓ 저장됨" : "📚 저장"}
+                      </button>
+                    </div>
                   </div>
                   <div style={{ padding:"20px 24px" }}>
                     <div style={{ fontSize:13, color:"#374151", lineHeight:1.8, background:"#FAFAFA", borderRadius:10, padding:"16px", border:"1px solid #F3F4F6" }}>
@@ -1412,9 +1514,14 @@ export default function SunoMaker() {
                 <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden", animation:"fadeUp 0.4s ease both" }}>
                   <div style={{ background:"linear-gradient(135deg,#1E3A5F,#2563EB)", padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <div style={{ color:"white", fontWeight:700, fontSize:15 }}>생성된 가사</div>
-                    <button onClick={() => copy(lyricsResult.lyrics, "lyrics-b")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
-                      {copiedTarget === "lyrics-b" ? "✓ 복사됨" : "복사"}
-                    </button>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={() => copy(lyricsResult.lyrics, "lyrics-b")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                        {copiedTarget === "lyrics-b" ? "✓ 복사됨" : "복사"}
+                      </button>
+                      <button onClick={saveLyricsToLibrary} style={{ padding:"5px 14px", background:lyricsSaved?"rgba(16,185,129,0.85)":"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:5 }}>
+                        {lyricsSaved ? "✓ 저장됨" : "📚 저장"}
+                      </button>
+                    </div>
                   </div>
                   <div style={{ padding:"20px 24px" }}>
                     {lyricsResult.hookLine && (

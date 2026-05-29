@@ -177,6 +177,14 @@ function deleteProject(id: string) {
   saveProjectsIndex(loadProjectsIndex().filter(p => p.id !== id));
 }
 
+function resetLoadingFlags(state: ProjectState): ProjectState {
+  return {
+    ...state,
+    thumbnail: { ...state.thumbnail, promptLoading: false, imageLoading: false },
+    modules: state.modules.map(m => ({ ...m, copyLoading: false, promptLoading: false, imageLoading: false })),
+  };
+}
+
 function newProjectState(): ProjectState {
   return {
     id: `proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -255,7 +263,7 @@ export default function DetailPageMaker() {
       getDetailProject(user.uid, loadId).then(cloud => {
         if (cloud) {
           try {
-            const parsed: ProjectState = JSON.parse(cloud.projectData);
+            const parsed: ProjectState = resetLoadingFlags(JSON.parse(cloud.projectData));
             setProject(parsed);
             const s = parsed.modules?.length ? 3 : parsed.styleDNA ? 2 : parsed.productInfo.name ? 1 : 0;
             setStep(s);
@@ -336,7 +344,7 @@ export default function DetailPageMaker() {
   const openProject = (id: string) => {
     const loaded = loadProject(id);
     if (loaded) {
-      setProject(loaded);
+      setProject(resetLoadingFlags(loaded));
       setStep(loaded.modules?.length ? 3 : loaded.styleDNA ? 2 : loaded.productInfo.name ? 1 : 0);
     }
   };

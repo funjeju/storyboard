@@ -41,6 +41,7 @@ interface Module {
   copy: Record<string, unknown> | null;
   imagePrompt: string;
   imageUrl: string;
+  refImageBase64: string;
   copyLoading: boolean;
   promptLoading: boolean;
   imageLoading: boolean;
@@ -207,6 +208,7 @@ function moduleFromLibrary(type: ModuleType, order: number, score = 0, reason = 
     copy: null,
     imagePrompt: "",
     imageUrl: "",
+    refImageBase64: "",
     copyLoading: false,
     promptLoading: false,
     imageLoading: false,
@@ -422,6 +424,7 @@ export default function DetailPageMaker() {
         copy: copyOverride ?? mod.copy,
         sectionGuidance: null,
         lockedSectionPrompts: [],
+        hasRefImage: !!mod.refImageBase64,
       });
       updateModule(mod.id, { imagePrompt: prompt, promptLoading: false });
       return prompt;
@@ -442,13 +445,15 @@ export default function DetailPageMaker() {
     } catch (e) { updateThumbnail({ promptLoading: false }); throw e; }
   };
 
-  const genImage = async (prompt: string, target: "thumbnail" | string) => {
+  const genImage = async (prompt: string, target: "thumbnail" | string, refImageBase64?: string) => {
     if (!prompt) return;
     const setLoading = (v: boolean) => target === "thumbnail" ? updateThumbnail({ imageLoading: v }) : updateModule(target, { imageLoading: v });
     setLoading(true);
     try {
       const fullPrompt = project.styleDNA ? `${prompt} Style: ${project.styleDNA.promptBase}` : prompt;
-      const res = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: fullPrompt }) });
+      const body: Record<string, unknown> = { prompt: fullPrompt };
+      if (refImageBase64) body.refImageBase64 = refImageBase64;
+      const res = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok || !data.imageUrl) { setLoading(false); alert("이미지 생성 실패: " + (data.error || `HTTP ${res.status}`)); return; }
       if (target === "thumbnail") updateThumbnail({ imageUrl: data.imageUrl, imageLoading: false });
@@ -1008,10 +1013,11 @@ export default function DetailPageMaker() {
                 index={i}
                 onGenCopy={() => genModuleCopy(mod).catch(e => alert("카피 실패: " + String(e)))}
                 onGenPrompt={() => genModulePrompt(mod).catch(e => alert("프롬프트 실패: " + String(e)))}
-                onGenImage={() => genImage(mod.imagePrompt, mod.id)}
+                onGenImage={() => genImage(mod.imagePrompt, mod.id, mod.refImageBase64 || undefined)}
                 onUpdatePrompt={p => updateModule(mod.id, { imagePrompt: p })}
                 onToggleLock={() => updateModule(mod.id, { locked: !mod.locked })}
                 onUploadImage={url => updateModule(mod.id, { imageUrl: url })}
+                onUploadRefImage={b64 => updateModule(mod.id, { refImageBase64: b64 })}
               />
             ))}
           </div>
@@ -1066,9 +1072,23 @@ function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onU
   onUpdatePrompt: (p: string) => void; onUploadImage: (url: string) => void;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
+
+  const downloadImage = () => {
+    if (!thumbnail.imageUrl) return;
+    const a = document.createElement("a");
+    a.href = thumbnail.imageUrl;
+    a.download = `thumbnail-${Date.now()}.png`;
+    a.click();
+  };
+
   return (
     <div style={{ background: "white", borderRadius: 16, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: `2px solid ${thumbnail.imageUrl ? "#FBBF24" : "#E5E7EB"}`, display: "grid", gridTemplateColumns: thumbnail.imageUrl ? "180px 1fr" : "1fr", gap: 16 }}>
-      {thumbnail.imageUrl && <img src={thumbnail.imageUrl} alt="thumbnail" style={{ width: 180, height: 180, objectFit: "cover", borderRadius: 12 }} />}
+      {thumbnail.imageUrl && (
+        <div style={{ position: "relative" }}>
+          <img src={thumbnail.imageUrl} alt="thumbnail" style={{ width: 180, height: 180, objectFit: "cover", borderRadius: 12 }} />
+          <button onClick={downloadImage} style={{ position: "absolute", bottom: 6, right: 6, padding: "4px 9px", borderRadius: 7, background: "rgba(0,0,0,0.55)", border: "none", color: "white", fontSize: 10, fontWeight: 700, cursor: "pointer", backdropFilter: "blur(4px)" }}>⬇️</button>
+        </div>
+      )}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <span style={{ fontSize: 18 }}>🖼️</span>
@@ -1082,6 +1102,9 @@ function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onU
             {thumbnail.imageLoading ? <Spinner /> : "✨ 이미지 생성"}
           </button>
           <button className="btn" onClick={() => uploadRef.current?.click()} style={{ padding: "8px 14px", background: "#F3F4F6", color: "#374151", fontSize: 12, borderRadius: 8 }}>📤 업로드</button>
+          {thumbnail.imageUrl && (
+            <button className="btn" onClick={downloadImage} style={{ padding: "8px 14px", background: "#F0FDF4", color: "#065F46", fontSize: 12, borderRadius: 8, border: "1px solid #A7F3D0" }}>⬇️ 다운로드</button>
+          )}
           <input ref={uploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = ev => onUploadImage(ev.target?.result as string); r.readAsDataURL(f); } }} />
         </div>
         {thumbnail.imagePrompt && <textarea value={thumbnail.imagePrompt} onChange={e => onUpdatePrompt(e.target.value)} rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #DDD6FE", fontSize: 11, color: "#374151", background: "#FAF5FF", outline: "none", fontFamily: "monospace", lineHeight: 1.5 }} />}
@@ -1090,12 +1113,23 @@ function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onU
   );
 }
 
-function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePrompt, onToggleLock, onUploadImage }: {
+function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePrompt, onToggleLock, onUploadImage, onUploadRefImage }: {
   mod: Module; index: number; onGenCopy: () => void; onGenPrompt: () => void; onGenImage: () => void;
   onUpdatePrompt: (p: string) => void; onToggleLock: () => void; onUploadImage: (url: string) => void;
+  onUploadRefImage: (base64: string) => void;
 }) {
   const catMeta = CATEGORY_META[mod.category];
   const uploadRef = useRef<HTMLInputElement>(null);
+  const refUploadRef = useRef<HTMLInputElement>(null);
+
+  const downloadImage = () => {
+    if (!mod.imageUrl) return;
+    const a = document.createElement("a");
+    a.href = mod.imageUrl;
+    a.download = `${mod.label}-${mod.id}.png`;
+    a.click();
+  };
+
   return (
     <div style={{ background: "white", borderRadius: 14, padding: 16, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: `1.5px solid ${mod.locked ? "#86EFAC" : catMeta.border}`, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1109,7 +1143,10 @@ function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePr
       </div>
 
       {mod.imageUrl ? (
-        <img src={mod.imageUrl} alt={mod.label} style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", borderRadius: 10 }} />
+        <div style={{ position: "relative" }}>
+          <img src={mod.imageUrl} alt={mod.label} style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", borderRadius: 10 }} />
+          <button onClick={downloadImage} style={{ position: "absolute", bottom: 8, right: 8, padding: "5px 10px", borderRadius: 8, background: "rgba(0,0,0,0.55)", border: "none", color: "white", fontSize: 11, fontWeight: 700, cursor: "pointer", backdropFilter: "blur(4px)" }}>⬇️ 저장</button>
+        </div>
       ) : (
         <div style={{ width: "100%", aspectRatio: "4/5", background: "#F3F4F6", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#9CA3AF", fontSize: 11 }}>
           {mod.imageLoading ? "이미지 생성 중..." : "이미지 없음"}
@@ -1126,6 +1163,14 @@ function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePr
         </div>
       )}
 
+      {mod.refImageBase64 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#FFF7ED", borderRadius: 8, border: "1px solid #FED7AA" }}>
+          <img src={mod.refImageBase64} alt="ref" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: 10, color: "#92400E", fontWeight: 600 }}>참조 이미지 적용됨<br /><span style={{ fontWeight: 400, color: "#B45309" }}>이미지 생성 시 제품 특징 추출</span></div>
+          <button onClick={() => onUploadRefImage("")} style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>×</button>
+        </div>
+      )}
+
       {mod.imagePrompt && (
         <details>
           <summary style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", cursor: "pointer" }}>이미지 프롬프트 보기</summary>
@@ -1136,9 +1181,11 @@ function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePr
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button className="btn" onClick={onGenCopy} disabled={mod.copyLoading || mod.locked} style={{ padding: "6px 10px", background: "#DBEAFE", color: "#1E40AF", fontSize: 11, borderRadius: 6 }}>{mod.copyLoading ? <Spinner /> : "✍️ 카피"}</button>
         <button className="btn" onClick={onGenPrompt} disabled={mod.promptLoading || mod.locked} style={{ padding: "6px 10px", background: "#EDE9FE", color: "#5B21B6", fontSize: 11, borderRadius: 6 }}>{mod.promptLoading ? <Spinner /> : "🎯 프롬프트"}</button>
-        <button className="btn" onClick={onGenImage} disabled={!mod.imagePrompt || mod.imageLoading || mod.locked} style={{ padding: "6px 10px", background: "#FEF3C7", color: "#92400E", fontSize: 11, borderRadius: 6 }}>{mod.imageLoading ? <Spinner /> : "✨ 이미지"}</button>
-        <button className="btn" onClick={() => uploadRef.current?.click()} style={{ padding: "6px 10px", background: "#F3F4F6", color: "#374151", fontSize: 11, borderRadius: 6 }}>📤</button>
+        <button className="btn" onClick={onGenImage} disabled={!mod.imagePrompt || mod.imageLoading || mod.locked} style={{ padding: "6px 10px", background: mod.refImageBase64 ? "#FEF3C7" : "#FEF3C7", color: "#92400E", fontSize: 11, borderRadius: 6, border: mod.refImageBase64 ? "1.5px solid #F59E0B" : "none" }}>{mod.imageLoading ? <Spinner /> : mod.refImageBase64 ? "✨ 이미지 (참조)" : "✨ 이미지"}</button>
+        <button className="btn" onClick={() => uploadRef.current?.click()} style={{ padding: "6px 10px", background: "#F3F4F6", color: "#374151", fontSize: 11, borderRadius: 6 }} title="완성 이미지 직접 업로드">📤</button>
+        <button className="btn" onClick={() => refUploadRef.current?.click()} style={{ padding: "6px 10px", background: mod.refImageBase64 ? "#FFF7ED" : "#F3F4F6", color: mod.refImageBase64 ? "#92400E" : "#374151", fontSize: 11, borderRadius: 6, border: mod.refImageBase64 ? "1px solid #FED7AA" : "none" }} title="참조 이미지 업로드 (AI가 제품 특징 추출)">📸</button>
         <input ref={uploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = ev => onUploadImage(ev.target?.result as string); r.readAsDataURL(f); } }} />
+        <input ref={refUploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = ev => onUploadRefImage(ev.target?.result as string); r.readAsDataURL(f); } }} />
       </div>
     </div>
   );

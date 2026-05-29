@@ -213,7 +213,7 @@ const MODULE_VISUAL_BRIEF: Record<string, {
 
 export async function POST(req: NextRequest) {
   try {
-    const { sectionType, productInfo, styleDNA, copy, sectionGuidance, lockedSectionPrompts } = await req.json();
+    const { sectionType, productInfo, styleDNA, copy, sectionGuidance, lockedSectionPrompts, hasRefImage } = await req.json();
 
     const brief = MODULE_VISUAL_BRIEF[sectionType] || MODULE_VISUAL_BRIEF.hero_hook;
 
@@ -342,6 +342,13 @@ Typography rules:
       ? `\n\nSTRATEGIC GUIDANCE:\n${JSON.stringify(sectionGuidance, null, 2)}`
       : "";
 
+    const refImageContext = hasRefImage
+      ? `\n\nREFERENCE PRODUCT PHOTO WILL BE PROVIDED TO THE IMAGE MODEL.
+Your prompt MUST begin with this instruction block:
+"Using the provided reference product photo: extract the product's exact visual characteristics (shape, color, texture, surface details, label/packaging); recompose the product in a fresh professional commercial scene; do NOT copy the reference composition — dramatically improve lighting, staging, and visual storytelling while keeping the product unmistakably identifiable; treat the reference as a product brief, not a template to copy."
+After this instruction block, continue with the scene description, lighting, and typography as normal.`
+      : "";
+
     const user = `Generate a PHOTOREALISTIC commercial product photography prompt for the "${sectionType}" section of an e-commerce detail page.
 
 PRODUCT: ${JSON.stringify(productInfo)}
@@ -351,7 +358,7 @@ Purpose: ${brief.purpose}
 Composition: ${brief.composition}
 Copy overlay space: ${brief.copySpace}
 Visual code: ${brief.visualCode}
-${guidanceContext}${dnaContext}${copyContext}${cumulativeRef}
+${guidanceContext}${refImageContext}${dnaContext}${copyContext}${cumulativeRef}
 
 ═══ HARD REQUIREMENTS ═══
 1. PHOTOREALISTIC — this must look like a real photograph, NOT AI art, NOT illustration, NOT painting.

@@ -47,6 +47,27 @@ const TOOLS = [
     ctaText: "🎵 음악 만들기",
   },
   {
+    id: "metaprompt",
+    icon: "✦",
+    name: "MetaPrompt Engine",
+    nameKo: "메타 프롬프트",
+    desc: "막연한 아이디어를 AI 인터뷰로 완벽한 프롬프트로",
+    features: [
+      "이미지 · 영상 · 음악 · 텍스트 범용 지원",
+      "AI가 질문으로 아이디어 구체화",
+      "단계별 진행 상황 실시간 표시",
+      "추론 과정 투명하게 공개",
+    ],
+    gradient: "linear-gradient(135deg, #1a0533 0%, #2d1b69 50%, #0f2744 100%)",
+    accentGrad: "linear-gradient(135deg, #7C3AED, #EC4899, #F97316)",
+    accent: "#7C3AED",
+    accentRgb: "124,58,237",
+    border: "rgba(124,58,237,0.25)",
+    href: "/metaprompt",
+    badge: "NEW",
+    ctaText: "✦ 프롬프트 만들기",
+  },
+  {
     id: "detail",
     icon: "🛍️",
     name: "Detail Page Maker",
@@ -92,7 +113,7 @@ export default function MainHub() {
         .hub-header { padding: 0 48px !important; }
         .hub-hero { padding: 48px 20px 0 !important; }
         .hub-h1 { font-size: 52px !important; }
-        .hub-grid { grid-template-columns: repeat(3,1fr) !important; gap: 28px !important; }
+        .hub-grid { grid-template-columns: repeat(4,1fr) !important; gap: 24px !important; }
         @media (max-width: 768px) {
           .hub-header { padding: 0 16px !important; height: auto !important; min-height: 56px !important; flex-wrap: wrap !important; gap: 8px !important; padding-top: 8px !important; padding-bottom: 8px !important; }
           .hub-hero { padding: 36px 16px 0 !important; }
@@ -138,7 +159,7 @@ export default function MainHub() {
               width: 8, height: 8, borderRadius: "50%", background: "#10B981",
               boxShadow: "0 0 0 3px rgba(16,185,129,0.2)",
             }} />
-            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>3 tools active</span>
+            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>4 tools active</span>
           </div>
           <AuthButton />
         </div>
@@ -179,8 +200,8 @@ export default function MainHub() {
         {/* ── TOOL CARDS — 3열 고정 ── */}
         <div className="hub-grid" style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 28,
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 24,
           paddingBottom: 80,
         }}>
           {TOOLS.map((tool, i) => (

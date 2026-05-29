@@ -9,6 +9,7 @@ import {
   getStorage,
   ref,
   uploadBytes,
+  uploadBytesResumable,
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
@@ -69,6 +70,32 @@ export async function getStorageUrl(path: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+// ─── Video (AutoCut) ────────────────────────────────────────────────────────
+
+export async function uploadVideoFile(
+  jobId: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<{ path: string; url: string }> {
+  const storage = getStorageInstance();
+  if (!storage) throw new Error("Firebase Storage not initialised");
+  const path = `autocut/${jobId}/${file.name}`;
+  const storageRef = ref(storage, path);
+
+  return new Promise((resolve, reject) => {
+    const task = uploadBytesResumable(storageRef, file);
+    task.on(
+      "state_changed",
+      snap => onProgress?.(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+      reject,
+      async () => {
+        const url = await getDownloadURL(task.snapshot.ref);
+        resolve({ path, url });
+      },
+    );
+  });
 }
 
 // ─── Images (base64 data URL → Storage) ─────────────────────────────────────

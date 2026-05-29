@@ -2,32 +2,35 @@
 
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
+import { uploadVideoFile } from "@/lib/firebaseStorage";
+import { v4 as uuidv4 } from "uuid";
 
 const API = process.env.NEXT_PUBLIC_AUTOCUT_API_URL || "";
 const P = "#7C3AED";
 const PINK = "#EC4899";
 
-type Stage = "idle" | "uploading" | "processing" | "done" | "error";
+type Stage = "idle" | "firebase-upload" | "processing" | "done" | "error";
 
 export default function AutoCut() {
-  const [stage, setStage]       = useState<Stage>("idle");
-  const [progress, setProgress] = useState(0);
-  const [statusText, setStatus] = useState("");
-  const [jobId, setJobId]       = useState("");
+  const [stage, setStage]         = useState<Stage>("idle");
+  const [progress, setProgress]   = useState(0);
+  const [statusText, setStatus]   = useState("");
+  const [jobId, setJobId]         = useState("");
   const [resultUrl, setResultUrl] = useState("");
-  const [errorMsg, setError]    = useState("");
-  const [dragOver, setDragOver] = useState(false);
-  const [file, setFile]         = useState<File | null>(null);
+  const [errorMsg, setError]      = useState("");
+  const [dragOver, setDragOver]   = useState(false);
+  const [file, setFile]           = useState<File | null>(null);
+  const [fileSize, setFileSize]   = useState("");
 
-  const fileRef   = useRef<HTMLInputElement>(null);
-  const pollRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileRef  = useRef<HTMLInputElement>(null);
+  const pollRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPoll = () => { if (pollRef.current) clearInterval(pollRef.current); };
 
   const poll = useCallback((id: string) => {
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`${API}/status/${id}`);
+        const res  = await fetch(`${API}/status/${id}`);
         const data = await res.json();
         setProgress(data.progress ?? 0);
         setStatus(data.status ?? "");
@@ -47,21 +50,35 @@ export default function AutoCut() {
   const process = async (f: File) => {
     if (!API) { setError("NEXT_PUBLIC_AUTOCUT_API_URL 환경변수가 설정되지 않았습니다."); setStage("error"); return; }
     setFile(f);
-    setStage("uploading");
-    setStatus("업로드 중...");
-    setProgress(2);
+    setFileSize(formatBytes(f.size));
     setError("");
     setResultUrl("");
+    setProgress(0);
 
     try {
-      const form = new FormData();
-      form.append("file", f);
-      const res = await fetch(`${API}/process`, { method: "POST", body: form });
-      const data = await res.json();
-      if (!data.job_id) throw new Error("job_id 없음");
-      setJobId(data.job_id);
+      // Phase 1: Upload to Firebase Storage
+      setStage("firebase-upload");
+      setStatus("Firebase Storage 업로드 중...");
+
+      const jobId = uuidv4();
+      const { url } = await uploadVideoFile(jobId, f, pct => {
+        setProgress(pct);
+        setStatus(`업로드 중... ${pct}%`);
+      });
+
+      // Phase 2: Send URL to Railway
       setStage("processing");
-      setStatus("처리 시작");
+      setStatus("처리 시작 중...");
+      setProgress(0);
+
+      const res = await fetch(`${API}/process-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, filename: f.name, job_id: jobId }),
+      });
+      const data = await res.json();
+      if (!data.job_id) throw new Error("job_id 없음: " + JSON.stringify(data));
+      setJobId(data.job_id);
       poll(data.job_id);
     } catch (e) {
       setError(String(e));
@@ -77,7 +94,7 @@ export default function AutoCut() {
   const reset = () => {
     stopPoll();
     setStage("idle"); setProgress(0); setStatus("");
-    setJobId(""); setResultUrl(""); setError(""); setFile(null);
+    setJobId(""); setResultUrl(""); setError(""); setFile(null); setFileSize("");
   };
 
   return (
@@ -113,11 +130,11 @@ export default function AutoCut() {
           </h1>
           <p style={{ fontSize:15, color:"#6B7280", lineHeight:1.7 }}>
             Whisper 음성인식 → AI 컷플랜 → FFmpeg 편집 → 자막 삽입<br />
-            5분 내외 영상 권장
+            파일 크기 제한 없음 · Firebase Storage 경유
           </p>
         </div>
 
-        {/* IDLE: Upload zone */}
+        {/* IDLE */}
         {stage === "idle" && (
           <div
             onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
@@ -128,29 +145,41 @@ export default function AutoCut() {
             <input ref={fileRef} type="file" accept="video/*" style={{ display:"none" }} onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
             <div style={{ fontSize:52, marginBottom:16 }}>🎬</div>
             <div style={{ fontSize:18, fontWeight:700, color:"#1F2937", marginBottom:8 }}>영상을 드래그하거나 클릭해서 업로드</div>
-            <div style={{ fontSize:13, color:"#9CA3AF" }}>MP4, MOV, AVI 지원 · 5분 내외 권장</div>
+            <div style={{ fontSize:13, color:"#9CA3AF" }}>MP4, MOV, AVI 지원 · 크기 제한 없음</div>
             <div style={{ marginTop:28, display:"inline-block", padding:"12px 32px", background:`linear-gradient(135deg,${P},${PINK})`, borderRadius:12, fontSize:14, fontWeight:700, color:"white", boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}>
               파일 선택
             </div>
           </div>
         )}
 
-        {/* UPLOADING / PROCESSING */}
-        {(stage === "uploading" || stage === "processing") && (
+        {/* FIREBASE UPLOAD */}
+        {stage === "firebase-upload" && (
+          <div style={{ background:"white", borderRadius:24, border:"1px solid #EDE9FE", padding:"48px 40px", textAlign:"center", boxShadow:"0 4px 24px rgba(124,58,237,0.08)", animation:"fadeUp 0.4s ease both" }}>
+            <div style={{ fontSize:48, marginBottom:20 }}>☁️</div>
+            <div style={{ fontSize:18, fontWeight:700, color:"#1F2937", marginBottom:6 }}>Firebase Storage 업로드 중</div>
+            {file && <div style={{ fontSize:13, color:"#9CA3AF", marginBottom:4 }}>{file.name}</div>}
+            {fileSize && <div style={{ fontSize:12, color:"#9CA3AF", marginBottom:28 }}>{fileSize}</div>}
+            <div style={{ background:"#EDE9FE", borderRadius:100, height:10, overflow:"hidden", marginBottom:12 }}>
+              <div style={{ height:"100%", width:`${progress}%`, background:`linear-gradient(90deg,${P},${PINK})`, borderRadius:100, transition:"width 0.3s ease" }} />
+            </div>
+            <div style={{ fontSize:13, fontWeight:700, color:P }}>{progress}%</div>
+            <div style={{ marginTop:16, fontSize:12, color:"#9CA3AF" }}>대용량 파일도 안전하게 업로드됩니다</div>
+          </div>
+        )}
+
+        {/* PROCESSING */}
+        {stage === "processing" && (
           <div style={{ background:"white", borderRadius:24, border:"1px solid #EDE9FE", padding:"48px 40px", textAlign:"center", boxShadow:"0 4px 24px rgba(124,58,237,0.08)", animation:"fadeUp 0.4s ease both" }}>
             <div style={{ fontSize:48, marginBottom:20, animation:"pulse 1.5s ease infinite" }}>⚙️</div>
-            <div style={{ fontSize:18, fontWeight:700, color:"#1F2937", marginBottom:6 }}>{statusText || "처리 중..."}</div>
-            {file && <div style={{ fontSize:13, color:"#9CA3AF", marginBottom:28 }}>{file.name}</div>}
-
-            {/* Progress bar */}
+            <div style={{ fontSize:18, fontWeight:700, color:"#1F2937", marginBottom:6 }}>{statusText || "AI 처리 중..."}</div>
+            {file && <div style={{ fontSize:13, color:"#9CA3AF", marginBottom:28 }}>{file.name} · {fileSize}</div>}
             <div style={{ background:"#EDE9FE", borderRadius:100, height:10, overflow:"hidden", marginBottom:12 }}>
               <div style={{ height:"100%", width:`${progress}%`, background:`linear-gradient(90deg,${P},${PINK})`, borderRadius:100, transition:"width 0.6s ease" }} />
             </div>
             <div style={{ fontSize:13, fontWeight:700, color:P }}>{progress}%</div>
-
-            {/* Steps */}
             <div style={{ marginTop:32, display:"flex", flexDirection:"column", gap:10 }}>
               {[
+                { label:"영상 다운로드", done: progress >= 10 },
                 { label:"음성 추출", done: progress >= 20 },
                 { label:"Whisper 음성인식", done: progress >= 50 },
                 { label:"AI 컷플랜 분석", done: progress >= 65 },
@@ -205,4 +234,10 @@ export default function AutoCut() {
       </div>
     </div>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }

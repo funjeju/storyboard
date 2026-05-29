@@ -499,11 +499,27 @@ export default function MetaPrompt() {
             }
           </button>
         </div>
-        {!started && (
-          <div style={{ textAlign: "center", marginTop: 10, fontSize: 11, color: "#9CA3AF" }}>
-            Enter로 전송 · Shift+Enter 줄바꿈
-          </div>
-        )}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, padding: "0 4px" }}>
+          <span style={{ fontSize: 11, color: "#9CA3AF" }}>
+            Enter 전송 · Shift+Enter 줄바꿈
+          </span>
+          {started && !aiState?.isDone && messages.length >= 2 && (
+            <button
+              onClick={() => send("지금까지 정보로 바로 프롬프트 생성해줘")}
+              disabled={loading}
+              style={{
+                padding: "5px 14px",
+                background: `linear-gradient(135deg,${P},${PINK})`,
+                border: "none", borderRadius: 8,
+                fontSize: 11, fontWeight: 700, color: "white",
+                cursor: "pointer", opacity: loading ? 0.5 : 1,
+                transition: "all 0.15s",
+              }}
+            >
+              ⚡ 지금 바로 생성
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

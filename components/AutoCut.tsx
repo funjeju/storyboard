@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { uploadVideoFile, deleteStorageFile } from "@/lib/firebaseStorage";
-import { v4 as uuidv4 } from "uuid";
 
 const API = process.env.NEXT_PUBLIC_AUTOCUT_API_URL || "";
 const P = "#7C3AED";
@@ -70,7 +69,7 @@ export default function AutoCut() {
       setStage("firebase-upload");
       setStatus("Firebase Storage 업로드 중...");
 
-      const jobId = uuidv4();
+      const jobId = crypto.randomUUID();
       const { url, path } = await uploadVideoFile(jobId, f, pct => {
         setProgress(pct);
         setStatus(`업로드 중... ${pct}%`);

@@ -232,59 +232,109 @@ export async function POST(req: NextRequest) {
 - Base prompt: ${styleDNA.promptBase}`
       : "";
 
-    // Per-module rules: which fields to show in image and max char per line
-    const TEXT_IN_IMAGE: Record<string, { fields: string[]; maxChars: number }> = {
-      hero_hook:         { fields: ["headline"],                    maxChars: 20 },
-      strong_copy:       { fields: ["statement"],                   maxChars: 20 },
-      problem_statement: { fields: ["problemHeader"],               maxChars: 20 },
-      pain_point:        { fields: ["hook"],                        maxChars: 20 },
-      customer_reviews:  { fields: ["headline"],                    maxChars: 20 },
-      expert_cert:       { fields: ["certTitle"],                   maxChars: 20 },
-      clinical_results:  { fields: ["headline"],                    maxChars: 20 },
-      origin:            { fields: ["title"],                       maxChars: 20 },
-      manufacturing:     { fields: ["title"],                       maxChars: 20 },
-      brand_story:       { fields: ["title"],                       maxChars: 20 },
-      before_after:      { fields: ["beforeTitle", "afterTitle"],   maxChars: 12 },
-      feature_desc:      { fields: ["title"],                       maxChars: 20 },
-      ingredient_desc:   { fields: ["title"],                       maxChars: 20 },
-      comparison_table:  { fields: ["title"],                       maxChars: 20 },
-      usage_guide:       { fields: ["title"],                       maxChars: 20 },
-      option_desc:       { fields: ["title"],                       maxChars: 20 },
-      faq:               { fields: [],                              maxChars: 0  },
-      lifestyle_image:   { fields: ["headline"],                    maxChars: 20 },
-      emotional_copy:    { fields: ["opening"],                     maxChars: 20 },
-      usage_scenario:    { fields: ["title"],                       maxChars: 20 },
-      brand_philosophy:  { fields: ["title"],                       maxChars: 20 },
-      discount_benefit:  { fields: ["title", "mainBenefit"],        maxChars: 20 },
-      limited_quantity:  { fields: ["alert"],                       maxChars: 15 },
-      recommended_bundle:{ fields: ["title"],                       maxChars: 20 },
-      cta:               { fields: ["headline", "ctaText"],         maxChars: 18 },
+    // ── Per-module text rendering rules ────────────────────────────────────────
+    // role: headline = H1 bold large | subheadline = H2 medium | body = small paragraph
+    //       bullet = small list items | badge = small pill/tag | label = positional label | cta-btn = button
+    type TRole = "headline" | "subheadline" | "body" | "bullet" | "badge" | "label-left" | "label-right" | "cta-btn";
+    interface TLayer { field: string; role: TRole; maxChars: number; arrayIndex?: number }
+    const RULES: Record<string, TLayer[]> = {
+      // ── Hook ──────────────────────────────────────────────────────────────
+      hero_hook:         [{ field:"headline",    role:"headline",    maxChars:20 },
+                          { field:"subheadline", role:"subheadline", maxChars:28 }],
+      strong_copy:       [{ field:"statement",   role:"headline",    maxChars:20 },
+                          { field:"support",     role:"subheadline", maxChars:30 }],
+      problem_statement: [{ field:"problemHeader",role:"headline",   maxChars:22 },
+                          { field:"bridge",      role:"subheadline", maxChars:28 }],
+      pain_point:        [{ field:"hook",        role:"headline",    maxChars:20 },
+                          { field:"pivot",       role:"subheadline", maxChars:28 }],
+      // ── Trust ─────────────────────────────────────────────────────────────
+      customer_reviews:  [{ field:"headline",    role:"headline",    maxChars:22 },
+                          { field:"trust",       role:"subheadline", maxChars:35 }],
+                          // testimonial quote rendered by image model from context
+      expert_cert:       [{ field:"certTitle",   role:"headline",    maxChars:20 },
+                          { field:"expertName",  role:"subheadline", maxChars:20 },
+                          { field:"credential",  role:"body",        maxChars:28 }],
+      clinical_results:  [{ field:"headline",    role:"headline",    maxChars:22 }],
+                          // stats rendered as large number callouts by image model
+      origin:            [{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"closing",     role:"subheadline", maxChars:28 }],
+      manufacturing:     [{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"quality",     role:"subheadline", maxChars:30 }],
+      brand_story:       [{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"mission",     role:"subheadline", maxChars:28 }],
+      before_after:      [{ field:"beforeTitle", role:"label-left",  maxChars:10 },
+                          { field:"afterTitle",  role:"label-right", maxChars:10 },
+                          { field:"result",      role:"badge",       maxChars:22 }],
+      // ── Product ───────────────────────────────────────────────────────────
+      feature_desc:      [{ field:"title",       role:"headline",    maxChars:20 }],
+                          // features rendered as icon+text bullets by image model
+      ingredient_desc:   [{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"safety",      role:"subheadline", maxChars:30 }],
+      comparison_table:  [{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"conclusion",  role:"subheadline", maxChars:28 }],
+      usage_guide:       [{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"result",      role:"subheadline", maxChars:28 }],
+      option_desc:       [{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"recommendation",role:"subheadline",maxChars:28}],
+      faq:               [], // no text — image is purely supportive backdrop
+      // ── Emotional ─────────────────────────────────────────────────────────
+      lifestyle_image:   [{ field:"headline",    role:"headline",    maxChars:22 }],
+                          // breathing room — headline only, no sub
+      emotional_copy:    [{ field:"opening",     role:"headline",    maxChars:22 },
+                          { field:"resonance",   role:"subheadline", maxChars:28 }],
+      usage_scenario:    [{ field:"title",       role:"headline",    maxChars:20 }],
+      brand_philosophy:  [{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"commitment",  role:"subheadline", maxChars:28 }],
+      // ── Conversion ────────────────────────────────────────────────────────
+      discount_benefit:  [{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"mainBenefit", role:"subheadline", maxChars:28 },
+                          { field:"urgency",     role:"badge",       maxChars:22 }],
+      limited_quantity:  [{ field:"alert",       role:"headline",    maxChars:18 },
+                          { field:"remaining",   role:"badge",       maxChars:14 },
+                          { field:"reason",      role:"subheadline", maxChars:28 }],
+      recommended_bundle:[{ field:"title",       role:"headline",    maxChars:20 },
+                          { field:"bestPick",    role:"badge",       maxChars:22 }],
+      cta:               [{ field:"headline",    role:"headline",    maxChars:20 },
+                          { field:"ctaText",     role:"cta-btn",     maxChars:10 },
+                          { field:"urgency",     role:"subheadline", maxChars:28 }],
     };
 
-    const rule = TEXT_IN_IMAGE[sectionType] || { fields: ["headline"], maxChars: 20 };
-    const copyTextLines: string[] = [];
-    if (copy && rule.fields.length > 0) {
-      for (const f of rule.fields) {
-        const v = (copy as Record<string, unknown>)[f];
-        if (typeof v === "string" && v.trim() && v.trim().length <= rule.maxChars) {
-          copyTextLines.push(v.trim());
-        }
-      }
-    }
+    const ROLE_STYLE: Record<TRole, string> = {
+      "headline":    "bold, very large Korean sans-serif, white with text-shadow",
+      "subheadline": "medium weight, smaller Korean sans-serif, white or light gray",
+      "body":        "small regular Korean text, white or light gray, max 2 lines",
+      "bullet":      "small Korean text with bullet dot prefix, white, list format",
+      "badge":       "small pill/tag shape, accent color background, Korean text inside",
+      "label-left":  "positioned far left, bold Korean label, white with dark area behind",
+      "label-right": "positioned far right, bold Korean label, white with dark area behind",
+      "cta-btn":     "button shape with rounded corners, high-contrast fill, bold Korean text",
+    };
+
+    const layers = RULES[sectionType] || [{ field:"headline", role:"headline" as TRole, maxChars:20 }];
+    const c = copy as Record<string, unknown> | null;
+    const renderLayers = layers
+      .map(l => {
+        const v = c?.[l.field];
+        const text = typeof v === "string" ? v.trim() : "";
+        if (!text || text.length > l.maxChars) return null;
+        return { role: l.role, text, style: ROLE_STYLE[l.role] };
+      })
+      .filter(Boolean) as { role: TRole; text: string; style: string }[];
 
     const copyContext = copy
-      ? `\n\nSECTION COPY — use for BOTH visual direction AND text rendering:
+      ? `\n\nSECTION COPY — drives BOTH visual tone and in-image typography:
 ${JSON.stringify(copy, null, 2)}
 
-→ VISUAL DIRECTION: Match the emotional tone of the copy (lighting, color temperature, mood).
-${copyTextLines.length > 0 ? `
-→ TEXT TO RENDER IN THE IMAGE: The following Korean text must appear as visible typography overlaid on the image:
-${copyTextLines.map((t, i) => `  ${i === 0 ? "HEADLINE" : "SUBHEADLINE"}: "${t}"`).join("\n")}
-  - Headline: bold, large, white Korean sans-serif font
-  - Subheadline: medium weight, smaller, white or light gray Korean font
-  - Text placed at the designated copy space area (${brief.copySpace})
-  - Background in that area must have sufficient contrast (dark, blurred, or color-blocked) for white text readability
-  - Text must be CLEARLY LEGIBLE — this is critical` : "→ Leave intentional space where copy will be placed."}
+→ VISUAL TONE: Match lighting, color temperature, and mood to the emotional register of this copy.
+${renderLayers.length > 0 ? `
+→ TYPOGRAPHY TO RENDER IN IMAGE (critical — must be clearly legible):
+${renderLayers.map(l => `  [${l.role.toUpperCase()}] "${l.text}" — ${l.style}`).join("\n")}
+
+Typography rules:
+  • Text placement: ${brief.copySpace}
+  • Background behind text MUST have enough contrast (darken, blur, or gradient overlay the background in that zone)
+  • Korean characters must be fully legible — clean, modern sans-serif
+  • Do NOT crowd all text — maintain visual hierarchy and breathing room between layers` : `→ No text overlay for this module type. Image is pure visual backdrop.`}
 `
       : "";
 

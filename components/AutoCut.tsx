@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { uploadVideoFile } from "@/lib/firebaseStorage";
+import { uploadVideoFile, deleteStorageFile } from "@/lib/firebaseStorage";
 import { v4 as uuidv4 } from "uuid";
 
 const API = process.env.NEXT_PUBLIC_AUTOCUT_API_URL || "";
@@ -21,11 +21,19 @@ export default function AutoCut() {
   const [dragOver, setDragOver]   = useState(false);
   const [file, setFile]           = useState<File | null>(null);
   const [fileSize, setFileSize]   = useState("");
+  const storagePathRef = useRef<string>("");
 
   const fileRef  = useRef<HTMLInputElement>(null);
   const pollRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPoll = () => { if (pollRef.current) clearInterval(pollRef.current); };
+
+  const cleanupStorage = () => {
+    if (storagePathRef.current) {
+      deleteStorageFile(storagePathRef.current);
+      storagePathRef.current = "";
+    }
+  };
 
   const poll = useCallback((id: string) => {
     pollRef.current = setInterval(async () => {
@@ -36,10 +44,12 @@ export default function AutoCut() {
         setStatus(data.status ?? "");
         if (data.done) {
           stopPoll();
+          cleanupStorage();
           setResultUrl(`${API}/download/${id}`);
           setStage("done");
         } else if (data.error) {
           stopPoll();
+          cleanupStorage();
           setError(data.error);
           setStage("error");
         }
@@ -61,10 +71,12 @@ export default function AutoCut() {
       setStatus("Firebase Storage 업로드 중...");
 
       const jobId = uuidv4();
-      const { url } = await uploadVideoFile(jobId, f, pct => {
+      const { url, path } = await uploadVideoFile(jobId, f, pct => {
         setProgress(pct);
         setStatus(`업로드 중... ${pct}%`);
       });
+
+      storagePathRef.current = path;
 
       // Phase 2: Send URL to Railway
       setStage("processing");
@@ -81,6 +93,7 @@ export default function AutoCut() {
       setJobId(data.job_id);
       poll(data.job_id);
     } catch (e) {
+      cleanupStorage();
       setError(String(e));
       setStage("error");
     }

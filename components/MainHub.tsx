@@ -134,7 +134,13 @@ export default function MainHub() {
         .hub-header { padding: 0 48px !important; }
         .hub-hero { padding: 48px 20px 0 !important; }
         .hub-h1 { font-size: 52px !important; }
-        .hub-grid { grid-template-columns: repeat(5,1fr) !important; gap: 24px !important; }
+        .hub-grid { grid-template-columns: repeat(5,1fr) !important; gap: 20px !important; }
+        @media (max-width: 1280px) {
+          .hub-grid { grid-template-columns: repeat(3,1fr) !important; }
+        }
+        @media (max-width: 900px) {
+          .hub-grid { grid-template-columns: repeat(2,1fr) !important; }
+        }
         @media (max-width: 768px) {
           .hub-header { padding: 0 16px !important; height: auto !important; min-height: 56px !important; flex-wrap: wrap !important; gap: 8px !important; padding-top: 8px !important; padding-bottom: 8px !important; }
           .hub-hero { padding: 36px 16px 0 !important; }
@@ -187,7 +193,7 @@ export default function MainHub() {
       </header>
 
       {/* ── HERO ── */}
-      <div className="hub-hero" style={{ maxWidth: 1100, margin: "0 auto", padding: "72px 40px 0" }}>
+      <div className="hub-hero" style={{ maxWidth: 1440, margin: "0 auto", padding: "72px 40px 0" }}>
         <div style={{ textAlign: "center", marginBottom: 56, animation: "fadeUp 0.5s ease both" }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6,
@@ -222,7 +228,7 @@ export default function MainHub() {
         <div className="hub-grid" style={{
           display: "grid",
           gridTemplateColumns: "repeat(5, 1fr)",
-          gap: 24,
+          gap: 20,
           paddingBottom: 80,
         }}>
           {TOOLS.map((tool, i) => (
@@ -252,7 +258,7 @@ export default function MainHub() {
               {/* Card Header */}
               <div style={{
                 background: tool.gradient,
-                padding: "36px 36px 30px",
+                padding: "28px 24px 24px",
                 position: "relative",
                 overflow: "hidden",
               }}>
@@ -279,20 +285,20 @@ export default function MainHub() {
                   letterSpacing: 1.5,
                 }}>{tool.badge}</div>
 
-                <div style={{ fontSize: 44, marginBottom: 16, animation: "float 3s ease-in-out infinite" }}>
+                <div style={{ fontSize: 36, marginBottom: 12, animation: "float 3s ease-in-out infinite" }}>
                   {tool.icon}
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "white", marginBottom: 8, letterSpacing: -0.5 }}>
-                  {tool.name}
+                <div style={{ fontSize: 18, fontWeight: 800, color: "white", marginBottom: 6, letterSpacing: -0.5, lineHeight: 1.25 }}>
+                  {tool.nameKo}
                 </div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", lineHeight: 1.6 }}>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", lineHeight: 1.55 }}>
                   {tool.desc}
                 </div>
               </div>
 
               {/* Card Body */}
-              <div style={{ background: "white", padding: "26px 36px 30px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 24 }}>
+              <div style={{ background: "white", padding: "22px 24px 24px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 20 }}>
                   {tool.features.map((f, j) => (
                     <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                       <div style={{
@@ -301,18 +307,18 @@ export default function MainHub() {
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 9, color: tool.accent, fontWeight: 800, marginTop: 1,
                       }}>✓</div>
-                      <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>{f}</span>
+                      <span style={{ fontSize: 12, color: "#374151", lineHeight: 1.5 }}>{f}</span>
                     </div>
                   ))}
                 </div>
 
                 <button style={{
                   width: "100%",
-                  padding: "14px",
+                  padding: "12px",
                   background: tool.accentGrad,
                   border: "none",
                   borderRadius: 12,
-                  fontSize: 14, fontWeight: 700, color: "white",
+                  fontSize: 13, fontWeight: 700, color: "white",
                   cursor: "pointer",
                   letterSpacing: 0.3,
                   boxShadow: `0 4px 16px rgba(${tool.accentRgb},0.35)`,

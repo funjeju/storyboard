@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     if (!prompt) return NextResponse.json({ error: "No prompt provided" }, { status: 400 });
 
     const response = await openai.images.generate({
-      model: "gpt-image-1",
+      model: "gpt-image-2",
       prompt,
       n: 1,
       size: "1024x1536",

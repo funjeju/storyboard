@@ -3,9 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
-// E-commerce visual code per section.
-// These are NOT lifestyle/art directions — these are commercial product photography briefs.
-const SECTION_VISUAL_BRIEF: Record<string, {
+const MODULE_VISUAL_BRIEF: Record<string, {
   purpose: string;
   composition: string;
   copySpace: string;
@@ -13,65 +11,203 @@ const SECTION_VISUAL_BRIEF: Record<string, {
   aspectRatio?: string;
 }> = {
   thumbnail: {
-    purpose: "The master representative image — what appears in search results, category lists, ads, social shares. CTR-optimized. Must instantly communicate what this product is at thumbnail size (as small as 200×200px).",
-    composition: "Single product centered or rule-of-thirds, product fills 60-80% of the frame, strong silhouette readable even when scaled small. NO group shots, NO complex scenes.",
-    copySpace: "NO copy overlay — external system (price, product name, brand) is placed by the platform. The image must be self-sufficient and clean.",
-    visualCode: "Maximum-clarity commercial hero. Pure neutral or branded-solid background. Strong but flattering lighting that pops the product. Saturation slightly boosted for thumbnail visibility. Premium-feel.",
-    aspectRatio: "--ar 1:1 (square — works on every platform's listing grid)",
+    purpose: "The master representative image — search results, listings, ads. CTR-optimized. Must communicate the product instantly at 200×200px.",
+    composition: "Single product centered, fills 60-80% of frame. Strong silhouette, no group shots.",
+    copySpace: "NO copy overlay — platform places text externally. Image must be self-sufficient.",
+    visualCode: "Maximum-clarity commercial hero. Neutral or branded-solid background. Premium-feel studio lighting.",
+    aspectRatio: "--ar 1:1",
   },
-  hook: {
-    purpose: "Hero shot that stops the scroll. The buyer must immediately understand what this product IS and feel desire.",
-    composition: "Slight high-angle or eye-level hero shot, product as undeniable star, clean intentional background.",
-    copySpace: "Reserve TOP 35% or LEFT 40% for the headline overlay — empty negative space, no busy elements there.",
-    visualCode: "Commercial e-commerce hero. Catalog quality. NOT lifestyle, NOT art photography.",
+
+  // ── Hook ──────────────────────────────────────────────────────────────────
+  hero_hook: {
+    purpose: "Hero scroll-stopper. First thing the buyer sees — must create immediate desire.",
+    composition: "Slight high-angle or eye-level hero, product as undeniable star. Bold, confident framing.",
+    copySpace: "Reserve TOP 35% or LEFT 40% as clean negative space for headline overlay.",
+    visualCode: "Photorealistic commercial product hero. Studio catalog quality. NOT lifestyle, NOT art photography.",
   },
-  usp: {
-    purpose: "Showcase the product's key differentiator visually. Detail must be crisp enough to communicate quality.",
-    composition: "Tight clean close-up or 3/4 angle product shot. Macro detail of the differentiating feature.",
-    copySpace: "Reserve RIGHT 40% for bullet point callouts — clean background on that side.",
-    visualCode: "Studio product photography. Even lighting that reveals texture and material quality. Catalog-clean.",
+  strong_copy: {
+    purpose: "Bold statement visual that backs the product's strongest claim.",
+    composition: "Close-up hero or 3/4 angle, emphasizing the most compelling feature. Clean and assertive.",
+    copySpace: "Reserve CENTER-TOP 30% for the bold statement overlay.",
+    visualCode: "High-contrast commercial photography. Strong lighting drama. Crisp and decisive.",
   },
-  problemSolution: {
-    purpose: "Visualize transformation or contrast. The image must make the 'after' state feel attainable.",
-    composition: "Either before/after split frame, or a single image showing the resolved state clearly.",
-    copySpace: "Reserve BOTTOM 30% for the transformation copy.",
-    visualCode: "Documentary-clean commercial style. Honest, not over-styled. Avoid heavy filters.",
+  problem_statement: {
+    purpose: "Visual that surfaces the pain point — buyer must feel seen.",
+    composition: "Before-state or neutral product shot in a relatable context. Honest, not over-styled.",
+    copySpace: "Reserve BOTTOM 35% for pain point copy.",
+    visualCode: "Honest commercial documentary style. Warm but slightly muted. Avoid aspirational over-styling.",
   },
-  specs: {
-    purpose: "Communicate technical precision and craftsmanship. Buyer evaluates quality from this shot.",
-    composition: "Clean detail shot or exploded-view-like angle showing structure, material, or scale reference.",
-    copySpace: "Reserve RIGHT 45% for the spec table overlay.",
-    visualCode: "Clinical commercial photography. White or neutral seamless background. Sharp focus throughout.",
+  pain_point: {
+    purpose: "Deep empathy visual — make the unresolved problem feel real and understood.",
+    composition: "Product in contrast to the problem state, or a single poignant product shot.",
+    copySpace: "Reserve LEFT or TOP 40% for empathy copy overlay.",
+    visualCode: "Subdued, honest commercial photography. Slightly cooler tone. NOT aspirational.",
   },
-  lifestyle: {
-    purpose: "Show the product in its INTENDED context of use so the buyer can imagine themselves with it. This is the ONE section where styled scene is appropriate — but still commercial, not editorial.",
-    composition: "Product in real use context (kitchen counter, desk, dining table, etc.) with a human element implied (a hand, a setting that suggests presence) but the product remains the focal point.",
-    copySpace: "Reserve TOP-LEFT 30% for the lifestyle headline overlay.",
-    visualCode: "Aspirational but believable. Real-life setting, NOT a field/forest/golden-hour outdoor scene. Indoor or controlled environment that matches how the buyer would actually use it.",
+
+  // ── Trust ─────────────────────────────────────────────────────────────────
+  customer_reviews: {
+    purpose: "Authentic proof of use. Real-feeling, on-brand.",
+    composition: "Product in natural use or tasteful arrangement with lifestyle context implied.",
+    copySpace: "Reserve a clean horizontal band (TOP or BOTTOM 30%) for testimonial quotes.",
+    visualCode: "Warm, authentic, but still commercial. Curated authenticity. NOT influencer-messy.",
   },
-  options: {
-    purpose: "Display variant lineup so the buyer can pick. Each variant must be clearly distinguishable.",
-    composition: "Flat lay or arranged lineup of all variants. Equal visual weight, organized grid or symmetric arrangement.",
-    copySpace: "Reserve BOTTOM 25% for option labels and the best-value badge.",
-    visualCode: "Clean catalog flat-lay. Top-down or 3/4 organized arrangement. Pure neutral background.",
+  expert_cert: {
+    purpose: "Authority and credibility through precision and science.",
+    composition: "Clean product shot with clinical precision — detail shot, lab-like setting, or certificate-adjacent.",
+    copySpace: "Reserve RIGHT 40% for expert name/credential overlay.",
+    visualCode: "Clinical commercial photography. White or neutral seamless. Sharp throughout. Authoritative.",
   },
-  reviews: {
-    purpose: "Authentic-feeling proof of use. Suggests real customers, but is still product-centric and on-brand.",
-    composition: "Product being used in a natural moment OR a tasteful arrangement with the product visible alongside lifestyle elements.",
-    copySpace: "Reserve a clean band for testimonial quote overlays.",
-    visualCode: "Warm, authentic, but still commercial. NOT influencer-style or candid-messy. Curated authenticity.",
+  clinical_results: {
+    purpose: "Data-driven credibility. Science-backed visual.",
+    composition: "Precise detail shot or graphic infographic-ready composition. Numbers must feel earned.",
+    copySpace: "Reserve RIGHT 45% for stat table overlay.",
+    visualCode: "Clinical-clean studio. Even lighting, zero distraction. Product is the proof.",
+  },
+  origin: {
+    purpose: "Provenance story — authenticity through place of origin.",
+    composition: "Product in or near its origin environment (farm, field, region) OR a clean studio shot with origin-suggesting props.",
+    copySpace: "Reserve TOP-LEFT 30% for origin story copy.",
+    visualCode: "Natural but commercial. Real location or tasteful natural-light studio. NOT generic stock.",
+  },
+  manufacturing: {
+    purpose: "Behind-the-scenes quality assurance — process as proof.",
+    composition: "Detail of craftsmanship: texture, hands, tool, or process step. Product at center.",
+    copySpace: "Reserve BOTTOM 30% for process step overlay.",
+    visualCode: "Documentary-clean commercial. Honest craftsmanship feel. NOT industrial or cold.",
+  },
+  brand_story: {
+    purpose: "Emotional brand narrative visual — why this brand exists.",
+    composition: "Warm hero product shot with subtle brand-world context. Founder-feel or heritage objects.",
+    copySpace: "Reserve LEFT 35% for brand story copy.",
+    visualCode: "Warm, slightly editorial but still commercial. Heritage feel. Intentional.",
+  },
+  before_after: {
+    purpose: "Transformation contrast — make the 'after' state viscerally desirable.",
+    composition: "Split frame (before left / after right) OR a single 'after' shot radiating transformation.",
+    copySpace: "Reserve TOP band for BEFORE / AFTER labels.",
+    visualCode: "Honest transformation photography. Before: muted/desaturated. After: vibrant, sharp, resolved.",
+  },
+
+  // ── Product ───────────────────────────────────────────────────────────────
+  feature_desc: {
+    purpose: "Showcase key features — scannable visual proof of each benefit.",
+    composition: "3/4 product angle or macro detail highlighting the differentiating feature.",
+    copySpace: "Reserve RIGHT 40% for feature bullet callouts.",
+    visualCode: "Studio product photography. Even lighting revealing texture and material. Catalog-clean.",
+  },
+  ingredient_desc: {
+    purpose: "Ingredient transparency — purity and quality through visual.",
+    composition: "Product surrounded by key ingredients/raw materials, flat lay or arranged composition.",
+    copySpace: "Reserve TOP 30% or RIGHT side for ingredient labels.",
+    visualCode: "Fresh, clean, natural commercial. Light, airy, pure-feeling. Studio or controlled natural light.",
+  },
+  comparison_table: {
+    purpose: "Competitive differentiation — our product wins on sight.",
+    composition: "Product centered and dominant, competitors implied as smaller or absent. Clean comparison-friendly.",
+    copySpace: "Reserve RIGHT 50% for comparison table overlay.",
+    visualCode: "Clean clinical studio. Product looks unambiguously premium vs. generic alternatives.",
+  },
+  usage_guide: {
+    purpose: "Reduce purchase anxiety through clear how-to visuals.",
+    composition: "Step-suggesting composition — product in use, hands visible if helpful, step implied.",
+    copySpace: "Reserve BOTTOM 35% for step-by-step text overlay.",
+    visualCode: "Clear, instructional commercial photography. Bright and approachable. NOT intimidating.",
+  },
+  option_desc: {
+    purpose: "Help buyers choose — variant lineup clearly distinguishable.",
+    composition: "Flat lay or organized lineup of all variants. Equal visual weight, symmetric arrangement.",
+    copySpace: "Reserve BOTTOM 25% for option labels and best-value badge.",
+    visualCode: "Clean catalog flat-lay. Top-down or 3/4. Pure neutral background.",
   },
   faq: {
     purpose: "Reassure and inform. Visual supports clarity, doesn't distract.",
-    composition: "Clean product detail shot or simple info-supporting visual. Calm and ordered.",
+    composition: "Calm product detail shot or simple info-supporting visual.",
     copySpace: "Reserve majority of frame for Q&A list overlay. Image is supporting role.",
-    visualCode: "Minimal product detail or icon-clean infographic-friendly composition. Clean neutral background.",
+    visualCode: "Minimal, clean, undistracting. Neutral background. Product as calm presence.",
+  },
+
+  // ── Emotional ─────────────────────────────────────────────────────────────
+  lifestyle_image: {
+    purpose: "Sell the feeling, not the product. Aspirational context of use.",
+    composition: "Product in its intended real-use environment. Human element implied (hand, setting). Product remains focal point.",
+    copySpace: "Reserve TOP-LEFT 30% for lifestyle headline overlay.",
+    visualCode: "Aspirational but believable. Real-life indoor setting. NOT golden-hour outdoor unless product demands it.",
+  },
+  emotional_copy: {
+    purpose: "Heart-touching visual that creates emotional bond with the brand.",
+    composition: "Intimate, warmly lit product moment. Soft depth of field. Feeling over function.",
+    copySpace: "Reserve CENTER or BOTTOM 25% for emotional copy.",
+    visualCode: "Warm, emotionally resonant commercial photography. Gentle lighting. Evocative, not decorative.",
+  },
+  usage_scenario: {
+    purpose: "Vivid scene of the product in real life — buyer imagines themselves there.",
+    composition: "Product actively in use in a specific relatable moment. Scene-setting props minimal and purposeful.",
+    copySpace: "Reserve TOP 25% for scenario label and copy.",
+    visualCode: "Believable commercial lifestyle. Real moment energy. NOT staged or stock-photo generic.",
+  },
+  brand_philosophy: {
+    purpose: "Deeper purpose and values — the WHY behind the brand.",
+    composition: "Abstract-ish product shot or values-suggesting visual. Brand world, not product function.",
+    copySpace: "Reserve CENTER or BOTTOM 30% for philosophy statement overlay.",
+    visualCode: "Slightly more editorial, but still commercial. Values-communicating aesthetic. Intentional depth.",
+  },
+
+  // ── Conversion ────────────────────────────────────────────────────────────
+  discount_benefit: {
+    purpose: "Price advantage framing that creates value perception urgency.",
+    composition: "Product hero with space for benefit badges. Energetic but premium.",
+    copySpace: "Reserve TOP-RIGHT or BOTTOM band for benefit callouts and promo text.",
+    visualCode: "Commercial product hero with slight energy — brighter, more vivid. Value-signaling.",
+  },
+  limited_quantity: {
+    purpose: "Scarcity-driven urgency — make the product feel precious and rare.",
+    composition: "Single product, slightly isolated, premium-positioned. Suggests exclusivity.",
+    copySpace: "Reserve TOP band for limited-quantity alert overlay.",
+    visualCode: "Premium commercial hero. Slightly dramatic lighting. Precious-object feel.",
+  },
+  recommended_bundle: {
+    purpose: "Upsell through visual bundling — together they look more complete.",
+    composition: "Bundle products arranged together, main product dominant, supporting items visible. Organized flat lay or lifestyle.",
+    copySpace: "Reserve BOTTOM 30% for bundle names and saving callout.",
+    visualCode: "Catalog flat-lay or arranged lifestyle. Clean, organized. Bundle looks curated, not random.",
   },
   cta: {
-    purpose: "Final closing image that triggers the buy click. Maximum desire, minimum friction.",
-    composition: "Strong centered or rule-of-thirds hero. Slight depth, premium feel. Product looks irresistible.",
-    copySpace: "Reserve CENTER-BOTTOM for the CTA button and closing headline.",
-    visualCode: "Premium commercial hero. Stronger lighting drama than the opening hook for closing impact. Still e-commerce, not art.",
+    purpose: "Final closing image — triggers the buy click. Maximum desire, minimum friction.",
+    composition: "Strong centered or rule-of-thirds hero. Premium feel. Product looks irresistible.",
+    copySpace: "Reserve CENTER-BOTTOM for CTA button and closing headline.",
+    visualCode: "Premium commercial hero. Stronger lighting drama than the opening hook. Still e-commerce, not art.",
+  },
+
+  // ── Legacy fallbacks ───────────────────────────────────────────────────────
+  hook: {
+    purpose: "Hero scroll-stopper. Immediate desire.",
+    composition: "High-angle or eye-level hero, product dominant.",
+    copySpace: "Reserve TOP 35% or LEFT 40% for headline.",
+    visualCode: "Commercial e-commerce hero. Catalog quality.",
+  },
+  usp: {
+    purpose: "Key differentiator visual.",
+    composition: "Tight close-up or 3/4 angle product shot.",
+    copySpace: "Reserve RIGHT 40% for bullet point callouts.",
+    visualCode: "Studio product photography. Even lighting.",
+  },
+  lifestyle: {
+    purpose: "Product in its intended context.",
+    composition: "Product in use context, human element implied.",
+    copySpace: "Reserve TOP-LEFT 30% for headline.",
+    visualCode: "Aspirational but believable. Real-life setting.",
+  },
+  reviews: {
+    purpose: "Authentic proof of use.",
+    composition: "Product in natural use or lifestyle context.",
+    copySpace: "Reserve band for testimonial overlay.",
+    visualCode: "Warm, authentic, curated commercial.",
+  },
+  faq_legacy: {
+    purpose: "Calm informational visual.",
+    composition: "Clean product detail or info-supporting visual.",
+    copySpace: "Reserve majority for Q&A overlay.",
+    visualCode: "Minimal, undistracting. Neutral background.",
   },
 };
 
@@ -79,34 +215,39 @@ export async function POST(req: NextRequest) {
   try {
     const { sectionType, productInfo, styleDNA, copy, sectionGuidance, lockedSectionPrompts } = await req.json();
 
-    const brief = SECTION_VISUAL_BRIEF[sectionType] || SECTION_VISUAL_BRIEF.hook;
+    const brief = MODULE_VISUAL_BRIEF[sectionType] || MODULE_VISUAL_BRIEF.hero_hook;
 
-    const cumulativeRef = lockedSectionPrompts && lockedSectionPrompts.length > 0
-      ? `\n\nVISUAL CONTINUITY — these previous sections are locked, maintain consistency with their look:\n${lockedSectionPrompts.slice(-3).join("\n")}`
+    const cumulativeRef = lockedSectionPrompts?.length > 0
+      ? `\n\nVISUAL CONTINUITY — maintain consistency with these locked sections:\n${lockedSectionPrompts.slice(-3).join("\n")}`
       : "";
 
     const dnaContext = styleDNA
-      ? `\n\nSTYLE DNA (visual consistency across all 9 sections — must follow):
+      ? `\n\nSTYLE DNA (follow strictly for visual consistency):
 - Lighting: ${styleDNA.lighting}
 - Background: ${styleDNA.background}
 - Color palette: ${[...(styleDNA.primaryColors || []), ...(styleDNA.secondaryColors || [])].join(", ")}
 - Mood: ${styleDNA.mood}
-- Composition tendency: ${styleDNA.composition}
+- Composition: ${styleDNA.composition}
 - Aesthetic: ${styleDNA.aesthetic}
 - Base prompt: ${styleDNA.promptBase}`
       : "";
 
     const copyContext = copy
-      ? `\n\nSECTION COPY THAT WILL OVERLAY THIS IMAGE (the visual must leave room for this text):
-${JSON.stringify(copy)}`
+      ? `\n\nSECTION COPY (critically important — use this to drive the visual direction):
+${JSON.stringify(copy, null, 2)}
+
+→ Extract the EMOTIONAL KEYWORDS and THEMATIC DIRECTION from this copy and embed them into the image:
+  - What feeling does the headline evoke? → Make the lighting, color, and mood match that emotion.
+  - What subject matter does the copy reference? → Feature that in the composition if possible.
+  - What tone does the copy set (premium, warm, urgent, natural, etc.)? → Match the visual tone precisely.
+  - Leave intentional negative space for this copy to overlay.`
       : "";
 
     const guidanceContext = sectionGuidance
-      ? `\n\nTHIS SECTION'S STRATEGIC GUIDANCE (from unified research brief):
-${JSON.stringify(sectionGuidance, null, 2)}`
+      ? `\n\nSTRATEGIC GUIDANCE:\n${JSON.stringify(sectionGuidance, null, 2)}`
       : "";
 
-    const user = `Generate an E-COMMERCE PRODUCT DETAIL PAGE image prompt for the "${sectionType}" section.
+    const user = `Generate a PHOTOREALISTIC commercial product photography prompt for the "${sectionType}" section of an e-commerce detail page.
 
 PRODUCT: ${JSON.stringify(productInfo)}
 
@@ -117,37 +258,38 @@ Copy overlay space: ${brief.copySpace}
 Visual code: ${brief.visualCode}
 ${guidanceContext}${dnaContext}${copyContext}${cumulativeRef}
 
-═══ HARD REQUIREMENTS (do not violate) ═══
-1. This is COMMERCIAL e-commerce photography for a shopping mall product detail page — NOT editorial, NOT Instagram lifestyle, NOT golden-hour-outdoor art photography.
-2. The image MUST have intentional negative space where copy will overlay (per the brief above).
-3. Backgrounds must be CLEAN and INTENTIONAL — neutral seamless, controlled studio, or purposeful indoor setting. NO random nature backgrounds (fields, forests, sunsets) unless the product itself demands it (e.g. outdoor gear).
-4. Product must be CLEARLY READABLE — texture, color, material, scale must communicate quality at a glance.
-5. Lighting must REVEAL the product, not stylize over it. Avoid heavy directional shadows that hide product detail.
-6. The image must work as a SALES TOOL — buyer should immediately understand what the product is and want it.
+═══ HARD REQUIREMENTS ═══
+1. PHOTOREALISTIC — this must look like a real photograph, NOT AI art, NOT illustration, NOT painting.
+2. COMMERCIAL e-commerce photography for a shopping mall product detail page — catalog quality.
+3. Intentional negative space where copy will overlay (per brief above).
+4. Background: CLEAN and INTENTIONAL — studio seamless, controlled indoor, or purposeful setting.
+5. Product CLEARLY READABLE — texture, color, material must communicate quality.
+6. Lighting REVEALS the product — no heavy shadows hiding detail.
+7. Copy-driven visual tone: the emotional register of the section copy MUST influence the lighting mood, color temperature, and atmosphere.
 
 ═══ OUTPUT FORMAT ═══
-Write a single dense English image prompt (80-120 words) covering:
-- Subject (product, exact description, quantity, arrangement)
-- Composition (camera angle, framing, where the negative space sits)
-- Background (specific, intentional — not "natural" or "minimalist" alone)
-- Lighting (commercial studio approach — softbox, key+fill, even diffusion, etc.)
-- Color grading consistent with Style DNA
-- Material/texture rendering details
-- End with: ${brief.aspectRatio || "--ar 4:5"} --style raw
+Write a single dense English prompt (80-130 words):
+- Subject (product, exact description, arrangement)
+- Composition (camera angle, framing, negative space placement)
+- Background (specific — not just "minimalist")
+- Lighting (studio approach: softbox, key+fill, diffusion, color temperature)
+- Emotional tone matching the copy's keywords
+- Material/texture rendering
+- End with: ${brief.aspectRatio || "--ar 4:5"} --style raw --v 6.1
 
-Return ONLY the prompt text. No explanation, no markdown, no quotes.`;
+Return ONLY the prompt. No explanation, no markdown, no quotes.`;
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: `You are a senior e-commerce product photography art director writing prompts for AI image generation (Midjourney, Flux, Gemini, DALL-E).
+      systemInstruction: `You are a senior e-commerce product photography art director writing prompts for AI image generation (Midjourney v6, Flux, DALL-E 3).
 
-Your prompts produce SHOPPING MALL CATALOG images — commercial product photography optimized for online retail. You do NOT write Instagram-aesthetic or art-photography prompts. You write SALES IMAGES.
+Your prompts produce PHOTOREALISTIC SHOPPING MALL CATALOG images. Every prompt must:
+- Result in an image indistinguishable from a real studio photograph
+- Incorporate the emotional and thematic direction from the section copy
+- Leave intentional space for copy overlay
+- Look like it belongs on Coupang, Smartstore, Wadiz, or Shopify
 
-Every prompt you write must result in an image that:
-- Sells the product on sight
-- Leaves intentional space for marketing copy to overlay
-- Communicates product quality through clarity, not styling
-- Looks like it belongs on Coupang, Smartstore, Wadiz, Shopify — NOT on a moodboard.`,
+You do NOT write Instagram-aesthetic or art-photography prompts. You write photorealistic sales images where the visual and the copy feel like a unified creative direction.`,
     });
 
     const result = await model.generateContent({

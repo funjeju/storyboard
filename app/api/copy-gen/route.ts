@@ -12,50 +12,103 @@ const TONE_DESCRIPTIONS: Record<string, string> = {
   playful: "가볍고 유쾌한 톤. 위트와 재미. 젊고 트렌디한 어조.",
 };
 
-const SECTION_COPY_PROMPTS: Record<string, string> = {
-  hook: `Write the HOOK section copy. This is the first text the buyer sees — it must stop the scroll.
-This copy will overlay the hero image. Keep it tight and impactful.
-Format: { headline: string (≤15자, the scroll-stopper), subheadline: string (≤30자, the support), body: string (2-3 짧은 문장, 본론 진입) }`,
+const MODULE_COPY_PROMPTS: Record<string, string> = {
+  // ── Hook ──────────────────────────────────────────────────────────────────
+  hero_hook: `Write a HERO HOOK section — the very first text the buyer sees. Must stop the scroll instantly.
+Format: { "headline": string (≤15자, 강렬한 훅), "subheadline": string (≤30자, 호기심 증폭), "body": string (2-3 짧은 문장, 본론 진입) }`,
 
-  usp: `Write the USP section copy (핵심 차별점).
-This text accompanies a feature-focused image. Each USP must be scannable.
-Format: { title: string (섹션 제목), usps: { icon: string (이모지 1자), text: string (≤20자 핵심), detail: string (≤40자 부연) }[] (3-4개), support: string (≤50자 마무리) }`,
+  strong_copy: `Write a STRONG COPY section — bold statement that immediately hooks with the product's strongest claim.
+Format: { "statement": string (≤20자, 핵심 주장), "support": string (≤40자, 근거 한 줄), "detail": string (2-3 문장, 구체 설명) }`,
 
-  problemSolution: `Write the problem-solution copy (문제해결).
-This overlays a before/after or transformation image.
-Format: { problemHeader: string (≤25자, 문제 직시), painDescription: string (2문장, 공감), solutionReveal: string (≤30자, 해결책 등장), transformation: string (2문장, 달라지는 일상) }`,
+  problem_statement: `Write a PROBLEM STATEMENT section — surface the buyer's pain point they secretly relate to.
+Format: { "problemHeader": string (≤25자, 문제 직시), "painPoints": string[] (3개, 각 ≤25자, 공감 포인트), "bridge": string (≤30자, 해결책 암시) }`,
 
-  specs: `Write product specifications copy (제품사양).
-This overlays a clean detail/technical image.
-Format: { intro: string (≤40자, 사양으로 들어가는 도입), specs: { label: string, value: string }[] (5-7개), highlight: string (≤40자, 핵심 사양 callout) }`,
+  pain_point: `Write a PAIN POINT section — deep empathy copy that makes the reader feel understood.
+Format: { "hook": string (≤20자, 찌르는 질문), "empathy": string (2-3 문장, 공감 스토리), "pivot": string (≤30자, 전환점) }`,
 
-  lifestyle: `Write lifestyle copy (라이프스타일).
-This overlays an aspirational lifestyle scene. Evoke the feeling, don't sell.
-Format: { headline: string (≤25자, 동경하는 순간), scenarios: { title: string (≤15자), copy: string (2-3 문장, 그 순간 묘사) }[] (2개), closing: string (≤40자, 감성 마무리) }`,
+  // ── Trust ─────────────────────────────────────────────────────────────────
+  customer_reviews: `Write CUSTOMER REVIEWS section copy — testimonials that sound real, not marketing.
+Format: { "headline": string (≤25자), "testimonials": [{ "name": string, "quote": string (1-2 자연스러운 문장), "rating": number (4-5) }] (3개), "trust": string (≤50자, 신뢰 마무리) }`,
 
-  options: `Write product options & promo copy (옵션/혜택).
-This overlays an option lineup or flat-lay image.
-Format: { intro: string (≤40자), options: { name: string, description: string (≤40자) }[], bestValue: string (≤25자, 최고 가성비 배지), promo: string (≤60자, 혜택 callout) }`,
+  expert_cert: `Write EXPERT CERTIFICATION section — authority and credibility through expert endorsement.
+Format: { "certTitle": string (≤20자), "expertName": string, "credential": string (≤30자), "endorsement": string (2-3 문장, 전문가 의견), "badge": string (≤15자, 인증 뱃지 문구) }`,
 
-  reviews: `Write social proof copy (고객후기).
-This overlays a customer/usage image. Testimonials must sound real, not marketing.
-Format: { headline: string (≤25자), testimonials: { name: string, quote: string (1-2 자연스러운 문장), rating: number }[] (3개), trust: string (≤50자, 신뢰 마무리) }`,
+  clinical_results: `Write CLINICAL RESULTS section — data-driven credibility with specific numbers.
+Format: { "headline": string (≤25자), "stats": [{ "number": string, "label": string (≤20자), "detail": string (≤30자) }] (3-4개), "disclaimer": string (≤40자, 임상 근거) }`,
 
-  faq: `Write FAQ copy.
-This overlays a clean info-graphic image. Answers must build confidence, not just inform.
-Format: { faqs: { q: string (≤30자), a: string (1-2 문장, 명확) }[] (5-6개) }`,
+  origin: `Write ORIGIN / 원산지 section — provenance story that builds trust through authenticity.
+Format: { "title": string (≤20자), "story": string (2-3 문장, 원산지 스토리), "highlights": string[] (3개, 각 ≤25자, 원산지 강점), "closing": string (≤30자) }`,
 
-  cta: `Write a high-converting CTA copy (구매하기).
-This overlays the final closing hero image.
-Format: { headline: string (≤20자, 마지막 한 방), ctaText: string (≤10자, 버튼 문구), urgency: string (≤30자, 행동 촉구), guarantee: string (≤40자, 신뢰 보장) }`,
+  manufacturing: `Write MANUFACTURING / 제조과정 section — behind-the-scenes quality assurance.
+Format: { "title": string (≤20자), "process": [{ "step": string (≤10자), "desc": string (≤30자) }] (3-4 단계), "quality": string (≤40자, 품질 보증 문구) }`,
+
+  brand_story: `Write BRAND STORY section — emotional narrative of why this brand exists.
+Format: { "title": string (≤20자), "story": string (3-4 문장, 브랜드 탄생 스토리), "mission": string (≤30자, 브랜드 미션), "promise": string (≤30자, 고객 약속) }`,
+
+  before_after: `Write BEFORE / AFTER section — transformation narrative with vivid contrast.
+Format: { "beforeTitle": string (≤15자), "before": string (2 문장, 변화 전 상황), "afterTitle": string (≤15자), "after": string (2 문장, 변화 후 모습), "result": string (≤25자, 핵심 변화) }`,
+
+  // ── Product ───────────────────────────────────────────────────────────────
+  feature_desc: `Write FEATURE DESCRIPTION section — scannable product features with clear benefits.
+Format: { "title": string (≤20자), "features": [{ "icon": string (이모지), "name": string (≤15자), "benefit": string (≤30자) }] (4-5개), "summary": string (≤40자) }`,
+
+  ingredient_desc: `Write INGREDIENT / 성분 DESCRIPTION section — ingredient transparency that builds trust.
+Format: { "title": string (≤20자), "intro": string (≤40자), "ingredients": [{ "name": string, "benefit": string (≤30자) }] (4-5개), "safety": string (≤40자, 안전성 문구) }`,
+
+  comparison_table: `Write COMPARISON TABLE section — competitive differentiation in favor of this product.
+Format: { "title": string (≤20자), "headers": ["항목", "우리 제품", "일반 제품"], "rows": [{ "item": string (≤15자), "ours": string (≤20자), "theirs": string (≤20자) }] (4-5개), "conclusion": string (≤30자) }`,
+
+  usage_guide: `Write USAGE GUIDE section — simple how-to that reduces purchase anxiety.
+Format: { "title": string (≤20자), "steps": [{ "num": number, "action": string (≤15자), "tip": string (≤30자) }] (3-4 단계), "result": string (≤30자, 사용 결과) }`,
+
+  option_desc: `Write OPTION DESCRIPTION section — help buyers choose the right option confidently.
+Format: { "title": string (≤20자), "options": [{ "name": string, "desc": string (≤30자), "bestFor": string (≤20자) }] (2-4개), "recommendation": string (≤30자, 추천 픽) }`,
+
+  faq: `Write FAQ section — answer the questions that block purchase decisions.
+Format: { "faqs": [{ "q": string (≤30자), "a": string (1-2 문장, 명확) }] (5-6개) }`,
+
+  // ── Emotional ─────────────────────────────────────────────────────────────
+  lifestyle_image: `Write LIFESTYLE IMAGE section — aspirational copy that sells the feeling, not the product.
+Format: { "headline": string (≤25자, 동경하는 순간), "scenarios": [{ "title": string (≤15자), "copy": string (2-3 문장, 그 순간 묘사) }] (2개), "closing": string (≤40자, 감성 마무리) }`,
+
+  emotional_copy: `Write EMOTIONAL COPY section — heart-touching narrative that creates an emotional bond.
+Format: { "opening": string (≤25자, 감성 오프닝), "story": string (3-4 문장, 감성 스토리), "resonance": string (≤30자, 공감 마무리) }`,
+
+  usage_scenario: `Write USAGE SCENARIO section — vivid scene of the product in real life.
+Format: { "title": string (≤20자), "scenes": [{ "moment": string (≤15자), "desc": string (2 문장, 상황 묘사) }] (2-3개), "invitation": string (≤30자, 독자 초대) }`,
+
+  brand_philosophy: `Write BRAND PHILOSOPHY section — the deeper purpose and values behind the brand.
+Format: { "title": string (≤20자), "philosophy": string (2-3 문장, 브랜드 철학), "values": string[] (3개, 각 ≤15자, 핵심 가치), "commitment": string (≤30자, 다짐) }`,
+
+  // ── Conversion ────────────────────────────────────────────────────────────
+  discount_benefit: `Write DISCOUNT BENEFIT section — price advantage framing that creates value perception.
+Format: { "title": string (≤20자), "mainBenefit": string (≤30자, 핵심 혜택), "benefits": [{ "icon": string (이모지), "text": string (≤25자) }] (3-4개), "urgency": string (≤25자, 마감 촉구) }`,
+
+  limited_quantity: `Write LIMITED QUANTITY section — scarcity-driven urgency without feeling manipulative.
+Format: { "alert": string (≤20자, 한정 알림), "reason": string (≤30자, 한정 이유), "remaining": string (≤15자, 재고 현황), "cta": string (≤10자) }`,
+
+  recommended_bundle: `Write RECOMMENDED BUNDLE section — upsell with genuine value framing.
+Format: { "title": string (≤20자), "bundles": [{ "name": string, "items": string[], "saving": string (≤20자, 절약 혜택), "tag": string (≤10자, 추천 뱃지) }] (2-3개), "bestPick": string (≤25자) }`,
+
+  cta: `Write a high-converting CTA section — the final push to purchase.
+Format: { "headline": string (≤20자, 마지막 한 방), "ctaText": string (≤10자, 버튼 문구), "urgency": string (≤30자, 행동 촉구), "guarantee": string (≤40자, 신뢰 보장) }`,
+
+  // ── Legacy section types (backward compat) ────────────────────────────────
+  hook: `Write the HOOK section copy. Format: { "headline": string (≤15자), "subheadline": string (≤30자), "body": string (2-3 문장) }`,
+  usp: `Write the USP section copy. Format: { "title": string, "usps": [{ "icon": string, "text": string (≤20자), "detail": string (≤40자) }] (3-4개), "support": string (≤50자) }`,
+  problemSolution: `Write problem-solution copy. Format: { "problemHeader": string (≤25자), "painDescription": string, "solutionReveal": string (≤30자), "transformation": string }`,
+  specs: `Write product specs copy. Format: { "intro": string (≤40자), "specs": [{ "label": string, "value": string }] (5-7개), "highlight": string (≤40자) }`,
+  lifestyle: `Write lifestyle copy. Format: { "headline": string (≤25자), "scenarios": [{ "title": string (≤15자), "copy": string }] (2개), "closing": string (≤40자) }`,
+  options: `Write options & promo copy. Format: { "intro": string (≤40자), "options": [{ "name": string, "description": string (≤40자) }], "bestValue": string (≤25자), "promo": string (≤60자) }`,
+  reviews: `Write social proof copy. Format: { "headline": string (≤25자), "testimonials": [{ "name": string, "quote": string, "rating": number }] (3개), "trust": string (≤50자) }`,
 };
 
 export async function POST(req: NextRequest) {
   try {
-    const { sectionType, tone, productInfo, research, platform } = await req.json();
+    const { sectionType, tone, productInfo, research, platform, styleDNA, copy: existingCopy, sectionGuidance, lockedSectionPrompts } = await req.json();
 
     const toneDesc = TONE_DESCRIPTIONS[tone] || TONE_DESCRIPTIONS.friendly;
-    const copyPrompt = SECTION_COPY_PROMPTS[sectionType];
+    const copyPrompt = MODULE_COPY_PROMPTS[sectionType];
     if (!copyPrompt) return NextResponse.json({ error: "Unknown section type" }, { status: 400 });
 
     const platformNote = platform === "coupang"
@@ -64,19 +117,21 @@ export async function POST(req: NextRequest) {
       ? "와디즈 최적화: 스토리텔링과 공감 중심, 서포터 관점."
       : platform === "shopify"
       ? "Shopify 최적화: 글로벌 감성, 영문 혼용 가능."
+      : platform === "instagram"
+      ? "인스타그램 최적화: 짧고 강렬, 감성 비주얼 중심."
       : "스마트스토어 최적화: 네이버 검색 친화적, 상세하고 신뢰감 있는 어조.";
 
-    // Extract section-specific guidance from the unified research brief.
-    const sectionGuidance = research?.sectionGuidance?.[sectionType];
+    const specificGuidance = sectionGuidance?.[sectionType];
 
     const system = `You are Korea's top e-commerce copywriter specializing in high-converting product detail pages.
 
 TONE: ${toneDesc}
 PLATFORM: ${platformNote}
 PRODUCT: ${JSON.stringify(productInfo)}
+${styleDNA ? `STYLE DNA: ${JSON.stringify(styleDNA)}` : ""}
 
 ═══════════════════════════════════════════════
-UNIFIED STRATEGIC BRIEF (shared across all 9 sections):
+UNIFIED STRATEGIC BRIEF:
 ${research ? JSON.stringify({
   targetPersona: research.targetPersona,
   coreEmotion: research.coreEmotion,
@@ -85,18 +140,17 @@ ${research ? JSON.stringify({
   supportingFacts: research.supportingFacts,
 }, null, 2) : "(no research — work from product info only)"}
 
-THIS SECTION'S SPECIFIC GUIDANCE (sectionGuidance.${sectionType}):
-${sectionGuidance ? JSON.stringify(sectionGuidance, null, 2) : "(no section-specific guidance — derive from unified brief)"}
+THIS SECTION'S SPECIFIC GUIDANCE:
+${specificGuidance ? JSON.stringify(specificGuidance, null, 2) : "(derive from unified brief)"}
+${lockedSectionPrompts?.length ? `\nLOCKED COPY FROM OTHER SECTIONS (maintain consistency):\n${JSON.stringify(lockedSectionPrompts, null, 2)}` : ""}
+${existingCopy ? `\nEXISTING COPY (improve or regenerate):\n${JSON.stringify(existingCopy, null, 2)}` : ""}
 ═══════════════════════════════════════════════
 
 HOW TO USE THE BRIEF:
-- The unified brief is shared across ALL sections — so your copy must feel like part of a coherent whole, speaking to the SAME persona with the SAME core emotion.
-- The section-specific guidance tells you the angle for THIS section in particular. Follow it.
-- Anchor concrete claims in supportingFacts (don't invent numbers).
-- Match the buyer's mindset and motivations from targetPersona.
-- Don't ignore the brief — every line should be traceable back to it.
-
-REMEMBER: This copy will overlay an image. Keep text TIGHT — character limits exist for a reason. Make every word earn its place.
+- Copy must feel like part of a coherent whole across all modules.
+- Anchor concrete claims in supportingFacts — don't invent numbers.
+- Match buyer mindset from targetPersona.
+- Keep text TIGHT — character limits exist for a reason.
 
 Return ONLY valid JSON in the format requested.`;
 
@@ -114,9 +168,7 @@ Return ONLY valid JSON in the format requested.`;
     const finishReason = candidate?.finishReason;
     const text = (candidate?.content?.parts?.[0]?.text || "").trim();
 
-    if (!text) {
-      throw new Error(`Empty response from Gemini. finishReason=${finishReason}`);
-    }
+    if (!text) throw new Error(`Empty response from Gemini. finishReason=${finishReason}`);
 
     let copy;
     try {

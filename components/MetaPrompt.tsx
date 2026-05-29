@@ -6,32 +6,24 @@ import Link from "next/link";
 const P = "#7C3AED";
 const PINK = "#EC4899";
 const CORAL = "#F97316";
+const TOTAL_QUESTIONS = 10;
 
 interface Message {
   role: "user" | "assistant";
   content: string;
-}
-interface AIResponse {
-  reasoning: string;
-  question: string | null;
-  stepCurrent: number;
-  stepTotal: number;
-  isDone: boolean;
-  domain: string;
-  finalPrompt: string | null;
 }
 
 const DOMAIN_ICONS: Record<string, string> = {
   "이미지생성": "🎨",
   "영상제작": "🎬",
   "음악생성": "🎵",
-  "텍스트/카피": "✍️",
+  "텍스트카피": "✍️",
   "범용AI": "🤖",
   "미감지": "✦",
 };
 
 const EXAMPLES = [
-  "분위기 있는 카페 사진 만들고 싶어",
+  "분위기 있는 카페 포스터 만들고 싶어",
   "신나는 여름 노래 만들어줘",
   "제품 홍보 영상 기획하고 싶은데",
   "감성적인 인스타 카피 써줘",
@@ -39,23 +31,40 @@ const EXAMPLES = [
 ];
 
 export default function MetaPrompt() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [reasoning, setReasoning] = useState("");
-  const [aiState, setAiState] = useState<AIResponse | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [started, setStarted] = useState(false);
+  const [messages, setMessages]         = useState<Message[]>([]);
+  const [input, setInput]               = useState("");
+  const [loading, setLoading]           = useState(false);
+  const [reasoning, setReasoning]       = useState("");
+  const [domain, setDomain]             = useState("");
+  const [finalPrompt, setFinalPrompt]   = useState<string | null>(null);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [copied, setCopied]             = useState(false);
+  const [started, setStarted]           = useState(false);
+  const [questionsDone, setQuestionsDone] = useState(false);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const bottomRef   = useRef<HTMLDivElement>(null);
+  const inputRef    = useRef<HTMLTextAreaElement>(null);
+
+  // userTurns = number of user messages sent
+  const userTurns = messages.filter(m => m.role === "user").length;
+  const questionNum = Math.min(userTurns, TOTAL_QUESTIONS); // which question we just answered
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, finalPrompt, generatedImage]);
+
+  const callAPI = async (msgs: Message[], mode: "question" | "generate") => {
+    const res = await fetch("/api/metaprompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: msgs, mode }),
+    });
+    return res.json();
+  };
 
   const send = async (text: string) => {
-    if (!text.trim() || loading) return;
+    if (!text.trim() || loading || questionsDone) return;
     const userMsg: Message = { role: "user", content: text.trim() };
     const next = [...messages, userMsg];
     setMessages(next);
@@ -64,61 +73,75 @@ export default function MetaPrompt() {
     setReasoning("");
     setStarted(true);
 
-    // Animate reasoning text
-    const reasoningPhrases = [
-      "요청을 분석하고 있습니다...",
-      "도메인을 파악하는 중...",
-      "필요한 정보를 확인하고 있습니다...",
-      "다음 질문을 구성하는 중...",
-    ];
+    const newUserTurns = next.filter(m => m.role === "user").length;
+
+    // Animate reasoning
+    const phrases = ["분석 중...", "파악하는 중...", "다음 질문을 준비하는 중..."];
     let ri = 0;
-    const reasoningTimer = setInterval(() => {
-      setReasoning(reasoningPhrases[ri % reasoningPhrases.length]);
-      ri++;
-    }, 900);
+    const timer = setInterval(() => { setReasoning(phrases[ri++ % phrases.length]); }, 900);
 
     try {
-      const res = await fetch("/api/metaprompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
-      });
-      const data: AIResponse = await res.json();
-      clearInterval(reasoningTimer);
-      setReasoning(data.reasoning);
-      await new Promise(r => setTimeout(r, 600));
-      setAiState(data);
-      if (data.question) {
-        setMessages(prev => [...prev, { role: "assistant", content: data.question! }]);
+      if (newUserTurns >= TOTAL_QUESTIONS) {
+        // All 10 answers collected — ask AI to generate prompt
+        clearInterval(timer);
+        setReasoning("10개 답변 완료 — 프롬프트를 구성하고 있습니다...");
+        const data = await callAPI(next, "generate");
+        clearInterval(timer);
+        setReasoning("");
+        if (data.domain) setDomain(data.domain);
+        if (data.finalPrompt) setFinalPrompt(data.finalPrompt);
+        setQuestionsDone(true);
+      } else {
+        // Ask next question
+        const data = await callAPI(next, "question");
+        clearInterval(timer);
+        setReasoning(data.reasoning || "");
+        if (data.domain && data.domain !== "미감지") setDomain(data.domain);
+        await new Promise(r => setTimeout(r, 400));
+        if (data.question) {
+          setMessages(prev => [...prev, { role: "assistant", content: data.question }]);
+        }
+        setReasoning("");
       }
     } catch {
-      clearInterval(reasoningTimer);
+      clearInterval(timer);
       setMessages(prev => [...prev, { role: "assistant", content: "오류가 발생했습니다. 다시 시도해주세요." }]);
     }
+
     setLoading(false);
-    setReasoning("");
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
+  const generateImage = async () => {
+    if (!finalPrompt || generatingImage) return;
+    setGeneratingImage(true);
+    try {
+      const res = await fetch("/api/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: finalPrompt }),
+      });
+      const data = await res.json();
+      if (data.imageUrl) setGeneratedImage(data.imageUrl);
+    } catch { /* silent */ }
+    setGeneratingImage(false);
+  };
+
   const copy = () => {
-    if (!aiState?.finalPrompt) return;
-    navigator.clipboard.writeText(aiState.finalPrompt);
+    if (!finalPrompt) return;
+    navigator.clipboard.writeText(finalPrompt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const reset = () => {
-    setMessages([]);
-    setInput("");
-    setAiState(null);
-    setStarted(false);
-    setReasoning("");
+    setMessages([]); setInput(""); setDomain("");
+    setFinalPrompt(null); setGeneratedImage(null);
+    setStarted(false); setQuestionsDone(false); setReasoning("");
   };
 
-  const stepTotal = aiState?.stepTotal ?? 4;
-  const stepCurrent = aiState?.stepCurrent ?? 0;
-  const domain = aiState?.domain ?? "";
   const domainIcon = DOMAIN_ICONS[domain] || "✦";
+  const isImageDomain = domain === "이미지생성" || !domain;
 
   return (
     <div style={{
@@ -126,174 +149,98 @@ export default function MetaPrompt() {
       background: "#FAFBFF",
       fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
       position: "relative",
-      overflow: "hidden",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        @keyframes fadeUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes spin { to { transform:rotate(360deg) } }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        @keyframes shimmer { 0%{opacity:0.5} 50%{opacity:1} 100%{opacity:0.5} }
-        @keyframes gradientShift {
-          0%{background-position:0% 50%}
-          50%{background-position:100% 50%}
-          100%{background-position:0% 50%}
-        }
-        .meta-input:focus { outline:none; border-color:${P}!important; box-shadow:0 0 0 3px rgba(124,58,237,0.12)!important; }
-        .send-btn:hover { opacity:0.92; transform:scale(1.02); }
-        .example-chip:hover { background:rgba(124,58,237,0.08)!important; border-color:${P}!important; color:${P}!important; }
-        .reset-btn:hover { background:rgba(124,58,237,0.06)!important; }
-        @media (max-width:640px) {
-          .meta-hero-title { font-size:28px!important; }
-          .meta-content { padding:0 16px 120px!important; }
-          .meta-input-bar { left:12px!important; right:12px!important; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes shimmer { 0%,100%{opacity:0.5} 50%{opacity:1} }
+        @keyframes gradShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+        .meta-input:focus { outline:none; }
+        .example-chip:hover { background:rgba(124,58,237,0.07)!important; border-color:${P}!important; color:${P}!important; }
+        @media(max-width:640px) {
+          .meta-hero h1 { font-size:28px!important; }
+          .meta-wrap { padding:0 16px 140px!important; }
+          .meta-bar { left:12px!important; right:12px!important; }
         }
       `}</style>
 
-      {/* Gradient orbs background */}
-      <div style={{
-        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
-        overflow: "hidden",
-      }}>
-        <div style={{
-          position: "absolute", top: -120, left: -80,
-          width: 500, height: 500, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)",
-        }} />
-        <div style={{
-          position: "absolute", top: -60, right: -100,
-          width: 400, height: 400, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(236,72,153,0.10) 0%, transparent 70%)",
-        }} />
-        <div style={{
-          position: "absolute", bottom: 100, right: -60,
-          width: 300, height: 300, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%)",
-        }} />
+      {/* BG orbs */}
+      <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:0, overflow:"hidden" }}>
+        <div style={{ position:"absolute", top:-100, left:-80, width:480, height:480, borderRadius:"50%", background:"radial-gradient(circle,rgba(124,58,237,0.11) 0%,transparent 70%)" }} />
+        <div style={{ position:"absolute", top:-60, right:-80, width:380, height:380, borderRadius:"50%", background:"radial-gradient(circle,rgba(236,72,153,0.09) 0%,transparent 70%)" }} />
+        <div style={{ position:"absolute", bottom:80, right:-40, width:280, height:280, borderRadius:"50%", background:"radial-gradient(circle,rgba(249,115,22,0.07) 0%,transparent 70%)" }} />
       </div>
 
       {/* Nav */}
-      <nav style={{
-        position: "sticky", top: 0, zIndex: 100,
-        background: "rgba(255,255,255,0.85)", backdropFilter: "blur(12px)",
-        borderBottom: "1px solid rgba(124,58,237,0.08)",
-        padding: "0 32px", height: 52,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 8,
-              background: `linear-gradient(135deg,${P},${PINK})`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 13, color: "white", fontWeight: 800,
-            }}>✦</div>
-            <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>AI Studio</span>
+      <nav style={{ position:"sticky", top:0, zIndex:100, background:"rgba(255,255,255,0.88)", backdropFilter:"blur(12px)", borderBottom:"1px solid rgba(124,58,237,0.08)", padding:"0 28px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+          <Link href="/" style={{ display:"flex", alignItems:"center", gap:8, textDecoration:"none" }}>
+            <div style={{ width:28, height:28, borderRadius:8, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"white", fontWeight:800 }}>✦</div>
+            <span style={{ fontSize:13, fontWeight:800, color:"#111827" }}>AI Studio</span>
           </Link>
-          <div style={{ width: 1, height: 16, background: "#E5E7EB" }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: P }}>✦ MetaPrompt</span>
+          <div style={{ width:1, height:16, background:"#E5E7EB" }} />
+          <span style={{ fontSize:13, fontWeight:700, color:P }}>✦ MetaPrompt</span>
         </div>
         {started && (
-          <button onClick={reset} className="reset-btn" style={{
-            padding: "6px 16px", background: "white", border: "1.5px solid #E5E7EB",
-            borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#6B7280",
-            cursor: "pointer", transition: "all 0.15s",
-          }}>
+          <button onClick={reset} style={{ padding:"6px 16px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:12, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>
             ↺ 다시 시작
           </button>
         )}
       </nav>
 
-      {/* Progress bar — shown when started */}
-      {started && aiState && (
-        <div style={{
-          position: "sticky", top: 52, zIndex: 99,
-          background: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)",
-          borderBottom: "1px solid rgba(124,58,237,0.06)",
-          padding: "10px 32px",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          animation: "fadeUp 0.3s ease both",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* Progress bar */}
+      {started && (
+        <div style={{ position:"sticky", top:52, zIndex:99, background:"rgba(255,255,255,0.92)", backdropFilter:"blur(8px)", borderBottom:"1px solid rgba(124,58,237,0.06)", padding:"10px 28px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             {domain && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "4px 12px",
-                background: "rgba(124,58,237,0.07)",
-                border: "1px solid rgba(124,58,237,0.15)",
-                borderRadius: 100, fontSize: 12, fontWeight: 700, color: P,
-              }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 12px", background:"rgba(124,58,237,0.07)", border:"1px solid rgba(124,58,237,0.15)", borderRadius:100, fontSize:12, fontWeight:700, color:P }}>
                 {domainIcon} {domain}
               </div>
             )}
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              {Array.from({ length: stepTotal }).map((_, i) => (
+            {/* 10-dot progress */}
+            <div style={{ display:"flex", gap:4 }}>
+              {Array.from({ length: TOTAL_QUESTIONS }).map((_, i) => (
                 <div key={i} style={{
-                  width: i < stepCurrent ? 24 : 8,
-                  height: 8, borderRadius: 100,
-                  background: i < stepCurrent
+                  width: i < questionNum ? 18 : 7,
+                  height: 7, borderRadius: 100,
+                  background: i < questionNum
                     ? `linear-gradient(90deg,${P},${PINK})`
-                    : "rgba(124,58,237,0.15)",
-                  transition: "all 0.4s ease",
+                    : "rgba(124,58,237,0.12)",
+                  transition: "all 0.35s ease",
                 }} />
               ))}
             </div>
           </div>
-          <div style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 500 }}>
-            {aiState.isDone ? "완료 ✓" : `${stepTotal - stepCurrent}단계 남음`}
-          </div>
+          <span style={{ fontSize:12, color:"#9CA3AF", fontWeight:500 }}>
+            {questionsDone ? "완료 ✓" : `${questionNum} / ${TOTAL_QUESTIONS}`}
+          </span>
         </div>
       )}
 
-      {/* Main content */}
-      <div className="meta-content" style={{
-        maxWidth: 720, margin: "0 auto",
-        padding: started ? "32px 24px 140px" : "80px 24px 140px",
-        position: "relative", zIndex: 1,
-      }}>
+      {/* Content */}
+      <div className="meta-wrap" style={{ maxWidth:720, margin:"0 auto", padding: started ? "32px 24px 150px" : "80px 24px 150px", position:"relative", zIndex:1 }}>
 
-        {/* Hero — shown before start */}
+        {/* Hero */}
         {!started && (
-          <div style={{ textAlign: "center", marginBottom: 56, animation: "fadeUp 0.5s ease both" }}>
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "6px 18px",
-              background: "rgba(124,58,237,0.07)",
-              border: "1px solid rgba(124,58,237,0.15)",
-              borderRadius: 100,
-              fontSize: 11, fontWeight: 700, color: P, letterSpacing: 1.5,
-              marginBottom: 28,
-            }}>
+          <div className="meta-hero" style={{ textAlign:"center", marginBottom:56, animation:"fadeUp 0.5s ease both" }}>
+            <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"6px 18px", background:"rgba(124,58,237,0.07)", border:"1px solid rgba(124,58,237,0.15)", borderRadius:100, fontSize:11, fontWeight:700, color:P, letterSpacing:1.5, marginBottom:28 }}>
               ✦ META PROMPT ENGINE
             </div>
-            <h1 className="meta-hero-title" style={{
-              fontSize: 40, fontWeight: 800, color: "#0F172A",
-              lineHeight: 1.2, letterSpacing: -1.2, marginBottom: 16,
-            }}>
+            <h1 style={{ fontSize:40, fontWeight:800, color:"#0F172A", lineHeight:1.2, letterSpacing:-1.2, marginBottom:16 }}>
               막연한 아이디어를<br />
-              <span style={{
-                background: `linear-gradient(135deg,${P},${PINK},${CORAL})`,
-                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-                backgroundSize: "200% 200%", animation: "gradientShift 4s ease infinite",
-              }}>완벽한 프롬프트</span>로
+              <span style={{ background:`linear-gradient(135deg,${P},${PINK},${CORAL})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundSize:"200% 200%", animation:"gradShift 4s ease infinite" }}>
+                완벽한 프롬프트
+              </span>로
             </h1>
-            <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.7, maxWidth: 440, margin: "0 auto 40px" }}>
-              뭘 만들고 싶은지 막연하게 말해보세요.<br />
-              AI가 질문으로 구체화해드립니다.
+            <p style={{ fontSize:15, color:"#6B7280", lineHeight:1.7, maxWidth:420, margin:"0 auto 40px" }}>
+              10개의 질문으로 아이디어를 구체화하고<br />
+              프롬프트 생성 또는 이미지를 바로 만들어드립니다.
             </p>
-
-            {/* Example chips */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", marginBottom: 8 }}>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center" }}>
               {EXAMPLES.map(ex => (
-                <button key={ex} onClick={() => send(ex)} className="example-chip" style={{
-                  padding: "8px 18px",
-                  background: "white",
-                  border: "1.5px solid #E5E7EB",
-                  borderRadius: 100, fontSize: 13, color: "#4B5563",
-                  cursor: "pointer", transition: "all 0.15s",
-                  fontFamily: "inherit",
-                }}>
+                <button key={ex} onClick={() => send(ex)} className="example-chip" style={{ padding:"8px 18px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:100, fontSize:13, color:"#4B5563", cursor:"pointer", transition:"all 0.15s", fontFamily:"inherit" }}>
                   {ex}
                 </button>
               ))}
@@ -301,77 +248,38 @@ export default function MetaPrompt() {
           </div>
         )}
 
-        {/* Chat messages */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Chat */}
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           {messages.map((msg, i) => (
-            <div key={i} style={{
-              display: "flex",
-              justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-              animation: "fadeUp 0.35s ease both",
-            }}>
+            <div key={i} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start", animation:"fadeUp 0.3s ease both" }}>
               {msg.role === "assistant" && (
-                <div style={{
-                  width: 32, height: 32, borderRadius: 10, flexShrink: 0,
-                  background: `linear-gradient(135deg,${P},${PINK})`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, color: "white", fontWeight: 800,
-                  marginRight: 10, marginTop: 2,
-                }}>✦</div>
+                <div style={{ width:32, height:32, borderRadius:10, flexShrink:0, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"white", fontWeight:800, marginRight:10, marginTop:2 }}>✦</div>
               )}
               <div style={{
-                maxWidth: "75%",
-                padding: "14px 18px",
-                borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
-                background: msg.role === "user"
-                  ? `linear-gradient(135deg,${P},${PINK})`
-                  : "white",
-                color: msg.role === "user" ? "white" : "#1F2937",
-                fontSize: 14, lineHeight: 1.7, fontWeight: 500,
-                boxShadow: msg.role === "user"
-                  ? "0 4px 16px rgba(124,58,237,0.25)"
-                  : "0 2px 12px rgba(0,0,0,0.07)",
-                border: msg.role === "assistant" ? "1px solid rgba(124,58,237,0.1)" : "none",
+                maxWidth:"75%", padding:"13px 17px",
+                borderRadius: msg.role==="user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
+                background: msg.role==="user" ? `linear-gradient(135deg,${P},${PINK})` : "white",
+                color: msg.role==="user" ? "white" : "#1F2937",
+                fontSize:14, lineHeight:1.7, fontWeight:500,
+                boxShadow: msg.role==="user" ? "0 4px 14px rgba(124,58,237,0.22)" : "0 2px 10px rgba(0,0,0,0.07)",
+                border: msg.role==="assistant" ? "1px solid rgba(124,58,237,0.1)" : "none",
               }}>
                 {msg.content}
               </div>
             </div>
           ))}
 
-          {/* Loading / Reasoning */}
+          {/* Loading */}
           {loading && (
-            <div style={{
-              display: "flex", alignItems: "flex-start", gap: 10,
-              animation: "fadeUp 0.3s ease both",
-            }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 10, flexShrink: 0,
-                background: `linear-gradient(135deg,${P},${PINK})`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 14, color: "white", fontWeight: 800,
-              }}>✦</div>
-              <div style={{
-                background: "white", borderRadius: "4px 18px 18px 18px",
-                padding: "14px 18px",
-                border: "1px solid rgba(124,58,237,0.1)",
-                boxShadow: "0 2px 12px rgba(0,0,0,0.07)",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: reasoning ? 8 : 0 }}>
-                  <div style={{
-                    width: 16, height: 16, borderRadius: "50%",
-                    border: `2px solid rgba(124,58,237,0.15)`,
-                    borderTop: `2px solid ${P}`,
-                    animation: "spin 0.8s linear infinite", flexShrink: 0,
-                  }} />
-                  <span style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 500, animation: "shimmer 1.5s ease infinite" }}>
-                    추론 중
-                  </span>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:10, animation:"fadeUp 0.3s ease both" }}>
+              <div style={{ width:32, height:32, borderRadius:10, flexShrink:0, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"white", fontWeight:800 }}>✦</div>
+              <div style={{ background:"white", borderRadius:"4px 18px 18px 18px", padding:"13px 17px", border:"1px solid rgba(124,58,237,0.1)", boxShadow:"0 2px 10px rgba(0,0,0,0.07)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: reasoning ? 6 : 0 }}>
+                  <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid rgba(124,58,237,0.15)`, borderTop:`2px solid ${P}`, animation:"spin 0.8s linear infinite", flexShrink:0 }} />
+                  <span style={{ fontSize:12, color:"#9CA3AF", fontWeight:500 }}>추론 중</span>
                 </div>
                 {reasoning && (
-                  <div style={{
-                    fontSize: 12, color: "#7C3AED", fontStyle: "italic",
-                    lineHeight: 1.6, opacity: 0.8,
-                    animation: "fadeUp 0.3s ease both",
-                  }}>
+                  <div style={{ fontSize:12, color:P, fontStyle:"italic", lineHeight:1.6, opacity:0.8, animation:"fadeUp 0.3s ease both" }}>
                     {reasoning}
                   </div>
                 )}
@@ -379,60 +287,51 @@ export default function MetaPrompt() {
             </div>
           )}
 
-          {/* Final Prompt */}
-          {aiState?.isDone && aiState.finalPrompt && (
-            <div style={{
-              marginTop: 8,
-              background: "white",
-              borderRadius: 20,
-              border: "1.5px solid rgba(124,58,237,0.2)",
-              overflow: "hidden",
-              boxShadow: "0 8px 32px rgba(124,58,237,0.12)",
-              animation: "fadeUp 0.4s ease both",
-            }}>
-              <div style={{
-                padding: "16px 24px",
-                background: `linear-gradient(135deg,${P},${PINK})`,
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 18 }}>{domainIcon}</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "white" }}>최종 프롬프트 완성</span>
+          {/* Final result */}
+          {questionsDone && finalPrompt && (
+            <div style={{ marginTop:8, animation:"fadeUp 0.4s ease both" }}>
+              {/* Prompt card */}
+              <div style={{ background:"white", borderRadius:20, border:"1.5px solid rgba(124,58,237,0.2)", overflow:"hidden", boxShadow:"0 8px 32px rgba(124,58,237,0.12)", marginBottom:16 }}>
+                <div style={{ padding:"16px 24px", background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <span style={{ fontSize:15, fontWeight:800, color:"white" }}>✦ 최종 프롬프트</span>
+                  <button onClick={copy} style={{ padding:"6px 18px", background:copied?"rgba(16,185,129,0.9)":"rgba(255,255,255,0.2)", border:"1px solid rgba(255,255,255,0.35)", borderRadius:8, color:"white", fontSize:13, fontWeight:700, cursor:"pointer", transition:"all 0.2s" }}>
+                    {copied ? "✓ 복사됨" : "복사"}
+                  </button>
                 </div>
-                <button onClick={copy} style={{
-                  padding: "6px 18px",
-                  background: copied ? "rgba(16,185,129,0.9)" : "rgba(255,255,255,0.2)",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  borderRadius: 8, color: "white", fontSize: 13, fontWeight: 700,
-                  cursor: "pointer", transition: "all 0.2s",
-                }}>
-                  {copied ? "✓ 복사됨" : "복사"}
+                <div style={{ padding:24 }}>
+                  <pre style={{ fontSize:14, color:"#1F2937", lineHeight:1.8, whiteSpace:"pre-wrap", fontFamily:"inherit", margin:0, background:"#F9F5FF", borderRadius:12, padding:16, border:"1px solid rgba(124,58,237,0.08)" }}>
+                    {finalPrompt}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display:"flex", gap:12 }}>
+                <button onClick={copy} style={{ flex:1, padding:"14px", background:"white", border:`2px solid ${P}`, borderRadius:14, fontSize:14, fontWeight:700, color:P, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                  📋 프롬프트 복사
+                </button>
+                <button onClick={generateImage} disabled={generatingImage} style={{ flex:1, padding:"14px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:14, fontSize:14, fontWeight:700, color:"white", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}>
+                  {generatingImage
+                    ? <><div style={{ width:16, height:16, borderRadius:"50%", border:"2px solid rgba(255,255,255,0.3)", borderTop:"2px solid white", animation:"spin 0.8s linear infinite" }} /> 생성 중...</>
+                    : "🎨 이미지 생성"
+                  }
                 </button>
               </div>
-              <div style={{ padding: "24px" }}>
-                <pre style={{
-                  fontSize: 14, color: "#1F2937", lineHeight: 1.8,
-                  whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0,
-                  background: "#F9F5FF", borderRadius: 12, padding: "16px",
-                  border: "1px solid rgba(124,58,237,0.08)",
-                }}>
-                  {aiState.finalPrompt}
-                </pre>
-              </div>
-              <div style={{
-                padding: "16px 24px",
-                borderTop: "1px solid #F3F4F6",
-                display: "flex", gap: 10,
-              }}>
-                <button onClick={reset} style={{
-                  flex: 1, padding: "12px",
-                  background: `linear-gradient(135deg,${P},${PINK})`,
-                  border: "none", borderRadius: 12,
-                  color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer",
-                }}>
-                  ↺ 새로운 프롬프트 만들기
-                </button>
-              </div>
+
+              {/* Generated image */}
+              {generatedImage && (
+                <div style={{ marginTop:16, borderRadius:20, overflow:"hidden", boxShadow:"0 8px 32px rgba(0,0,0,0.12)", animation:"fadeUp 0.4s ease both" }}>
+                  <img src={generatedImage} alt="generated" style={{ width:"100%", display:"block" }} />
+                  <div style={{ padding:"12px 16px", background:"white", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span style={{ fontSize:12, color:"#9CA3AF" }}>Gemini 이미지 생성</span>
+                    <a href={generatedImage} download="metaprompt_image.png" style={{ fontSize:12, fontWeight:700, color:P, textDecoration:"none" }}>⬇️ 다운로드</a>
+                  </div>
+                </div>
+              )}
+
+              <button onClick={reset} style={{ width:"100%", marginTop:16, padding:"12px", background:"transparent", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:13, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>
+                ↺ 새로운 프롬프트 만들기
+              </button>
             </div>
           )}
         </div>
@@ -440,87 +339,38 @@ export default function MetaPrompt() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar — fixed bottom */}
-      <div className="meta-input-bar" style={{
-        position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-        width: "100%", maxWidth: 720,
-        padding: "0 24px",
-        zIndex: 200,
-      }}>
-        <div style={{
-          background: "white",
-          borderRadius: 20,
-          border: "1.5px solid rgba(124,58,237,0.2)",
-          boxShadow: "0 8px 40px rgba(124,58,237,0.15), 0 2px 8px rgba(0,0,0,0.06)",
-          padding: "12px 12px 12px 18px",
-          display: "flex", alignItems: "flex-end", gap: 10,
-        }}>
-          <textarea
-            ref={inputRef}
-            className="meta-input"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); }
-            }}
-            placeholder={started ? "답변을 입력하세요..." : "무엇을 만들고 싶은지 자유롭게 말해보세요..."}
-            disabled={loading || (aiState?.isDone ?? false)}
-            rows={1}
-            style={{
-              flex: 1, border: "none", outline: "none", resize: "none",
-              fontSize: 14, color: "#1F2937", fontFamily: "inherit",
-              background: "transparent", lineHeight: 1.6,
-              maxHeight: 120, overflowY: "auto",
-            }}
-            onInput={e => {
-              const el = e.currentTarget;
-              el.style.height = "auto";
-              el.style.height = Math.min(el.scrollHeight, 120) + "px";
-            }}
-          />
-          <button
-            onClick={() => send(input)}
-            disabled={!input.trim() || loading || (aiState?.isDone ?? false)}
-            className="send-btn"
-            style={{
-              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-              background: input.trim() && !loading && !aiState?.isDone
-                ? `linear-gradient(135deg,${P},${PINK})`
-                : "#E5E7EB",
-              border: "none", cursor: input.trim() ? "pointer" : "not-allowed",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.15s",
-              boxShadow: input.trim() ? "0 4px 12px rgba(124,58,237,0.3)" : "none",
-            }}
-          >
-            {loading
-              ? <div style={{ width:16,height:16,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid white",animation:"spin 0.8s linear infinite" }} />
-              : <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-            }
-          </button>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, padding: "0 4px" }}>
-          <span style={{ fontSize: 11, color: "#9CA3AF" }}>
-            Enter 전송 · Shift+Enter 줄바꿈
-          </span>
-          {started && !aiState?.isDone && messages.length >= 2 && (
-            <button
-              onClick={() => send("지금까지 정보로 바로 프롬프트 생성해줘")}
+      {/* Input bar */}
+      {!questionsDone && (
+        <div className="meta-bar" style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:720, padding:"0 24px", zIndex:200 }}>
+          <div style={{ background:"white", borderRadius:20, border:"1.5px solid rgba(124,58,237,0.2)", boxShadow:"0 8px 40px rgba(124,58,237,0.14), 0 2px 8px rgba(0,0,0,0.05)", padding:"12px 12px 12px 18px", display:"flex", alignItems:"flex-end", gap:10 }}>
+            <textarea
+              ref={inputRef}
+              className="meta-input"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+              placeholder={started ? "답변을 입력하세요..." : "무엇을 만들고 싶은지 자유롭게 말해보세요..."}
               disabled={loading}
-              style={{
-                padding: "5px 14px",
-                background: `linear-gradient(135deg,${P},${PINK})`,
-                border: "none", borderRadius: 8,
-                fontSize: 11, fontWeight: 700, color: "white",
-                cursor: "pointer", opacity: loading ? 0.5 : 1,
-                transition: "all 0.15s",
-              }}
+              rows={1}
+              style={{ flex:1, border:"none", outline:"none", resize:"none", fontSize:14, color:"#1F2937", fontFamily:"inherit", background:"transparent", lineHeight:1.6, maxHeight:120, overflowY:"auto" }}
+              onInput={e => { const el = e.currentTarget; el.style.height="auto"; el.style.height=Math.min(el.scrollHeight,120)+"px"; }}
+            />
+            <button
+              onClick={() => send(input)}
+              disabled={!input.trim() || loading}
+              style={{ width:40, height:40, borderRadius:12, flexShrink:0, background:input.trim()&&!loading?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", cursor:input.trim()?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s", boxShadow:input.trim()?"0 4px 12px rgba(124,58,237,0.28)":"none" }}
             >
-              ⚡ 지금 바로 생성
+              {loading
+                ? <div style={{ width:16,height:16,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid white",animation:"spin 0.8s linear infinite" }} />
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+              }
             </button>
-          )}
+          </div>
+          <div style={{ textAlign:"center", marginTop:8, fontSize:11, color:"#9CA3AF" }}>
+            Enter 전송 · Shift+Enter 줄바꿈
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -245,6 +245,7 @@ export default function DetailPageMaker() {
   const [dnaLoading, setDnaLoading]   = useState(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [showProjectPanel, setShowProjectPanel] = useState(false);
+  const [saveLabel, setSaveLabel] = useState<"idle" | "saving" | "done">("idle");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -305,6 +306,31 @@ export default function DetailPageMaker() {
   const startNewProject = () => {
     if (project.productInfo.name && !confirm("현재 프로젝트는 자동 저장됩니다. 새로 시작할까요?")) return;
     setProject(newProjectState()); setStep(0);
+  };
+
+  const handleManualSave = async () => {
+    setSaveLabel("saving");
+    const toSave = { ...project, updatedAt: Date.now() };
+    saveProject(toSave);
+    setProjectIndex(loadProjectsIndex());
+    if (user) {
+      try {
+        await upsertDetailProject(user.uid, {
+          id: project.id,
+          productName: project.productInfo.name || "(이름 없음)",
+          platform: project.platform,
+          tone: project.tone,
+          status: project.modules.filter(m => m.copy !== null).length === project.modules.length && project.modules.length > 0 ? "completed" : "in-progress",
+          completedSections: project.modules.filter(m => m.copy !== null).length,
+          totalSections: project.modules.length,
+          createdAt: project.updatedAt,
+          updatedAt: Date.now(),
+          projectData: JSON.stringify(toSave),
+        });
+      } catch { /* ignore */ }
+    }
+    setSaveLabel("done");
+    setTimeout(() => setSaveLabel("idle"), 2000);
   };
 
   const openProject = (id: string) => {
@@ -589,6 +615,9 @@ export default function DetailPageMaker() {
               {cloudSyncing ? "⏳ 저장 중..." : "☁️ 자동저장됨"}
             </span>
           )}
+          <button onClick={handleManualSave} disabled={saveLabel === "saving"} style={{ padding: "4px 12px", borderRadius: 8, background: saveLabel === "done" ? "#ECFDF5" : "#F0FDF4", color: saveLabel === "done" ? "#059669" : "#374151", border: `1px solid ${saveLabel === "done" ? "#A7F3D0" : "#D1D5DB"}`, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>
+            {saveLabel === "saving" ? "저장 중..." : saveLabel === "done" ? "✓ 저장됨" : "💾 저장"}
+          </button>
           <button onClick={startNewProject} style={{ padding: "4px 12px", borderRadius: 8, background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
             + 새 프로젝트
           </button>

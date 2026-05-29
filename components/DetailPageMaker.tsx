@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { upsertDetailProject, getDetailProject } from "@/lib/firestoreHelpers";
+import { uploadImageDataUrl } from "@/lib/firebaseStorage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -225,11 +226,12 @@ function moduleFromLibrary(type: ModuleType, order: number, score = 0, reason = 
 
 // ─── API helper ───────────────────────────────────────────────────────────────
 
-async function callApi<T = Record<string, unknown>>(path: string, body: unknown): Promise<T> {
+async function callApi<T = Record<string, unknown>>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
@@ -237,6 +239,8 @@ async function callApi<T = Record<string, unknown>>(path: string, body: unknown)
   }
   return res.json();
 }
+
+function isAbort(e: unknown) { return e instanceof Error && e.name === "AbortError"; }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -255,6 +259,34 @@ export default function DetailPageMaker() {
   const [showProjectPanel, setShowProjectPanel] = useState(false);
   const [saveLabel, setSaveLabel] = useState<"idle" | "saving" | "done">("idle");
   const fileRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const abortCtrls = useRef<Set<AbortController>>(new Set());
+
+  const makeCtrl = () => {
+    const ctrl = new AbortController();
+    abortCtrls.current.add(ctrl);
+    return ctrl;
+  };
+  const freeCtrl = (ctrl: AbortController) => abortCtrls.current.delete(ctrl);
+
+  const stopAll = () => {
+    abortCtrls.current.forEach(c => c.abort());
+    abortCtrls.current.clear();
+    setProject(prev => ({
+      ...prev,
+      thumbnail: { ...prev.thumbnail, promptLoading: false, imageLoading: false },
+      modules: prev.modules.map(m => ({ ...m, copyLoading: false, promptLoading: false, imageLoading: false })),
+    }));
+    setPlanLoading(false);
+    setBulkProgress({ active: false, done: 0, total: 0, label: "" });
+    setResearchLoading(false);
+    setDnaLoading(false);
+  };
+
+  const isAnyLoading =
+    bulkProgress.active || planLoading || researchLoading || dnaLoading ||
+    project.thumbnail.promptLoading || project.thumbnail.imageLoading ||
+    project.modules.some(m => m.copyLoading || m.promptLoading || m.imageLoading);
 
   useEffect(() => {
     setProjectIndex(loadProjectsIndex());
@@ -275,33 +307,38 @@ export default function DetailPageMaker() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const toSave = { ...project, updatedAt: Date.now() };
-      saveProject(toSave);
-      setProjectIndex(loadProjectsIndex());
-      if (user) {
-        const completedModules = project.modules.filter(m => m.copy !== null).length;
-        const totalModules = project.modules.length;
-        setCloudSyncing(true);
-        upsertDetailProject(user.uid, {
-          id: project.id,
-          productName: project.productInfo.name || "(이름 없음)",
-          platform: project.platform,
-          tone: project.tone,
-          status: completedModules === totalModules && totalModules > 0 ? "completed" : "in-progress",
-          completedSections: completedModules,
-          totalSections: totalModules,
-          createdAt: project.updatedAt,
-          updatedAt: Date.now(),
-          projectData: JSON.stringify(toSave),
-        }).catch(e => console.warn("Firestore save failed", e))
-          .finally(() => setCloudSyncing(false));
-      }
-    }, 600);
-    return () => clearTimeout(t);
+  const projectRef = useRef(project);
+  useEffect(() => { projectRef.current = project; }, [project]);
+
+  const doAutoSave = useCallback((p: ProjectState) => {
+    const toSave = { ...p, updatedAt: Date.now() };
+    saveProject(toSave);
+    setProjectIndex(loadProjectsIndex());
+    if (user) {
+      const completedModules = p.modules.filter(m => m.copy !== null).length;
+      const totalModules = p.modules.length;
+      setCloudSyncing(true);
+      upsertDetailProject(user.uid, {
+        id: p.id,
+        productName: p.productInfo.name || "(이름 없음)",
+        platform: p.platform,
+        tone: p.tone,
+        status: completedModules === totalModules && totalModules > 0 ? "completed" : "in-progress",
+        completedSections: completedModules,
+        totalSections: totalModules,
+        createdAt: p.updatedAt,
+        updatedAt: Date.now(),
+        projectData: JSON.stringify(toSave),
+      }).catch(e => console.warn("Firestore save failed", e))
+        .finally(() => setCloudSyncing(false));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, user]);
+  }, [user]);
+
+  useEffect(() => {
+    const interval = setInterval(() => doAutoSave(projectRef.current), 30_000);
+    return () => clearInterval(interval);
+  }, [doAutoSave]);
 
   const updateProject  = useCallback((patch: Partial<ProjectState>) => setProject(prev => ({ ...prev, ...patch })), []);
   const updateModule   = useCallback((id: string, patch: Partial<Module>) =>
@@ -318,25 +355,7 @@ export default function DetailPageMaker() {
 
   const handleManualSave = async () => {
     setSaveLabel("saving");
-    const toSave = { ...project, updatedAt: Date.now() };
-    saveProject(toSave);
-    setProjectIndex(loadProjectsIndex());
-    if (user) {
-      try {
-        await upsertDetailProject(user.uid, {
-          id: project.id,
-          productName: project.productInfo.name || "(이름 없음)",
-          platform: project.platform,
-          tone: project.tone,
-          status: project.modules.filter(m => m.copy !== null).length === project.modules.length && project.modules.length > 0 ? "completed" : "in-progress",
-          completedSections: project.modules.filter(m => m.copy !== null).length,
-          totalSections: project.modules.length,
-          createdAt: project.updatedAt,
-          updatedAt: Date.now(),
-          projectData: JSON.stringify(toSave),
-        });
-      } catch { /* ignore */ }
-    }
+    doAutoSave(project);
     setSaveLabel("done");
     setTimeout(() => setSaveLabel("idle"), 2000);
   };
@@ -371,26 +390,29 @@ export default function DetailPageMaker() {
   const extractDNA = async () => {
     if (!project.refImages.length) return;
     setDnaLoading(true);
+    const ctrl = makeCtrl();
     try {
-      const { dna } = await callApi<{ dna: StyleDNA }>("/api/style-dna", { images: project.refImages });
+      const { dna } = await callApi<{ dna: StyleDNA }>("/api/style-dna", { images: project.refImages }, ctrl.signal);
       updateProject({ styleDNA: dna });
-    } catch (e) { alert("Style DNA 추출 실패: " + String(e)); }
-    finally { setDnaLoading(false); }
+    } catch (e) { if (!isAbort(e)) alert("Style DNA 추출 실패: " + String(e)); }
+    finally { setDnaLoading(false); freeCtrl(ctrl); }
   };
 
   // ── Module planning ────────────────────────────────────────────────────────
 
   const runModulePlan = async () => {
     setPlanLoading(true);
+    const ctrl = makeCtrl();
     try {
       const data = await callApi<{ strategy: string; modules: { moduleType: ModuleType; score: number; reason: string }[] }>(
         "/api/module-plan",
-        { productInfo: project.productInfo, platform: project.platform, tone: project.tone }
+        { productInfo: project.productInfo, platform: project.platform, tone: project.tone },
+        ctrl.signal,
       );
       const modules = data.modules.map((m, i) => moduleFromLibrary(m.moduleType, i, m.score, m.reason));
       updateProject({ modules, planStrategy: data.strategy });
-    } catch (e) { alert("모듈 분석 실패: " + String(e)); }
-    finally { setPlanLoading(false); }
+    } catch (e) { if (!isAbort(e)) alert("모듈 분석 실패: " + String(e)); }
+    finally { setPlanLoading(false); freeCtrl(ctrl); }
   };
 
   const addModule = (type: ModuleType) => {
@@ -422,82 +444,93 @@ export default function DetailPageMaker() {
 
   const runOverallResearch = async () => {
     setResearchLoading(true);
+    const ctrl = makeCtrl();
     try {
       const { research } = await callApi<{ research: Record<string, unknown> }>("/api/research", {
         productInfo: project.productInfo,
-      });
+      }, ctrl.signal);
       updateProject({ overallResearch: research });
-    } catch (e) { alert("종합 리서치 실패: " + String(e)); }
-    finally { setResearchLoading(false); }
+    } catch (e) { if (!isAbort(e)) alert("종합 리서치 실패: " + String(e)); }
+    finally { setResearchLoading(false); freeCtrl(ctrl); }
   };
 
   // ── Per-module generation ──────────────────────────────────────────────────
 
   const genModuleCopy = async (mod: Module) => {
     updateModule(mod.id, { copyLoading: true });
+    const ctrl = makeCtrl();
     try {
       const { copy } = await callApi<{ copy: Record<string, unknown> }>("/api/copy-gen", {
-        sectionType: mod.moduleType,
-        tone: project.tone,
-        productInfo: project.productInfo,
-        research: project.overallResearch,
-        platform: project.platform,
-      });
+        sectionType: mod.moduleType, tone: project.tone,
+        productInfo: project.productInfo, research: project.overallResearch, platform: project.platform,
+      }, ctrl.signal);
       updateModule(mod.id, { copy, copyLoading: false });
       return copy;
-    } catch (e) { updateModule(mod.id, { copyLoading: false }); throw e; }
+    } catch (e) { updateModule(mod.id, { copyLoading: false }); if (!isAbort(e)) throw e; }
+    finally { freeCtrl(ctrl); }
   };
 
   const genModulePrompt = async (mod: Module, copyOverride?: Record<string, unknown> | null) => {
     updateModule(mod.id, { promptLoading: true });
+    const ctrl = makeCtrl();
     try {
       const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
-        sectionType: mod.moduleType,
-        productInfo: project.productInfo,
-        styleDNA: project.styleDNA,
-        copy: copyOverride ?? mod.copy,
-        sectionGuidance: null,
-        lockedSectionPrompts: [],
+        sectionType: mod.moduleType, productInfo: project.productInfo, styleDNA: project.styleDNA,
+        copy: copyOverride ?? mod.copy, sectionGuidance: null, lockedSectionPrompts: [],
         hasRefImage: !!mod.refImageBase64,
-      });
+      }, ctrl.signal);
       updateModule(mod.id, { imagePrompt: prompt, promptLoading: false });
       return prompt;
-    } catch (e) { updateModule(mod.id, { promptLoading: false }); throw e; }
+    } catch (e) { updateModule(mod.id, { promptLoading: false }); if (!isAbort(e)) throw e; }
+    finally { freeCtrl(ctrl); }
   };
 
   const genThumbnailPrompt = async () => {
     updateThumbnail({ promptLoading: true });
+    const ctrl = makeCtrl();
     try {
       const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
-        sectionType: "thumbnail",
-        productInfo: project.productInfo,
-        styleDNA: project.styleDNA,
+        sectionType: "thumbnail", productInfo: project.productInfo, styleDNA: project.styleDNA,
         copy: null, sectionGuidance: null, lockedSectionPrompts: [],
-      });
+      }, ctrl.signal);
       updateThumbnail({ imagePrompt: prompt, promptLoading: false });
       return prompt;
-    } catch (e) { updateThumbnail({ promptLoading: false }); throw e; }
+    } catch (e) { updateThumbnail({ promptLoading: false }); if (!isAbort(e)) throw e; }
+    finally { freeCtrl(ctrl); }
   };
 
   const genImage = async (prompt: string, target: "thumbnail" | string, refImageBase64?: string) => {
     if (!prompt) return;
     const setLoading = (v: boolean) => target === "thumbnail" ? updateThumbnail({ imageLoading: v }) : updateModule(target, { imageLoading: v });
     setLoading(true);
+    const ctrl = makeCtrl();
     try {
       const fullPrompt = project.styleDNA ? `${prompt} Style: ${project.styleDNA.promptBase}` : prompt;
       const body: Record<string, unknown> = { prompt: fullPrompt };
       if (refImageBase64) body.refImageBase64 = refImageBase64;
-      const res = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctrl.signal });
       const data = await res.json();
       if (!res.ok || !data.imageUrl) { setLoading(false); alert("이미지 생성 실패: " + (data.error || `HTTP ${res.status}`)); return; }
-      if (target === "thumbnail") updateThumbnail({ imageUrl: data.imageUrl, imageLoading: false });
-      else updateModule(target, { imageUrl: data.imageUrl, imageLoading: false });
-    } catch (e) { setLoading(false); alert("이미지 생성 실패: " + String(e)); }
+      // Upload base64 to Firebase Storage so the URL persists across sessions
+      let imageUrl: string = data.imageUrl;
+      if (user && data.imageUrl.startsWith("data:")) {
+        try {
+          const filename = `${target}-${Date.now()}.png`;
+          const { url } = await uploadImageDataUrl(user.uid, `detail/${project.id}`, filename, data.imageUrl);
+          imageUrl = url;
+        } catch { /* keep base64 if upload fails */ }
+      }
+      if (target === "thumbnail") updateThumbnail({ imageUrl, imageLoading: false });
+      else updateModule(target, { imageUrl, imageLoading: false });
+    } catch (e) { setLoading(false); if (!isAbort(e)) alert("이미지 생성 실패: " + String(e)); }
+    finally { freeCtrl(ctrl); }
   };
 
   // ── Bulk generation ────────────────────────────────────────────────────────
 
   const generateAllContent = async () => {
+    const ctrl = makeCtrl();
+    const sig = ctrl.signal;
     let research = project.overallResearch;
     const sortedModules = [...project.modules].sort((a, b) => a.order - b.order);
     const total = 1 + sortedModules.length * 2;
@@ -506,9 +539,13 @@ export default function DetailPageMaker() {
     if (!research) {
       setBulkProgress({ active: true, done: 0, total, label: "종합 리서치 중..." });
       try {
-        const { research: r } = await callApi<{ research: Record<string, unknown> }>("/api/research", { productInfo: project.productInfo });
+        const { research: r } = await callApi<{ research: Record<string, unknown> }>("/api/research", { productInfo: project.productInfo }, sig);
         research = r; updateProject({ overallResearch: r });
-      } catch (e) { setBulkProgress({ active: false, done: 0, total: 0, label: "" }); alert("리서치 실패: " + String(e)); return; }
+      } catch (e) {
+        setBulkProgress({ active: false, done: 0, total: 0, label: "" });
+        if (!isAbort(e)) alert("리서치 실패: " + String(e));
+        freeCtrl(ctrl); return;
+      }
     }
 
     done = 1;
@@ -519,7 +556,7 @@ export default function DetailPageMaker() {
         const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
           sectionType: "thumbnail", productInfo: project.productInfo, styleDNA: project.styleDNA,
           copy: null, sectionGuidance: null, lockedSectionPrompts: [],
-        });
+        }, sig);
         updateThumbnail({ imagePrompt: prompt });
       } catch { /* ignore */ }
       finally { done += 1; setBulkProgress(p => ({ ...p, done })); }
@@ -529,13 +566,13 @@ export default function DetailPageMaker() {
       try {
         const { copy } = await callApi<{ copy: Record<string, unknown> }>("/api/copy-gen", {
           sectionType: mod.moduleType, tone: project.tone, productInfo: project.productInfo, research, platform: project.platform,
-        });
+        }, sig);
         updateModule(mod.id, { copy });
         done += 1; setBulkProgress(p => ({ ...p, done }));
         const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
           sectionType: mod.moduleType, productInfo: project.productInfo, styleDNA: project.styleDNA,
           copy, sectionGuidance: null, lockedSectionPrompts: [],
-        });
+        }, sig);
         updateModule(mod.id, { imagePrompt: prompt });
       } catch { /* ignore */ }
       finally { done += 1; setBulkProgress(p => ({ ...p, done })); }
@@ -543,6 +580,7 @@ export default function DetailPageMaker() {
 
     await Promise.all([thumbnailTask, ...moduleTasks]);
     setBulkProgress({ active: false, done: 0, total: 0, label: "" });
+    freeCtrl(ctrl);
   };
 
   // ── Export ─────────────────────────────────────────────────────────────────
@@ -622,6 +660,11 @@ export default function DetailPageMaker() {
             <span style={{ fontSize: 10, color: cloudSyncing ? "#6B7280" : "#059669" }}>
               {cloudSyncing ? "⏳ 저장 중..." : "☁️ 자동저장됨"}
             </span>
+          )}
+          {isAnyLoading && (
+            <button onClick={stopAll} style={{ padding: "4px 12px", borderRadius: 8, background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA", fontSize: 11, fontWeight: 700, cursor: "pointer", animation: "pulse 1.5s ease infinite" }}>
+              ⏹ 중단
+            </button>
           )}
           <button onClick={handleManualSave} disabled={saveLabel === "saving"} style={{ padding: "4px 12px", borderRadius: 8, background: saveLabel === "done" ? "#ECFDF5" : "#F0FDF4", color: saveLabel === "done" ? "#059669" : "#374151", border: `1px solid ${saveLabel === "done" ? "#A7F3D0" : "#D1D5DB"}`, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>
             {saveLabel === "saving" ? "저장 중..." : saveLabel === "done" ? "✓ 저장됨" : "💾 저장"}
@@ -1035,6 +1078,7 @@ export default function DetailPageMaker() {
               onGenImage={() => genImage(project.thumbnail.imagePrompt, "thumbnail")}
               onUpdatePrompt={p => updateThumbnail({ imagePrompt: p })}
               onUploadImage={url => updateThumbnail({ imageUrl: url })}
+              onPreview={url => setPreviewUrl(url)}
             />
           </div>
 
@@ -1055,6 +1099,7 @@ export default function DetailPageMaker() {
                 onToggleLock={() => updateModule(mod.id, { locked: !mod.locked })}
                 onUploadImage={url => updateModule(mod.id, { imageUrl: url })}
                 onUploadRefImage={b64 => updateModule(mod.id, { refImageBase64: b64 })}
+                onPreview={url => setPreviewUrl(url)}
               />
             ))}
           </div>
@@ -1098,15 +1143,24 @@ export default function DetailPageMaker() {
           <button className="btn" onClick={() => setStep(3)} style={{ padding: "12px 24px", background: "#F3F4F6", color: "#374151", fontSize: 14, borderRadius: 12 }}>← 콘텐츠 생성으로</button>
         </div>
       )}
+
+      {/* ── Image preview modal ── */}
+      {previewUrl && (
+        <div onClick={() => setPreviewUrl(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out" }}>
+          <img src={previewUrl} onClick={e => e.stopPropagation()} alt="" style={{ maxWidth: "88vw", maxHeight: "90vh", borderRadius: 12, objectFit: "contain", boxShadow: "0 24px 80px rgba(0,0,0,0.5)", cursor: "default" }} />
+          <button onClick={() => setPreviewUrl(null)} style={{ position: "fixed", top: 20, right: 24, background: "rgba(255,255,255,0.12)", border: "none", color: "white", fontSize: 22, width: 40, height: 40, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(6px)" }}>×</button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
 
-function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onUploadImage }: {
+function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onUploadImage, onPreview }: {
   thumbnail: Thumbnail; onGenPrompt: () => void; onGenImage: () => void;
   onUpdatePrompt: (p: string) => void; onUploadImage: (url: string) => void;
+  onPreview: (url: string) => void;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
 
@@ -1122,7 +1176,7 @@ function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onU
     <div style={{ background: "white", borderRadius: 16, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: `2px solid ${thumbnail.imageUrl ? "#FBBF24" : "#E5E7EB"}`, display: "grid", gridTemplateColumns: thumbnail.imageUrl ? "180px 1fr" : "1fr", gap: 16 }}>
       {thumbnail.imageUrl && (
         <div style={{ position: "relative" }}>
-          <img src={thumbnail.imageUrl} alt="thumbnail" style={{ width: 180, height: 180, objectFit: "cover", borderRadius: 12 }} />
+          <img src={thumbnail.imageUrl} alt="thumbnail" onClick={() => onPreview(thumbnail.imageUrl)} style={{ width: 180, height: 180, objectFit: "cover", borderRadius: 12, cursor: "zoom-in" }} />
           <button onClick={downloadImage} style={{ position: "absolute", bottom: 6, right: 6, padding: "4px 9px", borderRadius: 7, background: "rgba(0,0,0,0.55)", border: "none", color: "white", fontSize: 10, fontWeight: 700, cursor: "pointer", backdropFilter: "blur(4px)" }}>⬇️</button>
         </div>
       )}
@@ -1150,10 +1204,10 @@ function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onU
   );
 }
 
-function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePrompt, onToggleLock, onUploadImage, onUploadRefImage }: {
+function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePrompt, onToggleLock, onUploadImage, onUploadRefImage, onPreview }: {
   mod: Module; index: number; onGenCopy: () => void; onGenPrompt: () => void; onGenImage: () => void;
   onUpdatePrompt: (p: string) => void; onToggleLock: () => void; onUploadImage: (url: string) => void;
-  onUploadRefImage: (base64: string) => void;
+  onUploadRefImage: (base64: string) => void; onPreview: (url: string) => void;
 }) {
   const catMeta = CATEGORY_META[mod.category];
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -1181,7 +1235,7 @@ function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePr
 
       {mod.imageUrl ? (
         <div style={{ position: "relative" }}>
-          <img src={mod.imageUrl} alt={mod.label} style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", borderRadius: 10 }} />
+          <img src={mod.imageUrl} alt={mod.label} onClick={() => onPreview(mod.imageUrl)} style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", borderRadius: 10, cursor: "zoom-in" }} />
           <button onClick={downloadImage} style={{ position: "absolute", bottom: 8, right: 8, padding: "5px 10px", borderRadius: 8, background: "rgba(0,0,0,0.55)", border: "none", color: "white", fontSize: 11, fontWeight: 700, cursor: "pointer", backdropFilter: "blur(4px)" }}>⬇️ 저장</button>
         </div>
       ) : (

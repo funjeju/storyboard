@@ -380,7 +380,7 @@ export default function MetaPrompt() {
       {/* Input bar */}
       {!questionsDone && (
         <div className="meta-bar" style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:720, padding:"0 24px", zIndex:200 }}>
-          <div style={{ background:"white", borderRadius:20, border:"1.5px solid rgba(124,58,237,0.2)", boxShadow:"0 8px 40px rgba(124,58,237,0.14), 0 2px 8px rgba(0,0,0,0.05)", overflow:"hidden" }}>
+          <div style={{ background:"white", borderRadius:20, border:"1.5px solid rgba(124,58,237,0.2)", boxShadow:"0 8px 40px rgba(124,58,237,0.14), 0 2px 8px rgba(0,0,0,0.05)" }}>
 
             {/* Attachment preview */}
             {(attachImage || attachUrl) && (
@@ -428,7 +428,7 @@ export default function MetaPrompt() {
                   title="이미지 또는 URL 첨부"
                 >📎</button>
                 {showAttachMenu && (
-                  <div style={{ position:"absolute", bottom:44, left:0, background:"white", border:"1.5px solid rgba(124,58,237,0.15)", borderRadius:14, boxShadow:"0 8px 24px rgba(0,0,0,0.12)", overflow:"hidden", minWidth:160, zIndex:10, animation:"fadeUp 0.2s ease both" }}>
+                  <div style={{ position:"absolute", bottom:44, left:0, background:"white", border:"1.5px solid rgba(124,58,237,0.15)", borderRadius:14, boxShadow:"0 8px 24px rgba(0,0,0,0.12)", overflow:"hidden", minWidth:160, zIndex:300, animation:"fadeUp 0.2s ease both" }}>
                     <button onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }} style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:600, color:"#1F2937", cursor:"pointer", display:"flex", alignItems:"center", gap:10 }}>
                       🖼️ 이미지 업로드
                     </button>

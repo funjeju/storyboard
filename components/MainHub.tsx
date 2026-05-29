@@ -88,6 +88,27 @@ const TOOLS = [
     badge: "NEW",
     ctaText: "🛍️ 상세페이지 시작",
   },
+  {
+    id: "autocut",
+    icon: "✂️",
+    name: "AutoCut Editor",
+    nameKo: "자동 컷편집",
+    desc: "영상 업로드 한 번으로 초벌편집 + 자막 완성",
+    features: [
+      "Whisper AI 음성인식 자동 변환",
+      "Gemini 핵심 구간 자동 추출",
+      "FFmpeg 컷편집 + 자막 자동 삽입",
+      "5분 내외 영상 즉시 처리",
+    ],
+    gradient: "linear-gradient(135deg, #4C1D95 0%, #7C3AED 50%, #EC4899 100%)",
+    accentGrad: "linear-gradient(135deg, #7C3AED, #EC4899)",
+    accent: "#7C3AED",
+    accentRgb: "124,58,237",
+    border: "rgba(124,58,237,0.25)",
+    href: "/autocut",
+    badge: "BETA",
+    ctaText: "✂️ 자동 컷편집",
+  },
 ];
 
 export default function MainHub() {
@@ -113,7 +134,7 @@ export default function MainHub() {
         .hub-header { padding: 0 48px !important; }
         .hub-hero { padding: 48px 20px 0 !important; }
         .hub-h1 { font-size: 52px !important; }
-        .hub-grid { grid-template-columns: repeat(4,1fr) !important; gap: 24px !important; }
+        .hub-grid { grid-template-columns: repeat(5,1fr) !important; gap: 24px !important; }
         @media (max-width: 768px) {
           .hub-header { padding: 0 16px !important; height: auto !important; min-height: 56px !important; flex-wrap: wrap !important; gap: 8px !important; padding-top: 8px !important; padding-bottom: 8px !important; }
           .hub-hero { padding: 36px 16px 0 !important; }
@@ -159,7 +180,7 @@ export default function MainHub() {
               width: 8, height: 8, borderRadius: "50%", background: "#10B981",
               boxShadow: "0 0 0 3px rgba(16,185,129,0.2)",
             }} />
-            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>4 tools active</span>
+            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>5 tools active</span>
           </div>
           <AuthButton />
         </div>
@@ -200,7 +221,7 @@ export default function MainHub() {
         {/* ── TOOL CARDS — 3열 고정 ── */}
         <div className="hub-grid" style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(5, 1fr)",
           gap: 24,
           paddingBottom: 80,
         }}>

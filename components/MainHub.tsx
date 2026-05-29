@@ -89,10 +89,20 @@ export default function MainHub() {
           0%, 100% { transform: translateY(0px) }
           50%       { transform: translateY(-6px) }
         }
+        .hub-header { padding: 0 48px !important; }
+        .hub-hero { padding: 48px 20px 0 !important; }
+        .hub-h1 { font-size: 52px !important; }
+        .hub-grid { grid-template-columns: repeat(3,1fr) !important; gap: 28px !important; }
+        @media (max-width: 768px) {
+          .hub-header { padding: 0 16px !important; height: auto !important; min-height: 56px !important; flex-wrap: wrap !important; gap: 8px !important; padding-top: 8px !important; padding-bottom: 8px !important; }
+          .hub-hero { padding: 36px 16px 0 !important; }
+          .hub-h1 { font-size: 32px !important; letter-spacing: -0.5px !important; }
+          .hub-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+        }
       `}</style>
 
       {/* ── HEADER ── */}
-      <header style={{
+      <header className="hub-header" style={{
         background: "white",
         borderBottom: "1px solid #E5E7EB",
         padding: "0 48px",
@@ -135,7 +145,7 @@ export default function MainHub() {
       </header>
 
       {/* ── HERO ── */}
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "72px 40px 0" }}>
+      <div className="hub-hero" style={{ maxWidth: 1100, margin: "0 auto", padding: "72px 40px 0" }}>
         <div style={{ textAlign: "center", marginBottom: 56, animation: "fadeUp 0.5s ease both" }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6,
@@ -167,7 +177,7 @@ export default function MainHub() {
         </div>
 
         {/* ── TOOL CARDS — 3열 고정 ── */}
-        <div style={{
+        <div className="hub-grid" style={{
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
           gap: 28,

@@ -611,21 +611,41 @@ export default function SunoMaker() {
     select option { background:white;color:#1A1A2E; }
     input:focus,textarea:focus,select:focus { border-color:${P}!important;box-shadow:0 0 0 3px rgba(124,58,237,0.1); }
     .chip-row { display:flex;flex-wrap:wrap;gap:8px; }
+    .suno-mode-grid { display:grid;grid-template-columns:1fr 1fr;gap:24px; }
+    .suno-2col { display:grid;grid-template-columns:1fr 1fr;gap:16px; }
+    .suno-4col { display:grid;grid-template-columns:repeat(4,1fr);gap:12px; }
+    .suno-page-pad { padding:40px 40px 80px; }
+    .suno-select-pad { padding:72px 40px; }
+    .suno-step-bar { padding:12px 40px; }
+    .suno-nav { padding:0 32px; }
+    .suno-mode-btn { padding:40px 32px; }
+    @media (max-width:640px) {
+      .suno-mode-grid { grid-template-columns:1fr!important;gap:16px!important; }
+      .suno-2col { grid-template-columns:1fr!important;gap:12px!important; }
+      .suno-4col { grid-template-columns:1fr 1fr!important;gap:10px!important; }
+      .suno-page-pad { padding:24px 16px 60px!important; }
+      .suno-select-pad { padding:36px 16px!important; }
+      .suno-step-bar { padding:10px 16px!important; }
+      .suno-nav { padding:0 12px!important; }
+      .suno-nav-links { gap:6px!important; }
+      .suno-mode-btn { padding:24px 20px!important; }
+      .suno-nav-label { display:none!important; }
+    }
   `;
 
   // ── TOP NAV ─────────────────────────────────────────────────────────────────
   const renderNav = () => (
-    <nav style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"0 32px", height:42, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:101, boxShadow:"0 1px 3px rgba(124,58,237,0.06)" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-        <Link href="/" style={{ display:"flex", alignItems:"center", gap:7, textDecoration:"none" }}>
+    <nav className="suno-nav" style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"0 32px", minHeight:42, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:101, boxShadow:"0 1px 3px rgba(124,58,237,0.06)", flexWrap:"wrap", gap:4, paddingTop:6, paddingBottom:6 }}>
+      <div className="suno-nav-links" style={{ display:"flex", alignItems:"center", gap:14, overflowX:"auto", flexShrink:1, minWidth:0 }}>
+        <Link href="/" style={{ display:"flex", alignItems:"center", gap:7, textDecoration:"none", flexShrink:0 }}>
           <div style={{ width:24, height:24, borderRadius:7, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"white", fontWeight:800 }}>✦</div>
           <span style={{ fontSize:12, fontWeight:800, color:"#111827" }}>AI Studio</span>
         </Link>
-        <div style={{ width:1, height:14, background:"#E5E7EB" }} />
+        <div style={{ width:1, height:14, background:"#E5E7EB", flexShrink:0 }} />
         {[{ href:"/storyboard",icon:"🎬",label:"Storyboard" },{ href:"/suno",icon:"🎵",label:"Suno Maker" },{ href:"/detail",icon:"🛍️",label:"Detail Page" },{ href:"/library",icon:"📚",label:"My Library" }].map(t => (
-          <Link key={t.href} href={t.href} style={{ display:"flex", alignItems:"center", gap:5, textDecoration:"none", padding:"4px 10px", borderRadius:6, background:t.href==="/suno"?"rgba(124,58,237,0.08)":"transparent" }}>
+          <Link key={t.href} href={t.href} style={{ display:"flex", alignItems:"center", gap:4, textDecoration:"none", padding:"4px 8px", borderRadius:6, background:t.href==="/suno"?"rgba(124,58,237,0.08)":"transparent", flexShrink:0 }}>
             <span style={{ fontSize:12 }}>{t.icon}</span>
-            <span style={{ fontSize:12, fontWeight:600, color:t.href==="/suno"?P:"#6B7280" }}>{t.label}</span>
+            <span className="suno-nav-label" style={{ fontSize:12, fontWeight:600, color:t.href==="/suno"?P:"#6B7280" }}>{t.label}</span>
           </Link>
         ))}
       </div>
@@ -694,7 +714,7 @@ export default function SunoMaker() {
           onDragLeave={() => setDragOver(false)}
           onClick={() => fileInputRef.current?.click()}
           style={{ border:"2px dashed #DDD6FE", borderRadius:14, padding:"40px 24px", textAlign:"center", cursor:"pointer", background:dragOver?"rgba(124,58,237,0.04)":"#FAFAFA", marginBottom:audioFile?20:0 }}>
-          <input ref={fileInputRef} type="file" accept="audio/*" style={{ display:"none" }} onChange={e => { if (e.target.files?.[0]) analyzeFile(e.target.files[0]); }} />
+          <input ref={fileInputRef} type="file" accept="audio/mpeg,audio/mp4,audio/wav,audio/flac,audio/aac,audio/ogg,audio/x-m4a,.mp3,.mp4,.wav,.flac,.aac,.m4a,.ogg" style={{ display:"none" }} onChange={e => { if (e.target.files?.[0]) analyzeFile(e.target.files[0]); }} />
           <div style={{ fontSize:32, marginBottom:8 }}>🎵</div>
           <div style={{ fontSize:14, fontWeight:600, color:"#374151", marginBottom:4 }}>오디오 파일을 드래그하거나 클릭</div>
           <div style={{ fontSize:12, color:"#9CA3AF" }}>MP3, WAV, FLAC, AAC 지원</div>
@@ -702,7 +722,7 @@ export default function SunoMaker() {
         {analyzing && <div style={{ display:"flex", alignItems:"center", gap:10, color:P, padding:"12px 0" }}><Spin /> 분석 중...</div>}
         {analysis && (
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+            <div className="suno-4col" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
               {[
                 ["BPM", analysis.bpm, ""],
                 ["LUFS", analysis.lufs, "dB"],
@@ -749,7 +769,7 @@ export default function SunoMaker() {
       </SectionCard>
 
       <SectionCard num="📦" title="퍼블리싱 패키지">
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        <div className="suno-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
           {([["아티스트 이름", artistName, setArtistName],["앨범 이름", albumName, setAlbumName],["발매일", releaseDate, setReleaseDate],["저작권 표기", copyright, setCopyright]] as [string, string, (v:string)=>void][]).map(([label, val, setter]) => (
             <div key={label}>
               <div style={{ fontSize:11, fontWeight:700, color:"#6B21A8", letterSpacing:1.2, marginBottom:7 }}>{label}</div>
@@ -774,7 +794,7 @@ export default function SunoMaker() {
         <style>{globalStyle}</style>
         {renderLoginModal()}
         {renderNav()}
-        <div style={{ maxWidth:860, margin:"0 auto", padding:"72px 40px" }}>
+        <div className="suno-select-pad" style={{ maxWidth:860, margin:"0 auto", padding:"72px 40px" }}>
           {/* Header */}
           <div style={{ textAlign:"center", marginBottom:56, animation:"fadeUp 0.4s ease both" }}>
             <div style={{ fontSize:44, marginBottom:16 }}>🎵</div>
@@ -788,10 +808,11 @@ export default function SunoMaker() {
           </div>
 
           {/* Two big mode cards */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, marginBottom:40 }}>
+          <div className="suno-mode-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, marginBottom:40 }}>
             {/* Path A: Lyrics First */}
             <button
               onClick={() => { setAppMode("path-a"); setPathAStep("choose"); }}
+              className="suno-mode-btn"
               style={{ background:"white", border:`2px solid ${P}`, borderRadius:24, padding:"40px 32px", cursor:"pointer", textAlign:"left", transition:"all 0.2s", boxShadow:"0 4px 16px rgba(124,58,237,0.12)" }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform="translateY(-4px)"; (e.currentTarget as HTMLElement).style.boxShadow="0 16px 40px rgba(124,58,237,0.2)"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform="translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow="0 4px 16px rgba(124,58,237,0.12)"; }}
@@ -817,6 +838,7 @@ export default function SunoMaker() {
             {/* Path B: Style First */}
             <button
               onClick={() => { setAppMode("path-b"); setPathBLyricsShown(false); }}
+              className="suno-mode-btn"
               style={{ background:"white", border:"2px solid #E5E7EB", borderRadius:24, padding:"40px 32px", cursor:"pointer", textAlign:"left", transition:"all 0.2s", boxShadow:"0 4px 16px rgba(0,0,0,0.06)" }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform="translateY(-4px)"; (e.currentTarget as HTMLElement).style.boxShadow="0 16px 40px rgba(0,0,0,0.12)"; (e.currentTarget as HTMLElement).style.borderColor="#9CA3AF"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform="translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow="0 4px 16px rgba(0,0,0,0.06)"; (e.currentTarget as HTMLElement).style.borderColor="#E5E7EB"; }}
@@ -1031,7 +1053,7 @@ export default function SunoMaker() {
       )}
 
       {/* Genre + Mood */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+      <div className="suno-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
         <Field label="장르 1">
           <select value={genre1} onChange={e => setGenre1(e.target.value)} style={selectStyle}>
             {GENRES.map(g => <option key={g}>{g}</option>)}
@@ -1056,7 +1078,7 @@ export default function SunoMaker() {
       </div>
 
       {/* BPM + Vocal */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+      <div className="suno-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
         <Field label="BPM">
           <div style={{ display:"flex", gap:8, marginBottom:8 }}>
             {(["random","custom"] as const).map(bm => (
@@ -1112,7 +1134,7 @@ export default function SunoMaker() {
                 ))}
               </div>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+            <div className="suno-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
               {[["보컬 방향", vocalDirection, setVocalDirection, VOCAL_DIRECTIONS],["공간/장소", venueMood, setVenueMood, VENUE_MOODS],["에너지 커브", energyCurve, setEnergyCurve, ENERGY_CURVES],["BPM 질감", bpmFeel, setBpmFeel, BPM_FEELS],["보컬 프로덕션", vocalProduction, setVocalProduction, VOCAL_PRODUCTION]].map(([label, val, setter, opts]) => (
                 <Field key={label as string} label={label as string}>
                   <select value={val as string} onChange={e => (setter as (v: string) => void)(e.target.value)} style={selectStyle}>
@@ -1123,7 +1145,7 @@ export default function SunoMaker() {
             </div>
             <div>
               <div style={{ fontSize:11, fontWeight:700, color:"#6B21A8", letterSpacing:1.2, marginBottom:10 }}>악기 설정</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <div className="suno-2col" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                 {[["기타", instGuitar, setInstGuitar, INSTRUMENT_GUITAR],["드럼", instDrums, setInstDrums, INSTRUMENT_DRUMS],["베이스", instBass, setInstBass, INSTRUMENT_BASS],["신스", instSynth, setInstSynth, INSTRUMENT_SYNTH]].map(([label, val, setter, opts]) => (
                   <Field key={label as string} label={label as string}>
                     <select value={val as string} onChange={e => (setter as (v: string) => void)(e.target.value)} style={selectStyle}>
@@ -1216,7 +1238,7 @@ export default function SunoMaker() {
         {renderNav()}
 
         {/* Step indicator */}
-        <div style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"12px 40px" }}>
+        <div className="suno-step-bar" style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"12px 40px" }}>
           <div style={{ maxWidth:780, margin:"0 auto", display:"flex", alignItems:"center", gap:8 }}>
             <button onClick={() => setAppMode("select")} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:0 }}>← 처음으로</button>
             <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
@@ -1239,7 +1261,7 @@ export default function SunoMaker() {
           </div>
         </div>
 
-        <div style={{ maxWidth:780, margin:"0 auto", padding:"40px 40px 80px" }}>
+        <div className="suno-page-pad" style={{ maxWidth:780, margin:"0 auto", padding:"40px 40px 80px" }}>
           {/* STEP: choose */}
           {pathAStep === "choose" && (
             <div style={{ animation:"fadeUp 0.4s ease both" }}>
@@ -1401,7 +1423,7 @@ export default function SunoMaker() {
         {renderNav()}
 
         {/* Step indicator */}
-        <div style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"12px 40px" }}>
+        <div className="suno-step-bar" style={{ background:"white", borderBottom:"1px solid #EDE9FE", padding:"12px 40px" }}>
           <div style={{ maxWidth:780, margin:"0 auto", display:"flex", alignItems:"center", gap:8 }}>
             <button onClick={() => setAppMode("select")} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:0 }}>← 처음으로</button>
             <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
@@ -1422,7 +1444,7 @@ export default function SunoMaker() {
           </div>
         </div>
 
-        <div style={{ maxWidth:780, margin:"0 auto", padding:"40px 40px 80px" }}>
+        <div className="suno-page-pad" style={{ maxWidth:780, margin:"0 auto", padding:"40px 40px 80px" }}>
           {/* Style Form */}
           <SectionCard num="🎛" title="스타일 설정">
             {renderStyleForm()}

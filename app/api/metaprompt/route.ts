@@ -52,38 +52,31 @@ export async function POST(req: NextRequest) {
     }));
 
     if (mode === "generate") {
-      // Generate final prompt from all collected answers
       const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
+        systemInstruction: PROMPT_SYSTEM,
         generationConfig: {
           maxOutputTokens: 4096,
           temperature: 0.8,
           responseMimeType: "application/json",
         } as never,
       });
-
-      const result = await model.generateContent({
-        systemInstruction: PROMPT_SYSTEM,
-        contents,
-      });
+      const result = await model.generateContent({ contents });
       const data = JSON.parse(result.response.text().trim());
       return NextResponse.json({ ...data, isDone: true });
     }
 
-    // mode === "question" — ask next question
+    // mode === "question"
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
+      systemInstruction: QUESTION_SYSTEM,
       generationConfig: {
         maxOutputTokens: 512,
         temperature: 0.7,
         responseMimeType: "application/json",
       } as never,
     });
-
-    const result = await model.generateContent({
-      systemInstruction: QUESTION_SYSTEM,
-      contents,
-    });
+    const result = await model.generateContent({ contents });
     const data = JSON.parse(result.response.text().trim());
     return NextResponse.json({ ...data, isDone: false });
 

@@ -676,7 +676,7 @@ export default function SunoMaker() {
           <span style={{ fontSize:12, fontWeight:800, color:"#111827" }}>AI Studio</span>
         </Link>
         <div style={{ width:1, height:14, background:"#E5E7EB", flexShrink:0 }} />
-        {[{ href:"/storyboard",icon:"🎬",label:"Storyboard" },{ href:"/suno",icon:"🎵",label:"Suno Maker" },{ href:"/detail",icon:"🛍️",label:"Detail Page" },{ href:"/library",icon:"📚",label:"My Library" }].map(t => (
+        {[{ href:"/storyboard",icon:"🎬",label:"Storyboard" },{ href:"/suno",icon:"🎵",label:"Suno Maker" },{ href:"/metaprompt",icon:"✦",label:"MetaPrompt" },{ href:"/detail",icon:"🛍️",label:"Detail Page" },{ href:"/autocut",icon:"✂️",label:"AutoCut" }].map(t => (
           <Link key={t.href} href={t.href} style={{ display:"flex", alignItems:"center", gap:4, textDecoration:"none", padding:"4px 8px", borderRadius:6, background:t.href==="/suno"?"rgba(124,58,237,0.08)":"transparent", flexShrink:0 }}>
             <span style={{ fontSize:12 }}>{t.icon}</span>
             <span className="suno-nav-label" style={{ fontSize:12, fontWeight:600, color:t.href==="/suno"?P:"#6B7280" }}>{t.label}</span>

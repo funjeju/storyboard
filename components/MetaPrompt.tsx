@@ -205,13 +205,23 @@ export default function MetaPrompt() {
 
       {/* Nav */}
       <nav style={{ position:"sticky", top:0, zIndex:100, background:"rgba(255,255,255,0.88)", backdropFilter:"blur(12px)", borderBottom:"1px solid rgba(124,58,237,0.08)", padding:"0 28px", height:52, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <Link href="/" style={{ display:"flex", alignItems:"center", gap:8, textDecoration:"none" }}>
             <div style={{ width:28, height:28, borderRadius:8, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"white", fontWeight:800 }}>✦</div>
             <span style={{ fontSize:13, fontWeight:800, color:"#111827" }}>AI Studio</span>
           </Link>
           <div style={{ width:1, height:16, background:"#E5E7EB" }} />
-          <span style={{ fontSize:13, fontWeight:700, color:P }}>✦ MetaPrompt</span>
+          {[
+            { href:"/storyboard", icon:"🎬", label:"Storyboard" },
+            { href:"/suno", icon:"🎵", label:"Suno Maker" },
+            { href:"/metaprompt", icon:"✦", label:"MetaPrompt" },
+            { href:"/detail", icon:"🛍️", label:"Detail Page" },
+            { href:"/autocut", icon:"✂️", label:"AutoCut" },
+          ].map(t => (
+            <Link key={t.href} href={t.href} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:8, textDecoration:"none", background:t.href==="/metaprompt"?"rgba(124,58,237,0.07)":"transparent", border:t.href==="/metaprompt"?"1px solid rgba(124,58,237,0.2)":"1px solid transparent", fontSize:12, fontWeight:600, color:t.href==="/metaprompt"?P:"#6B7280" }}>
+              <span style={{ fontSize:12 }}>{t.icon}</span>{t.label}
+            </Link>
+          ))}
         </div>
         {started && (
           <button onClick={reset} style={{ padding:"6px 16px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:12, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>

@@ -594,8 +594,9 @@ export default function DetailPageMaker() {
           {[
             { href: "/storyboard", icon: "🎬", label: "Storyboard" },
             { href: "/suno", icon: "🎵", label: "Suno Maker" },
+            { href: "/metaprompt", icon: "✦", label: "MetaPrompt" },
             { href: "/detail", icon: "🛍️", label: "Detail Page" },
-            { href: "/library", icon: "📚", label: "My Library" },
+            { href: "/autocut", icon: "✂️", label: "AutoCut" },
           ].map(tool => (
             <a key={tool.href} href={tool.href} style={{
               display: "flex", alignItems: "center", gap: 5,

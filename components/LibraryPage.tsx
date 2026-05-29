@@ -305,10 +305,12 @@ export default function LibraryPage() {
   };
 
   const NAV_TOOLS = [
-    { href: "/storyboard", icon: "🎬", label: "Storyboard" },
-    { href: "/suno",       icon: "🎵", label: "Suno Maker"  },
-    { href: "/detail",     icon: "🛍️", label: "Detail Page" },
-    { href: "/library",    icon: "📚", label: "My Library"  },
+    { href: "/storyboard",  icon: "🎬", label: "Storyboard"  },
+    { href: "/suno",        icon: "🎵", label: "Suno Maker"   },
+    { href: "/metaprompt",  icon: "✦",  label: "MetaPrompt"  },
+    { href: "/detail",      icon: "🛍️", label: "Detail Page" },
+    { href: "/autocut",     icon: "✂️", label: "AutoCut"     },
+    { href: "/library",     icon: "📚", label: "My Library"   },
   ];
 
   const tabCounts = {

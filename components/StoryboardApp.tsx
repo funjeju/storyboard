@@ -701,8 +701,9 @@ Rules:
           {[
             { href: "/storyboard", icon: "🎬", label: "Storyboard" },
             { href: "/suno", icon: "🎵", label: "Suno Maker" },
+            { href: "/metaprompt", icon: "✦", label: "MetaPrompt" },
             { href: "/detail", icon: "🛍️", label: "Detail Page" },
-            { href: "/library", icon: "📚", label: "My Library" },
+            { href: "/autocut", icon: "✂️", label: "AutoCut" },
           ].map(t => (
             <a key={t.href} href={t.href} style={{
               display: "flex", alignItems: "center", gap: 5,

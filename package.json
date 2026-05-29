@@ -13,6 +13,7 @@
     "firebase-admin": "^13.10.0",
     "lamejs": "^1.2.1",
     "next": "^15.3.2",
+    "openai": "^6.39.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

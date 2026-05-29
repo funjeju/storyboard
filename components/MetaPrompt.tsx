@@ -43,8 +43,15 @@ export default function MetaPrompt() {
   const [started, setStarted]           = useState(false);
   const [questionsDone, setQuestionsDone] = useState(false);
 
+  // Attachment state
+  const [attachType, setAttachType]     = useState<"image" | "url" | null>(null);
+  const [attachImage, setAttachImage]   = useState<string | null>(null); // base64
+  const [attachUrl, setAttachUrl]       = useState("");
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+
   const bottomRef   = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // userTurns = number of user messages sent
   const userTurns = messages.filter(m => m.role === "user").length;
@@ -63,12 +70,35 @@ export default function MetaPrompt() {
     return res.json();
   };
 
+  const handleImageFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      setAttachImage(e.target?.result as string);
+      setAttachType("image");
+      setAttachUrl("");
+      setShowAttachMenu(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearAttach = () => {
+    setAttachImage(null); setAttachUrl(""); setAttachType(null);
+  };
+
   const send = async (text: string) => {
-    if (!text.trim() || loading || questionsDone) return;
-    const userMsg: Message = { role: "user", content: text.trim() };
+    const hasAttach = attachImage || attachUrl.trim();
+    if (!text.trim() && !hasAttach || loading || questionsDone) return;
+
+    // Build content string including attachment info
+    let content = text.trim();
+    if (attachUrl.trim()) content += `\n[참조 URL: ${attachUrl.trim()}]`;
+    if (attachImage) content += `\n[이미지 첨부됨]`;
+
+    const userMsg: Message = { role: "user", content };
     const next = [...messages, userMsg];
     setMessages(next);
     setInput("");
+    clearAttach();
     setLoading(true);
     setReasoning("");
     setStarted(true);
@@ -250,24 +280,32 @@ export default function MetaPrompt() {
 
         {/* Chat */}
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          {messages.map((msg, i) => (
-            <div key={i} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start", animation:"fadeUp 0.3s ease both" }}>
-              {msg.role === "assistant" && (
-                <div style={{ width:32, height:32, borderRadius:10, flexShrink:0, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"white", fontWeight:800, marginRight:10, marginTop:2 }}>✦</div>
-              )}
-              <div style={{
-                maxWidth:"75%", padding:"13px 17px",
-                borderRadius: msg.role==="user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
-                background: msg.role==="user" ? `linear-gradient(135deg,${P},${PINK})` : "white",
-                color: msg.role==="user" ? "white" : "#1F2937",
-                fontSize:14, lineHeight:1.7, fontWeight:500,
-                boxShadow: msg.role==="user" ? "0 4px 14px rgba(124,58,237,0.22)" : "0 2px 10px rgba(0,0,0,0.07)",
-                border: msg.role==="assistant" ? "1px solid rgba(124,58,237,0.1)" : "none",
-              }}>
-                {msg.content}
+          {messages.map((msg, i) => {
+            // Parse attachment markers out of content
+            const hasImage = msg.role === "user" && msg.content.includes("[이미지 첨부됨]");
+            const urlMatch = msg.role === "user" && msg.content.match(/\[참조 URL: (.+?)\]/);
+            const cleanContent = msg.content.replace(/\[참조 URL: .+?\]/, "").replace("[이미지 첨부됨]", "").trim();
+            return (
+              <div key={i} style={{ display:"flex", justifyContent:msg.role==="user"?"flex-end":"flex-start", animation:"fadeUp 0.3s ease both" }}>
+                {msg.role === "assistant" && (
+                  <div style={{ width:32, height:32, borderRadius:10, flexShrink:0, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"white", fontWeight:800, marginRight:10, marginTop:2 }}>✦</div>
+                )}
+                <div style={{
+                  maxWidth:"75%", padding:"13px 17px",
+                  borderRadius: msg.role==="user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
+                  background: msg.role==="user" ? `linear-gradient(135deg,${P},${PINK})` : "white",
+                  color: msg.role==="user" ? "white" : "#1F2937",
+                  fontSize:14, lineHeight:1.7, fontWeight:500,
+                  boxShadow: msg.role==="user" ? "0 4px 14px rgba(124,58,237,0.22)" : "0 2px 10px rgba(0,0,0,0.07)",
+                  border: msg.role==="assistant" ? "1px solid rgba(124,58,237,0.1)" : "none",
+                }}>
+                  {cleanContent && <div>{cleanContent}</div>}
+                  {hasImage && <div style={{ marginTop: cleanContent ? 8 : 0, fontSize:12, opacity:0.8 }}>🖼️ 이미지 첨부됨</div>}
+                  {urlMatch && <div style={{ marginTop: cleanContent ? 6 : 0, fontSize:12, opacity:0.8 }}>🔗 {urlMatch[1]}</div>}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Loading */}
           {loading && (
@@ -342,29 +380,91 @@ export default function MetaPrompt() {
       {/* Input bar */}
       {!questionsDone && (
         <div className="meta-bar" style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:720, padding:"0 24px", zIndex:200 }}>
-          <div style={{ background:"white", borderRadius:20, border:"1.5px solid rgba(124,58,237,0.2)", boxShadow:"0 8px 40px rgba(124,58,237,0.14), 0 2px 8px rgba(0,0,0,0.05)", padding:"12px 12px 12px 18px", display:"flex", alignItems:"flex-end", gap:10 }}>
-            <textarea
-              ref={inputRef}
-              className="meta-input"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-              placeholder={started ? "답변을 입력하세요..." : "무엇을 만들고 싶은지 자유롭게 말해보세요..."}
-              disabled={loading}
-              rows={1}
-              style={{ flex:1, border:"none", outline:"none", resize:"none", fontSize:14, color:"#1F2937", fontFamily:"inherit", background:"transparent", lineHeight:1.6, maxHeight:120, overflowY:"auto" }}
-              onInput={e => { const el = e.currentTarget; el.style.height="auto"; el.style.height=Math.min(el.scrollHeight,120)+"px"; }}
-            />
-            <button
-              onClick={() => send(input)}
-              disabled={!input.trim() || loading}
-              style={{ width:40, height:40, borderRadius:12, flexShrink:0, background:input.trim()&&!loading?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", cursor:input.trim()?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s", boxShadow:input.trim()?"0 4px 12px rgba(124,58,237,0.28)":"none" }}
-            >
-              {loading
-                ? <div style={{ width:16,height:16,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid white",animation:"spin 0.8s linear infinite" }} />
-                : <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-              }
-            </button>
+          <div style={{ background:"white", borderRadius:20, border:"1.5px solid rgba(124,58,237,0.2)", boxShadow:"0 8px 40px rgba(124,58,237,0.14), 0 2px 8px rgba(0,0,0,0.05)", overflow:"hidden" }}>
+
+            {/* Attachment preview */}
+            {(attachImage || attachUrl) && (
+              <div style={{ padding:"10px 16px 0", display:"flex", alignItems:"center", gap:10 }}>
+                {attachImage && (
+                  <div style={{ position:"relative", flexShrink:0 }}>
+                    <img src={attachImage} alt="첨부" style={{ width:48, height:48, objectFit:"cover", borderRadius:8, border:"1.5px solid rgba(124,58,237,0.2)" }} />
+                    <button onClick={clearAttach} style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", background:"#EF4444", border:"none", color:"white", fontSize:10, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800 }}>×</button>
+                  </div>
+                )}
+                {attachUrl && (
+                  <div style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 12px", background:"rgba(124,58,237,0.07)", border:"1px solid rgba(124,58,237,0.2)", borderRadius:8, fontSize:12, color:P, fontWeight:600, flex:1, minWidth:0 }}>
+                    <span style={{ fontSize:14 }}>🔗</span>
+                    <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{attachUrl}</span>
+                    <button onClick={clearAttach} style={{ marginLeft:"auto", background:"none", border:"none", color:"#9CA3AF", cursor:"pointer", fontSize:14, fontWeight:800, flexShrink:0 }}>×</button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* URL input mode */}
+            {attachType === "url" && !attachUrl && (
+              <div style={{ padding:"10px 16px 0", display:"flex", gap:8 }}>
+                <input
+                  autoFocus
+                  placeholder="https://... URL을 붙여넣으세요"
+                  onKeyDown={e => {
+                    if (e.key === "Enter") { setAttachUrl(e.currentTarget.value); setAttachType(null); }
+                    if (e.key === "Escape") { setAttachType(null); }
+                  }}
+                  onBlur={e => { if (e.target.value) setAttachUrl(e.target.value); setAttachType(null); }}
+                  style={{ flex:1, padding:"8px 12px", border:"1.5px solid rgba(124,58,237,0.3)", borderRadius:10, fontSize:13, outline:"none", fontFamily:"inherit" }}
+                />
+              </div>
+            )}
+
+            {/* Main input row */}
+            <div style={{ padding:"12px 12px 12px 16px", display:"flex", alignItems:"flex-end", gap:8 }}>
+              {/* Attach button */}
+              <div style={{ position:"relative" }}>
+                <button
+                  onClick={() => setShowAttachMenu(p => !p)}
+                  disabled={loading}
+                  style={{ width:36, height:36, borderRadius:10, flexShrink:0, background:showAttachMenu?"rgba(124,58,237,0.1)":"#F3F4F6", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, transition:"all 0.15s" }}
+                  title="이미지 또는 URL 첨부"
+                >📎</button>
+                {showAttachMenu && (
+                  <div style={{ position:"absolute", bottom:44, left:0, background:"white", border:"1.5px solid rgba(124,58,237,0.15)", borderRadius:14, boxShadow:"0 8px 24px rgba(0,0,0,0.12)", overflow:"hidden", minWidth:160, zIndex:10, animation:"fadeUp 0.2s ease both" }}>
+                    <button onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }} style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:600, color:"#1F2937", cursor:"pointer", display:"flex", alignItems:"center", gap:10 }}>
+                      🖼️ 이미지 업로드
+                    </button>
+                    <div style={{ height:1, background:"#F3F4F6" }} />
+                    <button onClick={() => { setAttachType("url"); setShowAttachMenu(false); }} style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:600, color:"#1F2937", cursor:"pointer", display:"flex", alignItems:"center", gap:10 }}>
+                      🔗 URL 붙여넣기
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <input ref={fileInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
+
+              <textarea
+                ref={inputRef}
+                className="meta-input"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+                placeholder={started ? "답변을 입력하세요..." : "무엇을 만들고 싶은지 자유롭게 말해보세요..."}
+                disabled={loading}
+                rows={1}
+                style={{ flex:1, border:"none", outline:"none", resize:"none", fontSize:14, color:"#1F2937", fontFamily:"inherit", background:"transparent", lineHeight:1.6, maxHeight:120, overflowY:"auto" }}
+                onInput={e => { const el = e.currentTarget; el.style.height="auto"; el.style.height=Math.min(el.scrollHeight,120)+"px"; }}
+              />
+              <button
+                onClick={() => send(input)}
+                disabled={(!input.trim() && !attachImage && !attachUrl) || loading}
+                style={{ width:40, height:40, borderRadius:12, flexShrink:0, background:(input.trim()||attachImage||attachUrl)&&!loading?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s", boxShadow:(input.trim()||attachImage||attachUrl)?"0 4px 12px rgba(124,58,237,0.28)":"none" }}
+              >
+                {loading
+                  ? <div style={{ width:16,height:16,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid white",animation:"spin 0.8s linear infinite" }} />
+                  : <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                }
+              </button>
+            </div>
           </div>
           <div style={{ textAlign:"center", marginTop:8, fontSize:11, color:"#9CA3AF" }}>
             Enter 전송 · Shift+Enter 줄바꿈

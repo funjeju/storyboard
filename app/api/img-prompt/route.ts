@@ -232,15 +232,60 @@ export async function POST(req: NextRequest) {
 - Base prompt: ${styleDNA.promptBase}`
       : "";
 
+    // Per-module rules: which fields to show in image and max char per line
+    const TEXT_IN_IMAGE: Record<string, { fields: string[]; maxChars: number }> = {
+      hero_hook:         { fields: ["headline"],                    maxChars: 20 },
+      strong_copy:       { fields: ["statement"],                   maxChars: 20 },
+      problem_statement: { fields: ["problemHeader"],               maxChars: 20 },
+      pain_point:        { fields: ["hook"],                        maxChars: 20 },
+      customer_reviews:  { fields: ["headline"],                    maxChars: 20 },
+      expert_cert:       { fields: ["certTitle"],                   maxChars: 20 },
+      clinical_results:  { fields: ["headline"],                    maxChars: 20 },
+      origin:            { fields: ["title"],                       maxChars: 20 },
+      manufacturing:     { fields: ["title"],                       maxChars: 20 },
+      brand_story:       { fields: ["title"],                       maxChars: 20 },
+      before_after:      { fields: ["beforeTitle", "afterTitle"],   maxChars: 12 },
+      feature_desc:      { fields: ["title"],                       maxChars: 20 },
+      ingredient_desc:   { fields: ["title"],                       maxChars: 20 },
+      comparison_table:  { fields: ["title"],                       maxChars: 20 },
+      usage_guide:       { fields: ["title"],                       maxChars: 20 },
+      option_desc:       { fields: ["title"],                       maxChars: 20 },
+      faq:               { fields: [],                              maxChars: 0  },
+      lifestyle_image:   { fields: ["headline"],                    maxChars: 20 },
+      emotional_copy:    { fields: ["opening"],                     maxChars: 20 },
+      usage_scenario:    { fields: ["title"],                       maxChars: 20 },
+      brand_philosophy:  { fields: ["title"],                       maxChars: 20 },
+      discount_benefit:  { fields: ["title", "mainBenefit"],        maxChars: 20 },
+      limited_quantity:  { fields: ["alert"],                       maxChars: 15 },
+      recommended_bundle:{ fields: ["title"],                       maxChars: 20 },
+      cta:               { fields: ["headline", "ctaText"],         maxChars: 18 },
+    };
+
+    const rule = TEXT_IN_IMAGE[sectionType] || { fields: ["headline"], maxChars: 20 };
+    const copyTextLines: string[] = [];
+    if (copy && rule.fields.length > 0) {
+      for (const f of rule.fields) {
+        const v = (copy as Record<string, unknown>)[f];
+        if (typeof v === "string" && v.trim() && v.trim().length <= rule.maxChars) {
+          copyTextLines.push(v.trim());
+        }
+      }
+    }
+
     const copyContext = copy
-      ? `\n\nSECTION COPY (critically important — use this to drive the visual direction):
+      ? `\n\nSECTION COPY — use for BOTH visual direction AND text rendering:
 ${JSON.stringify(copy, null, 2)}
 
-→ Extract the EMOTIONAL KEYWORDS and THEMATIC DIRECTION from this copy and embed them into the image:
-  - What feeling does the headline evoke? → Make the lighting, color, and mood match that emotion.
-  - What subject matter does the copy reference? → Feature that in the composition if possible.
-  - What tone does the copy set (premium, warm, urgent, natural, etc.)? → Match the visual tone precisely.
-  - Leave intentional negative space for this copy to overlay.`
+→ VISUAL DIRECTION: Match the emotional tone of the copy (lighting, color temperature, mood).
+${copyTextLines.length > 0 ? `
+→ TEXT TO RENDER IN THE IMAGE: The following Korean text must appear as visible typography overlaid on the image:
+${copyTextLines.map((t, i) => `  ${i === 0 ? "HEADLINE" : "SUBHEADLINE"}: "${t}"`).join("\n")}
+  - Headline: bold, large, white Korean sans-serif font
+  - Subheadline: medium weight, smaller, white or light gray Korean font
+  - Text placed at the designated copy space area (${brief.copySpace})
+  - Background in that area must have sufficient contrast (dark, blurred, or color-blocked) for white text readability
+  - Text must be CLEARLY LEGIBLE — this is critical` : "→ Leave intentional space where copy will be placed."}
+`
       : "";
 
     const guidanceContext = sectionGuidance

@@ -363,6 +363,7 @@ export default function SunoMaker() {
 
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const masterBlobRef = useRef<Blob | null>(null);
+  const mp3BlobRef    = useRef<Blob | null>(null);
   const lyricsTopRef  = useRef<HTMLDivElement>(null);
 
   // ── FUNCTIONS ──────────────────────────────────────────────────────────────
@@ -561,17 +562,50 @@ export default function SunoMaker() {
     setMastering(true);
     try {
       const plt = PLATFORMS.find(p => p.id === platform)!;
-      masterBlobRef.current = encodeWAV(await applyMastering(audioBuffer, plt.lufs, clarity));
+      const masteredBuffer = await applyMastering(audioBuffer, plt.lufs, clarity);
+      masterBlobRef.current = encodeWAV(masteredBuffer);
+      // MP3 인코딩 (lamejs — dynamic import for client-only)
+      try {
+        const lamejs = (await import("lamejs")).default;
+        const numCh = masteredBuffer.numberOfChannels;
+        const sr = masteredBuffer.sampleRate;
+        const encoder = new lamejs.Mp3Encoder(numCh > 1 ? 2 : 1, sr, 192);
+        const left = masteredBuffer.getChannelData(0);
+        const right = numCh > 1 ? masteredBuffer.getChannelData(1) : left;
+        const toInt16 = (f: Float32Array) => {
+          const out = new Int16Array(f.length);
+          for (let i = 0; i < f.length; i++) out[i] = Math.max(-32768, Math.min(32767, f[i] * 32767));
+          return out;
+        };
+        const l16 = toInt16(left), r16 = toInt16(right);
+        const chunks: Uint8Array[] = [];
+        const blockSize = 1152;
+        for (let i = 0; i < l16.length; i += blockSize) {
+          const enc = numCh > 1
+            ? encoder.encodeBuffer(l16.subarray(i, i + blockSize), r16.subarray(i, i + blockSize))
+            : encoder.encodeBuffer(l16.subarray(i, i + blockSize));
+          if (enc.length > 0) chunks.push(new Uint8Array(enc.buffer));
+        }
+        const flushed = encoder.flush();
+        if (flushed.length > 0) chunks.push(new Uint8Array(flushed.buffer));
+        mp3BlobRef.current = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
+      } catch { mp3BlobRef.current = null; }
+      setAnalysis(prev => prev ? {
+        ...prev,
+        lufs: calculateLUFS(masteredBuffer),
+        peak: getPeak(masteredBuffer),
+      } : prev);
       setMasterDone(true);
     } catch { /* silent */ }
     setMastering(false);
   };
 
-  const downloadMastered = () => {
-    if (!masterBlobRef.current) return;
-    const url = URL.createObjectURL(masterBlobRef.current);
+  const downloadMastered = (format: "wav" | "mp3" = "wav") => {
+    const blob = format === "mp3" ? mp3BlobRef.current : masterBlobRef.current;
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url;
-    a.download = `${title || "mastered"}_mastered.wav`; a.click();
+    a.download = `${title || "mastered"}_mastered.${format}`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -759,9 +793,16 @@ export default function SunoMaker() {
                 {mastering ? <><Spin size={14} color="white" /> 마스터링 중...</> : "🎚 마스터링 적용"}
               </button>
               {masterDone && (
-                <button onClick={downloadMastered} style={{ flex:1, padding:"12px", background:"#10B981", border:"none", borderRadius:12, color:"white", fontSize:14, fontWeight:700, cursor:"pointer" }}>
-                  ⬇️ WAV 다운로드
-                </button>
+                <>
+                  <button onClick={() => downloadMastered("wav")} style={{ flex:1, padding:"12px", background:"#10B981", border:"none", borderRadius:12, color:"white", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                    ⬇️ WAV
+                  </button>
+                  {mp3BlobRef.current && (
+                    <button onClick={() => downloadMastered("mp3")} style={{ flex:1, padding:"12px", background:"#3B82F6", border:"none", borderRadius:12, color:"white", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                      ⬇️ MP3
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>

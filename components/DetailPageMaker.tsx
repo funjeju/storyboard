@@ -242,6 +242,7 @@ export default function DetailPageMaker() {
   const [researchLoading, setResearchLoading] = useState(false);
   const [dnaLoading, setDnaLoading]   = useState(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [showProjectPanel, setShowProjectPanel] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -258,13 +259,8 @@ export default function DetailPageMaker() {
           } catch { /* ignore */ }
         }
       }).catch(() => {});
-    } else {
-      const currentId = localStorage.getItem(CURRENT_KEY);
-      if (currentId) {
-        const loaded = loadProject(currentId);
-        if (loaded) setProject(loaded);
-      }
     }
+    // No auto-load — every page open starts fresh. User explicitly loads via "불러오기".
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -582,19 +578,42 @@ export default function DetailPageMaker() {
             </a>
           ))}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {user ? (
-            <>
-              <span style={{ fontSize: 10, color: cloudSyncing ? "#6B7280" : "#059669" }}>
-                {cloudSyncing ? "⏳ 저장 중..." : "☁️ 클라우드 저장됨"}
-              </span>
-              {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 22, height: 22, borderRadius: "50%" }} />}
-            </>
-          ) : (
-            <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>
-              Powered by <span style={{ color: "#2563EB", fontWeight: 700 }}>Gemini</span>
-            </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {user && (
+            <span style={{ fontSize: 10, color: cloudSyncing ? "#6B7280" : "#059669" }}>
+              {cloudSyncing ? "⏳ 저장 중..." : "☁️ 자동저장됨"}
+            </span>
           )}
+          <button onClick={startNewProject} style={{ padding: "4px 12px", borderRadius: 8, background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+            + 새 프로젝트
+          </button>
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowProjectPanel(v => !v)}
+              style={{ padding: "4px 12px", borderRadius: 8, background: showProjectPanel ? "#F3F4F6" : "white", color: "#374151", border: "1px solid #E5E7EB", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+            >
+              📁 불러오기 {projectIndex.length > 0 && `(${projectIndex.length})`}
+            </button>
+            {showProjectPanel && (
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", width: 280, background: "white", borderRadius: 14, boxShadow: "0 8px 32px rgba(0,0,0,0.14)", border: "1px solid #E5E7EB", zIndex: 200, overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid #F3F4F6", fontSize: 12, fontWeight: 800, color: "#111827" }}>저장된 프로젝트</div>
+                <div style={{ maxHeight: 320, overflowY: "auto" }}>
+                  {projectIndex.length === 0 ? (
+                    <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 12, color: "#9CA3AF" }}>저장된 프로젝트 없음</div>
+                  ) : projectIndex.map(p => (
+                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: "1px solid #F9FAFB", background: p.id === project.id ? "#EFF6FF" : "white" }}>
+                      <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => { openProject(p.id); setShowProjectPanel(false); }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: p.id === project.id ? "#2563EB" : "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                        <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{new Date(p.updatedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
+                      </div>
+                      <button onClick={() => removeProject(p.id)} style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontSize: 13, padding: "2px 4px", flexShrink: 0 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {user?.photoURL && <img src={user.photoURL} alt="" style={{ width: 22, height: 22, borderRadius: "50%" }} />}
         </div>
       </nav>
 

@@ -187,6 +187,12 @@ export default function MainHub() {
           >
             📋 액션보드
           </Link>
+          <Link
+            href="/feed"
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", background:"rgba(236,72,153,0.07)", border:"1.5px solid rgba(236,72,153,0.2)", borderRadius:10, textDecoration:"none", fontSize:13, fontWeight:700, color:"#EC4899" }}
+          >
+            🌐 피드
+          </Link>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

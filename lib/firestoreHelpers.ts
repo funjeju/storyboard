@@ -131,6 +131,78 @@ export async function getDetailProject(uid: string, projectId: string): Promise<
   return snap.exists() ? (snap.data() as CloudDetailProject) : null;
 }
 
+// ─── Feed Posts ───────────────────────────────────────────────────────────────
+
+export type FeedCategory = "music" | "video" | "image" | "web";
+
+export interface CloudFeedPost {
+  id: string;
+  uid: string;
+  authorName: string;
+  authorPhoto: string;
+  category: FeedCategory;
+  title: string;
+  description?: string;
+  // content per category
+  audioUrl?: string;      // music
+  youtubeUrl?: string;    // video
+  imageUrl?: string;      // image
+  webUrl?: string;        // web/app
+  thumbnailUrl?: string;  // optional override thumbnail
+  // stats
+  likes: number;
+  views: number;
+  fromBoardId?: string;   // set if shared from ActionBoard
+  createdAt: number;
+  updatedAt: number;
+}
+
+function feedCol() {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "feedPosts");
+}
+function feedDoc(id: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "feedPosts", id);
+}
+
+export async function createFeedPost(post: CloudFeedPost) {
+  await setDoc(feedDoc(post.id), post);
+}
+
+export async function deleteFeedPost(postId: string) {
+  await deleteDoc(feedDoc(postId));
+}
+
+export async function likeFeedPost(postId: string, delta: 1 | -1) {
+  const snap = await getDoc(feedDoc(postId));
+  if (!snap.exists()) return;
+  const current = (snap.data() as CloudFeedPost).likes ?? 0;
+  await setDoc(feedDoc(postId), { likes: Math.max(0, current + delta) }, { merge: true });
+}
+
+export async function incrementFeedViews(postId: string) {
+  const snap = await getDoc(feedDoc(postId));
+  if (!snap.exists()) return;
+  const current = (snap.data() as CloudFeedPost).views ?? 0;
+  await setDoc(feedDoc(postId), { views: current + 1 }, { merge: true });
+}
+
+export function subscribeToFeedPosts(
+  cb: (posts: CloudFeedPost[]) => void,
+  category?: FeedCategory,
+): Unsubscribe {
+  const base = feedCol();
+  const q = category
+    ? query(base, orderBy("createdAt", "desc"))
+    : query(base, orderBy("createdAt", "desc"));
+  return onSnapshot(q, snap => {
+    let posts = snap.docs.map(d => d.data() as CloudFeedPost);
+    if (category) posts = posts.filter(p => p.category === category);
+    cb(posts);
+  });
+}
+
 // ─── Action Boards ────────────────────────────────────────────────────────────
 
 export interface CloudActionBoard {

@@ -205,25 +205,22 @@ export function subscribeToActionBoards(cb: (boards: CloudActionBoard[]) => void
 }
 
 export async function addBoardPost(boardId: string, post: CloudBoardPost) {
-  const ref = postDoc(boardId, post.id);
-  await setDoc(ref, post);
-  // increment postCount
-  const bRef = boardDoc(boardId);
-  const snap = await getDoc(bRef);
-  if (snap.exists()) {
+  // Only await the post write — postCount is best-effort, never blocks the user
+  await setDoc(postDoc(boardId, post.id), post);
+  getDoc(boardDoc(boardId)).then(snap => {
+    if (!snap.exists()) return;
     const current = (snap.data() as CloudActionBoard).postCount ?? 0;
-    await setDoc(bRef, { postCount: current + 1, updatedAt: Date.now() }, { merge: true });
-  }
+    return setDoc(boardDoc(boardId), { postCount: current + 1, updatedAt: Date.now() }, { merge: true });
+  }).catch(() => {});
 }
 
 export async function deleteBoardPost(boardId: string, postId: string) {
   await deleteDoc(postDoc(boardId, postId));
-  const bRef = boardDoc(boardId);
-  const snap = await getDoc(bRef);
-  if (snap.exists()) {
+  getDoc(boardDoc(boardId)).then(snap => {
+    if (!snap.exists()) return;
     const current = (snap.data() as CloudActionBoard).postCount ?? 1;
-    await setDoc(bRef, { postCount: Math.max(0, current - 1), updatedAt: Date.now() }, { merge: true });
-  }
+    return setDoc(boardDoc(boardId), { postCount: Math.max(0, current - 1), updatedAt: Date.now() }, { merge: true });
+  }).catch(() => {});
 }
 
 export async function updateBoardPostPosition(boardId: string, postId: string, x: number, y: number) {

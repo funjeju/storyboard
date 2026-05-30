@@ -157,19 +157,36 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   // keep posRef in sync so mouseup closure has latest positions
   useEffect(() => { posRef.current = positions; }, [positions]);
 
-  // Assign positions from Firestore data or default grid
+  // Find first grid slot not occupied by any existing card
+  const findEmptySlot = useCallback((existing: Record<string, Pos>): Pos => {
+    const colW = CARD_W + 20;   // 280px per column
+    const rowH = 300;            // estimated row height
+    const cols = Math.max(1, Math.floor((typeof window !== "undefined" ? Math.min(window.innerWidth, 1280) : 1280) / colW));
+    const occupied = Object.values(existing);
+    for (let row = 0; row < 40; row++) {
+      for (let col = 0; col < cols; col++) {
+        const cx = col * colW + 20;
+        const cy = row * rowH + 20;
+        const conflict = occupied.some(p => Math.abs(p.x - cx) < CARD_W && Math.abs(p.y - cy) < rowH);
+        if (!conflict) return { x: cx, y: cy };
+      }
+    }
+    return { x: 20, y: 20 };
+  }, [CARD_W]);
+
+  // Assign positions from Firestore data or find empty slot
   useEffect(() => {
     setPositions(prev => {
       const next = { ...prev };
-      posts.forEach((p, i) => {
-        if (next[p.id]) return; // already positioned
+      posts.forEach(p => {
+        if (next[p.id]) return; // already positioned locally
         next[p.id] = p.x !== undefined && p.y !== undefined
-          ? { x: p.x, y: p.y }
-          : { x: (i % 4) * 290 + 20 + (i % 2) * 12, y: Math.floor(i / 4) * 310 + 20 + (i % 3) * 8 };
+          ? { x: p.x, y: p.y }     // use saved Firestore position
+          : findEmptySlot(next);    // find first empty slot
       });
       return next;
     });
-  }, [posts]);
+  }, [posts, findEmptySlot]);
 
   const handleCardMouseDown = useCallback((e: React.MouseEvent, postId: string) => {
     const tag = (e.target as HTMLElement).closest("button,a,audio,iframe,select");

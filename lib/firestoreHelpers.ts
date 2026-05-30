@@ -131,6 +131,37 @@ export async function getDetailProject(uid: string, projectId: string): Promise<
   return snap.exists() ? (snap.data() as CloudDetailProject) : null;
 }
 
+// ─── MetaPrompts ─────────────────────────────────────────────────────────────
+
+export interface CloudMetaPrompt {
+  id: string;
+  uid: string;
+  domain: string;
+  title: string;        // first user message (truncated)
+  finalPrompt: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export async function upsertMetaPrompt(uid: string, prompt: Omit<CloudMetaPrompt, "uid">) {
+  const ref = d(uid, "metaPrompts", prompt.id);
+  await setDoc(ref, { ...prompt, uid, updatedAt: Date.now() }, { merge: true });
+}
+
+export async function deleteMetaPrompt(uid: string, promptId: string) {
+  await deleteDoc(d(uid, "metaPrompts", promptId));
+}
+
+export function subscribeToMetaPrompts(
+  uid: string,
+  cb: (prompts: CloudMetaPrompt[]) => void,
+): Unsubscribe {
+  const q = query(col(uid, "metaPrompts"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, snap => {
+    cb(snap.docs.map(d => d.data() as CloudMetaPrompt));
+  });
+}
+
 // ─── Storyboards ─────────────────────────────────────────────────────────────
 
 export async function upsertStoryboard(uid: string, sb: Omit<CloudStoryboard, "uid">) {

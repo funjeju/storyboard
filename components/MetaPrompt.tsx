@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
+import { upsertMetaPrompt } from "@/lib/firestoreHelpers";
 
 const P = "#7C3AED";
 const PINK = "#EC4899";
@@ -31,6 +33,7 @@ const EXAMPLES = [
 ];
 
 export default function MetaPrompt() {
+  const { user, signIn }                = useAuth();
   const [messages, setMessages]         = useState<Message[]>([]);
   const [input, setInput]               = useState("");
   const [loading, setLoading]           = useState(false);
@@ -42,6 +45,9 @@ export default function MetaPrompt() {
   const [copied, setCopied]             = useState(false);
   const [started, setStarted]           = useState(false);
   const [questionsDone, setQuestionsDone] = useState(false);
+  const [saving, setSaving]             = useState(false);
+  const [saved, setSaved]               = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Attachment state
   const [attachType, setAttachType]     = useState<"image" | "url" | null>(null);
@@ -164,10 +170,31 @@ export default function MetaPrompt() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const savePrompt = async () => {
+    if (!finalPrompt) return;
+    if (!user) { setShowAuthModal(true); return; }
+    setSaving(true);
+    try {
+      const title = messages.find(m => m.role === "user")?.content?.slice(0, 60) ?? "프롬프트";
+      await upsertMetaPrompt(user.uid, {
+        id: crypto.randomUUID(),
+        domain,
+        title,
+        finalPrompt,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { /* silent */ }
+    setSaving(false);
+  };
+
   const reset = () => {
     setMessages([]); setInput(""); setDomain("");
     setFinalPrompt(null); setGeneratedImage(null);
     setStarted(false); setQuestionsDone(false); setReasoning("");
+    setSaved(false);
   };
 
   const domainIcon = DOMAIN_ICONS[domain] || "✦";
@@ -195,6 +222,40 @@ export default function MetaPrompt() {
           .meta-bar { left:12px!important; right:12px!important; }
         }
       `}</style>
+
+      {/* Auth modal */}
+      {showAuthModal && (
+        <div
+          onClick={() => setShowAuthModal(false)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background:"white", borderRadius:28, padding:"44px 36px", textAlign:"center", maxWidth:380, width:"100%", boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}
+          >
+            <div style={{ fontSize:48, marginBottom:16 }}>🔐</div>
+            <div style={{ fontSize:20, fontWeight:800, color:"#111827", marginBottom:10 }}>로그인이 필요해요</div>
+            <div style={{ fontSize:14, color:"#6B7280", lineHeight:1.7, marginBottom:32 }}>
+              Google 계정으로 로그인하면<br />
+              생성한 프롬프트를 저장하고<br />
+              언제든지 다시 불러올 수 있어요.
+            </div>
+            <button
+              onClick={async () => { await signIn(); setShowAuthModal(false); }}
+              style={{ width:"100%", padding:"14px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:14, fontSize:15, fontWeight:700, color:"white", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10, boxShadow:`0 4px 16px rgba(124,58,237,0.3)`, marginBottom:12 }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24"><path fill="white" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="white" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="white" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="white" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Google로 로그인
+            </button>
+            <button
+              onClick={() => setShowAuthModal(false)}
+              style={{ width:"100%", padding:"12px", background:"transparent", border:"1.5px solid #E5E7EB", borderRadius:14, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* BG orbs */}
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:0, overflow:"hidden" }}>
@@ -354,14 +415,17 @@ export default function MetaPrompt() {
               </div>
 
               {/* Action buttons */}
-              <div style={{ display:"flex", gap:12 }}>
-                <button onClick={copy} style={{ flex:1, padding:"14px", background:"white", border:`2px solid ${P}`, borderRadius:14, fontSize:14, fontWeight:700, color:P, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-                  📋 프롬프트 복사
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={copy} style={{ flex:1, padding:"13px", background:"white", border:`2px solid ${P}`, borderRadius:14, fontSize:13, fontWeight:700, color:P, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                  📋 복사
                 </button>
-                <button onClick={generateImage} disabled={generatingImage} style={{ flex:1, padding:"14px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:14, fontSize:14, fontWeight:700, color:"white", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}>
+                <button onClick={savePrompt} disabled={saving} style={{ flex:1, padding:"13px", background:saved?"#10B981":saving?"#E5E7EB":"white", border:`2px solid ${saved?"#10B981":saving?"#E5E7EB":"#10B981"}`, borderRadius:14, fontSize:13, fontWeight:700, color:saved?"white":saving?"#9CA3AF":"#10B981", cursor:saving?"default":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6, transition:"all 0.2s" }}>
+                  {saved ? "✓ 저장됨" : saving ? "저장 중..." : "💾 저장"}
+                </button>
+                <button onClick={generateImage} disabled={generatingImage} style={{ flex:1, padding:"13px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:14, fontSize:13, fontWeight:700, color:"white", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6, boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}>
                   {generatingImage
-                    ? <><div style={{ width:16, height:16, borderRadius:"50%", border:"2px solid rgba(255,255,255,0.3)", borderTop:"2px solid white", animation:"spin 0.8s linear infinite" }} /> 생성 중...</>
-                    : "🎨 이미지 생성"
+                    ? <><div style={{ width:14, height:14, borderRadius:"50%", border:"2px solid rgba(255,255,255,0.3)", borderTop:"2px solid white", animation:"spin 0.8s linear infinite" }} /> 생성 중...</>
+                    : "🎨 이미지"
                   }
                 </button>
               </div>

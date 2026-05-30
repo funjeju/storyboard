@@ -333,7 +333,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         authorPhoto: user.photoURL ?? "",
         contentType: cType,
         bgColor: cardColor,
-        isAnnouncement: isAnnouncement || undefined,
+        ...(isAnnouncement && { isAnnouncement: true }),
         createdAt: Date.now(),
         ...(cType === "text"    && { text: text.trim() }),
         ...(cType === "image"   && { imageUrl: finalImageUrl }),

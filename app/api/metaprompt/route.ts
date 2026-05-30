@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
           maxOutputTokens: 4096,
           temperature: 0.8,
           responseMimeType: "application/json",
-        },
+        } as never,
       });
       const result = await model.generateContent({ contents });
       const raw = result.response.text();
@@ -80,15 +80,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ...data, isDone: true });
     }
 
-    // mode === "question": use gemini-2.0-flash — fast, stable JSON, no thinking overhead
+    // mode === "question": gemini-2.5-flash with thinking disabled — fast stable JSON
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       systemInstruction: QUESTION_SYSTEM,
       generationConfig: {
         maxOutputTokens: 512,
         temperature: 0.7,
         responseMimeType: "application/json",
-      },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        thinkingConfig: { thinkingBudget: 0 },
+      } as never,
     });
     const result = await model.generateContent({ contents });
     const raw = result.response.text();

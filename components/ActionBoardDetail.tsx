@@ -45,17 +45,18 @@ const PALETTE = [
   "#E1BEE7","#D7CCC8","#FFFFFF","#F5F5F5",
 ];
 
-function PostCard({ post, canDelete, onDelete, onEdit, onMouseDown, isDragging }: {
+function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMaximize, onMouseDown, isDragging }: {
   post: CloudBoardPost;
   canDelete: boolean;
   onDelete: () => void;
   onEdit: () => void;
+  onOpenPpt: (pptUrl: string, pptName: string) => void;
+  onMaximize: () => void;
   onMouseDown: (e: React.MouseEvent) => void;
   isDragging: boolean;
 }) {
   const [playing, setPlaying]       = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
-  const [showPpt, setShowPpt]       = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const color = post.bgColor ?? NOTE_COLORS[Math.abs([...post.id].reduce((a, c) => a + c.charCodeAt(0), 0)) % NOTE_COLORS.length];
 
@@ -80,12 +81,15 @@ function PostCard({ post, canDelete, onDelete, onEdit, onMouseDown, isDragging }
           <span style={{ fontSize:11, fontWeight:600, color:"#374151" }}>{post.authorName}</span>
           <span style={{ fontSize:10, color:"#9CA3AF" }}>{fmtDate(post.createdAt)}</span>
         </div>
-        {canDelete && (
-          <div style={{ display:"flex", gap:2 }}>
-            <button onClick={e => { e.stopPropagation(); onEdit(); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 5px", borderRadius:4 }} title="수정">✏️</button>
-            <button onClick={onDelete} style={{ background:"none", border:"none", cursor:"pointer", fontSize:14, color:"#9CA3AF", padding:"2px 5px", borderRadius:4 }} title="삭제">×</button>
-          </div>
-        )}
+        <div style={{ display:"flex", gap:2 }}>
+          <button onClick={e => { e.stopPropagation(); onMaximize(); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 5px", borderRadius:4, lineHeight:1 }} title="최대화">⛶</button>
+          {canDelete && (
+            <>
+              <button onClick={e => { e.stopPropagation(); onEdit(); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 5px", borderRadius:4 }} title="수정">✏️</button>
+              <button onClick={onDelete} style={{ background:"none", border:"none", cursor:"pointer", fontSize:14, color:"#9CA3AF", padding:"2px 5px", borderRadius:4 }} title="삭제">×</button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Content */}
@@ -132,25 +136,13 @@ function PostCard({ post, canDelete, onDelete, onEdit, onMouseDown, isDragging }
       )}
 
       {post.contentType === "ppt" && post.pptUrl && (
-        <div>
-          <div onClick={() => setShowPpt(true)} style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"20px 14px", cursor:"pointer", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
-            <div style={{ fontSize:36 }}>📊</div>
-            <div style={{ fontSize:13, fontWeight:600, color:"#374151", wordBreak:"break-all" }}>{post.pptName || "프레젠테이션"}</div>
-            <div style={{ fontSize:11, color:"#7C3AED", fontWeight:600 }}>클릭하여 슬라이드 보기 →</div>
-          </div>
-          {showPpt && (
-            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", flexDirection:"column" }}>
-              <div style={{ background:"#1a1a2e", padding:"12px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <span style={{ color:"white", fontSize:14, fontWeight:600 }}>📊 {post.pptName}</span>
-                <button onClick={() => setShowPpt(false)} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"white", borderRadius:8, padding:"6px 16px", cursor:"pointer", fontSize:13, fontWeight:600 }}>✕ 닫기</button>
-              </div>
-              <iframe
-                src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(post.pptUrl)}`}
-                style={{ flex:1, border:"none", width:"100%" }}
-                allowFullScreen
-              />
-            </div>
-          )}
+        <div
+          onClick={() => onOpenPpt(post.pptUrl!, post.pptName || "프레젠테이션")}
+          style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"20px 14px", cursor:"pointer", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}
+        >
+          <div style={{ fontSize:36 }}>📊</div>
+          <div style={{ fontSize:13, fontWeight:600, color:"#374151", wordBreak:"break-all" }}>{post.pptName || "프레젠테이션"}</div>
+          <div style={{ fontSize:11, color:"#7C3AED", fontWeight:600 }}>클릭하여 전체화면 보기 →</div>
         </div>
       )}
     </div>
@@ -274,6 +266,11 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [cardColor, setCardColor] = useState(PALETTE[0]);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
+
+  // PPT full-screen viewer
+  const [pptViewer, setPptViewer] = useState<{ url: string; name: string } | null>(null);
+  // Card maximize overlay
+  const [maximizedPost, setMaximizedPost] = useState<CloudBoardPost | null>(null);
 
   // edit post state
   const [editPost, setEditPost]       = useState<CloudBoardPost | null>(null);
@@ -533,6 +530,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   canDelete={!!user && (user.uid === post.uid || user.uid === board.uid)}
                   onDelete={() => deleteBoardPost(boardId, post.id)}
                   onEdit={() => openEditPost(post)}
+                  onOpenPpt={(url, name) => setPptViewer({ url, name })}
+                  onMaximize={() => setMaximizedPost(post)}
                   onMouseDown={e => handleCardMouseDown(e, post.id)}
                   isDragging={isDragging}
                 />
@@ -662,6 +661,69 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 {submitting ? (uploadPct > 0 ? `업로드 ${uploadPct}%` : "등록 중...") : "📌 게시물 등록"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PPT full-screen viewer — rendered at root level to escape transform stacking context ── */}
+      {pptViewer && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:9999, display:"flex", flexDirection:"column" }}>
+          <div style={{ background:"#1a1a2e", padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+            <span style={{ color:"white", fontSize:14, fontWeight:700 }}>📊 {pptViewer.name}</span>
+            <button onClick={() => setPptViewer(null)} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.2)", color:"white", borderRadius:10, padding:"8px 20px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕ 닫기</button>
+          </div>
+          <iframe
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(pptViewer.url)}`}
+            style={{ flex:1, border:"none", width:"100%" }}
+            allowFullScreen
+          />
+        </div>
+      )}
+
+      {/* ── Card maximize overlay ── */}
+      {maximizedPost && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:9998, display:"flex", flexDirection:"column" }}>
+          {/* Header */}
+          <div style={{ background:"#1a1a2e", padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              {maximizedPost.authorPhoto && <img src={maximizedPost.authorPhoto} alt="" style={{ width:28, height:28, borderRadius:"50%" }} />}
+              <span style={{ color:"white", fontSize:14, fontWeight:700 }}>{maximizedPost.authorName}</span>
+              <span style={{ color:"rgba(255,255,255,0.5)", fontSize:12 }}>{fmtDate(maximizedPost.createdAt)}</span>
+            </div>
+            <button onClick={() => setMaximizedPost(null)} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.2)", color:"white", borderRadius:10, padding:"8px 20px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕ 닫기</button>
+          </div>
+
+          {/* Content */}
+          <div style={{ flex:1, overflow:"auto", display:"flex", alignItems:"center", justifyContent:"center", padding:40 }}>
+            {maximizedPost.contentType === "text" && (
+              <div style={{ maxWidth:800, width:"100%", background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, padding:"48px 56px", fontSize:20, lineHeight:1.8, color:"#1F2937", whiteSpace:"pre-wrap" }}>
+                {maximizedPost.text}
+              </div>
+            )}
+            {maximizedPost.contentType === "image" && maximizedPost.imageUrl && (
+              <img src={maximizedPost.imageUrl} alt="" style={{ maxWidth:"100%", maxHeight:"100%", borderRadius:16, objectFit:"contain" }} />
+            )}
+            {maximizedPost.contentType === "audio" && maximizedPost.audioUrl && (
+              <div style={{ background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, padding:"60px 80px", textAlign:"center" }}>
+                <div style={{ fontSize:64, marginBottom:24 }}>🎵</div>
+                <div style={{ fontSize:22, fontWeight:700, color:"#1F2937", marginBottom:32 }}>{maximizedPost.audioName}</div>
+                <audio controls src={maximizedPost.audioUrl} style={{ width:400 }} />
+              </div>
+            )}
+            {maximizedPost.contentType === "youtube" && maximizedPost.youtubeUrl && (
+              <div style={{ width:"100%", maxWidth:960 }}>
+                <div style={{ position:"relative", paddingTop:"56.25%", borderRadius:16, overflow:"hidden" }}>
+                  <iframe src={`https://www.youtube.com/embed/${getYoutubeId(maximizedPost.youtubeUrl)}?autoplay=1`}
+                    style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allowFullScreen allow="autoplay" />
+                </div>
+              </div>
+            )}
+            {maximizedPost.contentType === "ppt" && maximizedPost.pptUrl && (
+              <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", gap:0 }}>
+                <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(maximizedPost.pptUrl)}`}
+                  style={{ flex:1, border:"none", width:"100%", minHeight:500, borderRadius:12 }} allowFullScreen />
+              </div>
+            )}
           </div>
         </div>
       )}

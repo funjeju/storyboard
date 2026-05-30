@@ -12,12 +12,12 @@ import {
   type CloudActionBoard,
   type CloudBoardPost,
 } from "@/lib/firestoreHelpers";
-import { uploadImageDataUrl } from "@/lib/firebaseStorage";
+import { uploadImageDataUrl, uploadBoardFile } from "@/lib/firebaseStorage";
 
 const P = "#7C3AED";
 const PINK = "#EC4899";
 
-type ContentType = "text" | "image" | "audio" | "youtube";
+type ContentType = "text" | "image" | "audio" | "youtube" | "ppt";
 
 function getBoardStatus(board: CloudActionBoard) {
   const now = Date.now();
@@ -38,6 +38,11 @@ function getYoutubeId(url: string) {
 
 // ── Sticky note card ──────────────────────────────────────────────────────────
 const NOTE_COLORS = ["#FFF9C4","#FFE0B2","#F8BBD0","#C8E6C9","#B3E5FC","#E1BEE7","#FFFFFF"];
+const PALETTE = [
+  "#FFF9C4","#FFE0B2","#FFCDD2","#F8BBD0",
+  "#C8E6C9","#DCEDC8","#B3E5FC","#BBDEFB",
+  "#E1BEE7","#D7CCC8","#FFFFFF","#F5F5F5",
+];
 
 function PostCard({ post, canDelete, onDelete, onMouseDown, isDragging }: {
   post: CloudBoardPost;
@@ -46,10 +51,11 @@ function PostCard({ post, canDelete, onDelete, onMouseDown, isDragging }: {
   onMouseDown: (e: React.MouseEvent) => void;
   isDragging: boolean;
 }) {
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying]       = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
+  const [showPpt, setShowPpt]       = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const color = NOTE_COLORS[Math.abs([...post.id].reduce((a, c) => a + c.charCodeAt(0), 0)) % NOTE_COLORS.length];
+  const color = post.bgColor ?? NOTE_COLORS[Math.abs([...post.id].reduce((a, c) => a + c.charCodeAt(0), 0)) % NOTE_COLORS.length];
 
   const toggleAudio = () => {
     if (!audioRef.current) return;
@@ -102,16 +108,9 @@ function PostCard({ post, canDelete, onDelete, onMouseDown, isDragging }: {
       {post.contentType === "youtube" && post.youtubeUrl && (
         <div>
           {!showPlayer ? (
-            <div
-              onClick={() => setShowPlayer(true)}
-              style={{ position:"relative", borderRadius:10, overflow:"hidden", cursor:"pointer" }}
-            >
+            <div onClick={() => setShowPlayer(true)} style={{ position:"relative", borderRadius:10, overflow:"hidden", cursor:"pointer" }}>
               {getYoutubeId(post.youtubeUrl) && (
-                <img
-                  src={`https://img.youtube.com/vi/${getYoutubeId(post.youtubeUrl)}/mqdefault.jpg`}
-                  alt="YouTube 썸네일"
-                  style={{ width:"100%", display:"block", borderRadius:10 }}
-                />
+                <img src={`https://img.youtube.com/vi/${getYoutubeId(post.youtubeUrl)}/mqdefault.jpg`} alt="YouTube 썸네일" style={{ width:"100%", display:"block", borderRadius:10 }} />
               )}
               <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.25)", borderRadius:10 }}>
                 <div style={{ width:44, height:44, borderRadius:"50%", background:"rgba(255,0,0,0.9)", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -121,11 +120,29 @@ function PostCard({ post, canDelete, onDelete, onMouseDown, isDragging }: {
             </div>
           ) : (
             <div style={{ position:"relative", paddingTop:"56.25%", borderRadius:10, overflow:"hidden" }}>
+              <iframe src={`https://www.youtube.com/embed/${getYoutubeId(post.youtubeUrl)}?autoplay=1`} style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allowFullScreen allow="autoplay" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {post.contentType === "ppt" && post.pptUrl && (
+        <div>
+          <div onClick={() => setShowPpt(true)} style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"20px 14px", cursor:"pointer", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+            <div style={{ fontSize:36 }}>📊</div>
+            <div style={{ fontSize:13, fontWeight:600, color:"#374151", wordBreak:"break-all" }}>{post.pptName || "프레젠테이션"}</div>
+            <div style={{ fontSize:11, color:"#7C3AED", fontWeight:600 }}>클릭하여 슬라이드 보기 →</div>
+          </div>
+          {showPpt && (
+            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:9999, display:"flex", flexDirection:"column" }}>
+              <div style={{ background:"#1a1a2e", padding:"12px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <span style={{ color:"white", fontSize:14, fontWeight:600 }}>📊 {post.pptName}</span>
+                <button onClick={() => setShowPpt(false)} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"white", borderRadius:8, padding:"6px 16px", cursor:"pointer", fontSize:13, fontWeight:600 }}>✕ 닫기</button>
+              </div>
               <iframe
-                src={`https://www.youtube.com/embed/${getYoutubeId(post.youtubeUrl)}?autoplay=1`}
-                style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }}
+                src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(post.pptUrl)}`}
+                style={{ flex:1, border:"none", width:"100%" }}
                 allowFullScreen
-                allow="autoplay"
               />
             </div>
           )}
@@ -240,13 +257,21 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   }, [boardId]);
 
   // form
-  const [cType, setCType]     = useState<ContentType>("text");
-  const [text, setText]       = useState("");
+  const [cType, setCType]       = useState<ContentType>("text");
+  const [text, setText]         = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
   const [audioName, setAudioName] = useState("");
-  const [ytUrl, setYtUrl]     = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [ytUrl, setYtUrl]       = useState("");
+  const [pptFile, setPptFile]   = useState<File | null>(null);
+  const [pptName, setPptName]   = useState("");
+  const [cardColor, setCardColor] = useState(PALETTE[0]);
+  const [isAnnouncement, setIsAnnouncement] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
+  const fileRef     = useRef<HTMLInputElement>(null);
+  const audioRef2   = useRef<HTMLInputElement>(null);
+  const pptFileRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getActionBoard(boardId).then(b => { setBoard(b); setLoading(false); });
@@ -256,6 +281,9 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
   const status = board ? getBoardStatus(board) : "closed";
   const canPost = status === "open" && !!user;
+  const isAdmin = !!user && !!board && user.uid === board.uid;
+  const announcements = posts.filter(p => p.isAnnouncement);
+  const normalPosts   = posts.filter(p => !p.isAnnouncement);
 
   const handleImageFile = (file: File) => {
     const reader = new FileReader();
@@ -268,19 +296,33 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     const validContent =
       (cType === "text"    && text.trim()) ||
       (cType === "image"   && imageUrl) ||
-      (cType === "audio"   && audioUrl) ||
-      (cType === "youtube" && ytUrl.trim());
+      (cType === "audio"   && audioFile) ||
+      (cType === "youtube" && ytUrl.trim()) ||
+      (cType === "ppt"     && pptFile);
     if (!validContent) return;
 
     setSubmitting(true);
+    setUploadPct(0);
     try {
+      // Upload image (base64 → Storage)
       let finalImageUrl = imageUrl;
-
-      // Upload base64 image to Firebase Storage → get HTTPS URL
       if (cType === "image" && imageUrl.startsWith("data:")) {
-        const filename = `board_${Date.now()}.png`;
-        const { url } = await uploadImageDataUrl(user.uid, `actionboards/${boardId}`, filename, imageUrl);
+        const { url } = await uploadImageDataUrl(user.uid, `actionboards/${boardId}`, `img_${Date.now()}.png`, imageUrl);
         finalImageUrl = url;
+      }
+
+      // Upload audio file → Storage
+      let finalAudioUrl = audioUrl;
+      if (cType === "audio" && audioFile) {
+        const { url } = await uploadBoardFile(boardId, "audio", audioFile, setUploadPct);
+        finalAudioUrl = url;
+      }
+
+      // Upload PPT file → Storage
+      let finalPptUrl = "";
+      if (cType === "ppt" && pptFile) {
+        const { url } = await uploadBoardFile(boardId, "ppt", pptFile, setUploadPct);
+        finalPptUrl = url;
       }
 
       const post: CloudBoardPost = {
@@ -290,20 +332,26 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         authorName: user.displayName ?? "익명",
         authorPhoto: user.photoURL ?? "",
         contentType: cType,
+        bgColor: cardColor,
+        isAnnouncement: isAnnouncement || undefined,
         createdAt: Date.now(),
         ...(cType === "text"    && { text: text.trim() }),
         ...(cType === "image"   && { imageUrl: finalImageUrl }),
-        ...(cType === "audio"   && { audioUrl, audioName: audioName || "오디오" }),
+        ...(cType === "audio"   && { audioUrl: finalAudioUrl, audioName: audioName || audioFile?.name || "오디오" }),
         ...(cType === "youtube" && { youtubeUrl: ytUrl.trim() }),
+        ...(cType === "ppt"     && { pptUrl: finalPptUrl, pptName: pptName || pptFile?.name || "프레젠테이션" }),
       };
       await addBoardPost(boardId, post);
-      setText(""); setImageUrl(""); setAudioUrl(""); setAudioName(""); setYtUrl("");
+      setText(""); setImageUrl(""); setAudioUrl(""); setAudioName(""); setAudioFile(null);
+      setYtUrl(""); setPptFile(null); setPptName(""); setIsAnnouncement(false);
+      setCardColor(PALETTE[0]);
       setShowForm(false);
     } catch (e) {
       console.error("[ActionBoard] submit failed:", e);
       alert("등록 중 오류가 발생했습니다. 다시 시도해주세요.");
     }
     setSubmitting(false);
+    setUploadPct(0);
   };
 
   if (loading) return (
@@ -377,6 +425,30 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         </div>
       )}
 
+      {/* ── Announcement banner ── */}
+      {announcements.length > 0 && (
+        <div style={{ background:"linear-gradient(135deg,rgba(124,58,237,0.06),rgba(236,72,153,0.04))", borderBottom:"1px solid rgba(124,58,237,0.12)", padding:"12px 24px" }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"#7C3AED", letterSpacing:1, marginBottom:10 }}>📢 공지</div>
+          <div style={{ display:"flex", gap:12, overflowX:"auto", paddingBottom:4 }}>
+            {announcements.map(post => (
+              <div key={post.id} style={{ flexShrink:0, width:260, background:post.bgColor ?? "#FFF9C4", borderRadius:14, padding:"14px 16px", boxShadow:"0 2px 8px rgba(0,0,0,0.08)", position:"relative" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+                  {post.authorPhoto && <img src={post.authorPhoto} alt="" style={{ width:18, height:18, borderRadius:"50%" }} />}
+                  <span style={{ fontSize:11, fontWeight:600, color:"#374151" }}>{post.authorName}</span>
+                  <span style={{ fontSize:10, color:"#9CA3AF" }}>{fmtDate(post.createdAt)}</span>
+                </div>
+                {post.contentType === "text"  && <p style={{ fontSize:13, color:"#1F2937", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{post.text}</p>}
+                {post.contentType === "image" && post.imageUrl && <img src={post.imageUrl} alt="" style={{ width:"100%", borderRadius:8 }} />}
+                {post.contentType === "youtube" && post.youtubeUrl && getYoutubeId(post.youtubeUrl) && <img src={`https://img.youtube.com/vi/${getYoutubeId(post.youtubeUrl)}/mqdefault.jpg`} alt="" style={{ width:"100%", borderRadius:8 }} />}
+                {isAdmin && (
+                  <button onClick={() => deleteBoardPost(boardId, post.id)} style={{ position:"absolute", top:8, right:8, background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF" }}>×</button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Free-position canvas */}
       <div
         style={{ position:"relative", minHeight:"calc(100vh - 120px)", overflow:"visible" }}
@@ -395,14 +467,14 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
           }} />
         ))}
 
-        {posts.length === 0 ? (
+        {normalPosts.length === 0 ? (
           <div style={{ textAlign:"center", padding:"80px 0", color:"#9CA3AF" }}>
             <div style={{ fontSize:48, marginBottom:16 }}>📝</div>
             <div style={{ fontSize:16, fontWeight:600 }}>아직 게시물이 없어요</div>
             {canPost && <div style={{ fontSize:13, marginTop:8 }}>첫 번째 메모를 붙여보세요!</div>}
           </div>
         ) : (
-          posts.map(post => {
+          normalPosts.map(post => {
             const pos = positions[post.id] ?? { x: 20, y: 20 };
             const isDragging = draggingId === post.id;
             return (
@@ -437,14 +509,9 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
             <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:20 }}>✍️ 게시물 작성</div>
 
             {/* Content type tabs */}
-            <div style={{ display:"flex", gap:8, marginBottom:20 }}>
-              {([["text","📝 텍스트"],["image","🖼️ 이미지"],["audio","🎵 MP3"],["youtube","▶ 유튜브"]] as [ContentType,string][]).map(([t,label]) => (
-                <button
-                  key={t}
-                  onClick={() => setCType(t)}
-                  className="type-btn"
-                  style={{ flex:1, padding:"8px 0", borderRadius:10, border:`2px solid ${cType===t?P:"#E5E7EB"}`, background:cType===t?`rgba(124,58,237,0.07)`:"white", fontSize:12, fontWeight:700, color:cType===t?P:"#6B7280" }}
-                >
+            <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+              {([["text","📝 텍스트"],["image","🖼️ 이미지"],["audio","🎵 MP3"],["youtube","▶ 유튜브"],["ppt","📊 PPT"]] as [ContentType,string][]).map(([t,label]) => (
+                <button key={t} onClick={() => setCType(t)} className="type-btn" style={{ flex:1, minWidth:80, padding:"8px 0", borderRadius:10, border:`2px solid ${cType===t?P:"#E5E7EB"}`, background:cType===t?`rgba(124,58,237,0.07)`:"white", fontSize:12, fontWeight:700, color:cType===t?P:"#6B7280" }}>
                   {label}
                 </button>
               ))}
@@ -452,13 +519,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
             {/* Inputs by type */}
             {cType === "text" && (
-              <textarea
-                value={text}
-                onChange={e => setText(e.target.value)}
-                placeholder="내용을 입력하세요..."
-                rows={5}
-                style={{ width:"100%", padding:"12px", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontFamily:"inherit", resize:"vertical" }}
-              />
+              <textarea value={text} onChange={e => setText(e.target.value)} placeholder="내용을 입력하세요..." rows={5}
+                style={{ width:"100%", padding:"12px", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontFamily:"inherit", resize:"vertical" }} />
             )}
 
             {cType === "image" && (
@@ -480,18 +542,74 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
             {cType === "audio" && (
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <input ref={audioRef2} type="file" accept="audio/*" style={{ display:"none" }} onChange={e => { const f = e.target.files?.[0]; if(f){ setAudioFile(f); if(!audioName) setAudioName(f.name.replace(/\.[^/.]+$/,"")); } }} />
                 <input value={audioName} onChange={e => setAudioName(e.target.value)} placeholder="트랙 제목" style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
-                <input value={audioUrl} onChange={e => setAudioUrl(e.target.value)} placeholder="MP3 URL (Firebase Storage, S3 등)" style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
+                {audioFile ? (
+                  <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"#F0FDF4", borderRadius:10, border:"1.5px solid #86EFAC" }}>
+                    <span style={{ fontSize:20 }}>🎵</span>
+                    <span style={{ fontSize:13, fontWeight:600, color:"#15803D", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{audioFile.name}</span>
+                    <button onClick={() => setAudioFile(null)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:16 }}>×</button>
+                  </div>
+                ) : (
+                  <div onClick={() => audioRef2.current?.click()} style={{ border:"2px dashed #E5E7EB", borderRadius:12, padding:"28px", textAlign:"center", cursor:"pointer", color:"#9CA3AF" }}>
+                    <div style={{ fontSize:28, marginBottom:6 }}>🎵</div>
+                    <div style={{ fontSize:13 }}>클릭하여 MP3 파일 선택</div>
+                  </div>
+                )}
               </div>
             )}
 
             {cType === "youtube" && (
-              <input
-                value={ytUrl}
-                onChange={e => setYtUrl(e.target.value)}
-                placeholder="YouTube URL (예: https://youtu.be/xxxxx)"
-                style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }}
-              />
+              <input value={ytUrl} onChange={e => setYtUrl(e.target.value)} placeholder="YouTube URL (예: https://youtu.be/xxxxx)"
+                style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
+            )}
+
+            {cType === "ppt" && (
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <input ref={pptFileRef} type="file" accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" style={{ display:"none" }} onChange={e => { const f = e.target.files?.[0]; if(f){ setPptFile(f); setPptName(f.name); } }} />
+                {pptFile ? (
+                  <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", background:"#FFF7ED", borderRadius:10, border:"1.5px solid #FED7AA" }}>
+                    <span style={{ fontSize:24 }}>📊</span>
+                    <span style={{ fontSize:13, fontWeight:600, color:"#C2410C", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pptFile.name}</span>
+                    <button onClick={() => { setPptFile(null); setPptName(""); }} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:16 }}>×</button>
+                  </div>
+                ) : (
+                  <div onClick={() => pptFileRef.current?.click()} style={{ border:"2px dashed #E5E7EB", borderRadius:12, padding:"28px", textAlign:"center", cursor:"pointer", color:"#9CA3AF" }}>
+                    <div style={{ fontSize:28, marginBottom:6 }}>📊</div>
+                    <div style={{ fontSize:13 }}>클릭하여 PPT / PPTX 파일 선택</div>
+                    <div style={{ fontSize:11, marginTop:4, color:"#C4B5FD" }}>Microsoft Office Online으로 뷰어 제공</div>
+                  </div>
+                )}
+                <input value={pptName} onChange={e => setPptName(e.target.value)} placeholder="발표 제목 (선택)" style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
+              </div>
+            )}
+
+            {/* Color palette */}
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:8 }}>🎨 카드 배경색</div>
+              <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+                {PALETTE.map(c => (
+                  <div key={c} onClick={() => setCardColor(c)} style={{ width:28, height:28, borderRadius:8, background:c, border:`2.5px solid ${cardColor===c?"#7C3AED":"#E5E7EB"}`, cursor:"pointer", boxShadow:cardColor===c?"0 0 0 2px rgba(124,58,237,0.25)":"none", transition:"all 0.12s" }} />
+                ))}
+              </div>
+            </div>
+
+            {/* Admin announcement toggle */}
+            {isAdmin && (
+              <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", padding:"10px 14px", background:"rgba(124,58,237,0.05)", borderRadius:10, border:"1.5px solid rgba(124,58,237,0.15)" }}>
+                <input type="checkbox" checked={isAnnouncement} onChange={e => setIsAnnouncement(e.target.checked)} style={{ width:16, height:16, accentColor:"#7C3AED" }} />
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#7C3AED" }}>📢 공지로 등록</div>
+                  <div style={{ fontSize:11, color:"#9CA3AF" }}>보드 최상단 고정 — 관리자만 가능</div>
+                </div>
+              </label>
+            )}
+
+            {/* Upload progress */}
+            {submitting && uploadPct > 0 && uploadPct < 100 && (
+              <div style={{ background:"#EDE9FE", borderRadius:10, height:6, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${uploadPct}%`, background:`linear-gradient(90deg,${P},${PINK})`, transition:"width 0.3s" }} />
+              </div>
             )}
 
             <div style={{ display:"flex", gap:10, marginTop:20 }}>
@@ -501,7 +619,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 disabled={submitting}
                 style={{ flex:2, padding:"13px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}
               >
-                {submitting ? (cType === "image" ? "업로드 중..." : "등록 중...") : "📌 게시물 등록"}
+                {submitting ? (uploadPct > 0 ? `업로드 ${uploadPct}%` : "등록 중...") : "📌 게시물 등록"}
               </button>
             </div>
           </div>

@@ -153,15 +153,19 @@ export interface CloudBoardPost {
   uid: string;
   authorName: string;
   authorPhoto: string;
-  contentType: "text" | "image" | "audio" | "youtube";
+  contentType: "text" | "image" | "audio" | "youtube" | "ppt";
   text?: string;
   imageUrl?: string;
   audioUrl?: string;
   audioName?: string;
   youtubeUrl?: string;
+  pptUrl?: string;
+  pptName?: string;
+  bgColor?: string;        // user-selected card background color
+  isAnnouncement?: boolean; // admin-pinned announcement
   createdAt: number;
-  x?: number;   // free-position canvas x
-  y?: number;   // free-position canvas y
+  x?: number;
+  y?: number;
 }
 
 function boardsCol() {

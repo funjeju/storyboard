@@ -128,3 +128,32 @@ export async function uploadImageDataUrl(
   const url = await getDownloadURL(storageRef);
   return { path, url };
 }
+
+// ─── Board files (audio / ppt / image File objects) ──────────────────────────
+
+export async function uploadBoardFile(
+  boardId: string,
+  subPath: string,   // e.g. "audio" | "ppt"
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<{ path: string; url: string }> {
+  const storage = getStorageInstance();
+  if (!storage) throw new Error("Firebase Storage not initialised");
+  const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const path = `actionboards/${boardId}/${subPath}/${safeName}`;
+  const storageRef = ref(storage, path);
+  if (onProgress) {
+    await new Promise<void>((resolve, reject) => {
+      const task = uploadBytesResumable(storageRef, file);
+      task.on("state_changed",
+        snap => onProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+        reject,
+        () => resolve(),
+      );
+    });
+  } else {
+    await uploadBytes(storageRef, file);
+  }
+  const url = await getDownloadURL(storageRef);
+  return { path, url };
+}

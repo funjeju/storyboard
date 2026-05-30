@@ -12,6 +12,7 @@ import {
   type CloudActionBoard,
   type CloudBoardPost,
 } from "@/lib/firestoreHelpers";
+import { uploadImageDataUrl } from "@/lib/firebaseStorage";
 
 const P = "#7C3AED";
 const PINK = "#EC4899";
@@ -265,14 +266,23 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const handleSubmit = async () => {
     if (!user || !board) return;
     const validContent =
-      (cType === "text" && text.trim()) ||
-      (cType === "image" && imageUrl) ||
-      (cType === "audio" && audioUrl) ||
+      (cType === "text"    && text.trim()) ||
+      (cType === "image"   && imageUrl) ||
+      (cType === "audio"   && audioUrl) ||
       (cType === "youtube" && ytUrl.trim());
     if (!validContent) return;
 
     setSubmitting(true);
     try {
+      let finalImageUrl = imageUrl;
+
+      // Upload base64 image to Firebase Storage → get HTTPS URL
+      if (cType === "image" && imageUrl.startsWith("data:")) {
+        const filename = `board_${Date.now()}.png`;
+        const { url } = await uploadImageDataUrl(user.uid, `actionboards/${boardId}`, filename, imageUrl);
+        finalImageUrl = url;
+      }
+
       const post: CloudBoardPost = {
         id: crypto.randomUUID(),
         boardId,
@@ -282,14 +292,17 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         contentType: cType,
         createdAt: Date.now(),
         ...(cType === "text"    && { text: text.trim() }),
-        ...(cType === "image"   && { imageUrl }),
+        ...(cType === "image"   && { imageUrl: finalImageUrl }),
         ...(cType === "audio"   && { audioUrl, audioName: audioName || "오디오" }),
         ...(cType === "youtube" && { youtubeUrl: ytUrl.trim() }),
       };
       await addBoardPost(boardId, post);
       setText(""); setImageUrl(""); setAudioUrl(""); setAudioName(""); setYtUrl("");
       setShowForm(false);
-    } catch { /* silent */ }
+    } catch (e) {
+      console.error("[ActionBoard] submit failed:", e);
+      alert("등록 중 오류가 발생했습니다. 다시 시도해주세요.");
+    }
     setSubmitting(false);
   };
 
@@ -488,7 +501,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 disabled={submitting}
                 style={{ flex:2, padding:"13px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}
               >
-                {submitting ? "등록 중..." : "📌 게시물 등록"}
+                {submitting ? (cType === "image" ? "업로드 중..." : "등록 중...") : "📌 게시물 등록"}
               </button>
             </div>
           </div>

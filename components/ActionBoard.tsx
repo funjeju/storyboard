@@ -37,10 +37,51 @@ function fmtRange(startAt: number, endAt: number) {
   return `${fmt(startAt)} ~ ${fmt(endAt)}`;
 }
 
-function toLocalDatetimeValue(ts: number) {
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+// ── Date picker helpers ───────────────────────────────────────────────────────
+interface DatePick { year: number; month: number; day: number; hour: number; min: 0 | 30 }
+
+function datepickToTs(p: DatePick) {
+  return new Date(p.year, p.month, p.day, p.hour, p.min).getTime();
+}
+
+function nowPick(offsetHours = 0): DatePick {
+  const d = new Date(Date.now() + offsetHours * 3600_000);
+  return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), hour: d.getHours(), min: d.getMinutes() < 30 ? 0 : 30 };
+}
+
+const SEL_STYLE: React.CSSProperties = {
+  padding: "9px 10px", border: "1.5px solid #E5E7EB", borderRadius: 8,
+  fontSize: 13, fontFamily: "inherit", background: "white", cursor: "pointer", outline: "none",
+};
+
+function DateTimePicker({ label, icon, value, onChange }: {
+  label: string; icon: string; value: DatePick; onChange: (v: DatePick) => void;
+}) {
+  const months = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
+  const daysInMonth = new Date(value.year, value.month + 1, 0).getDate();
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  return (
+    <div>
+      <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 6 }}>
+        {icon} {label}
+      </label>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        <select value={value.month} onChange={e => onChange({ ...value, month: +e.target.value })} style={SEL_STYLE}>
+          {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+        </select>
+        <select value={value.day} onChange={e => onChange({ ...value, day: +e.target.value })} style={SEL_STYLE}>
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}일</option>)}
+        </select>
+        <select value={value.hour} onChange={e => onChange({ ...value, hour: +e.target.value })} style={SEL_STYLE}>
+          {hours.map(h => <option key={h} value={h}>{String(h).padStart(2,"0")}시</option>)}
+        </select>
+        <select value={value.min} onChange={e => onChange({ ...value, min: +e.target.value as 0 | 30 })} style={SEL_STYLE}>
+          <option value={0}>00분</option>
+          <option value={30}>30분</option>
+        </select>
+      </div>
+    </div>
+  );
 }
 
 const CARD_GRADIENTS = [
@@ -60,11 +101,10 @@ export default function ActionBoard() {
   const [creating, setCreating]     = useState(false);
 
   // form state
-  const now = new Date();
-  const [title, setTitle]           = useState("");
-  const [desc, setDesc]             = useState("");
-  const [startVal, setStartVal]     = useState(toLocalDatetimeValue(now.getTime()));
-  const [endVal, setEndVal]         = useState(toLocalDatetimeValue(now.getTime() + 9 * 3600_000));
+  const [title, setTitle]       = useState("");
+  const [desc, setDesc]         = useState("");
+  const [startPick, setStartPick] = useState<DatePick>(() => nowPick(0));
+  const [endPick, setEndPick]   = useState<DatePick>(() => nowPick(9));
 
   useEffect(() => {
     const unsub = subscribeToActionBoards(setBoards);
@@ -78,8 +118,8 @@ export default function ActionBoard() {
     if (!user) { await signIn(); return; }
     setCreating(true);
     try {
-      const startAt = new Date(startVal).getTime();
-      const endAt   = new Date(endVal).getTime();
+      const startAt = datepickToTs(startPick);
+      const endAt   = datepickToTs(endPick);
       await createActionBoard({
         id: crypto.randomUUID(),
         uid: user.uid,
@@ -268,26 +308,8 @@ export default function ActionBoard() {
                 />
               </div>
 
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                <div>
-                  <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>📅 입력 시작</label>
-                  <input
-                    type="datetime-local"
-                    value={startVal}
-                    onChange={e => setStartVal(e.target.value)}
-                    style={{ width:"100%", padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:13, fontFamily:"inherit", outline:"none" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>🔒 입력 마감</label>
-                  <input
-                    type="datetime-local"
-                    value={endVal}
-                    onChange={e => setEndVal(e.target.value)}
-                    style={{ width:"100%", padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:13, fontFamily:"inherit", outline:"none" }}
-                  />
-                </div>
-              </div>
+              <DateTimePicker label="입력 시작" icon="📅" value={startPick} onChange={setStartPick} />
+              <DateTimePicker label="입력 마감" icon="🔒" value={endPick} onChange={setEndPick} />
 
               <div style={{ background:"#F8F9FF", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#6B7280", lineHeight:1.6 }}>
                 ℹ️ 마감 이후에는 새 게시물 등록이 불가하며, 기존 게시물은 계속 열람할 수 있습니다.

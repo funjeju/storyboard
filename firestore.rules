@@ -12,5 +12,22 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
       allow write: if false; // 서버 Admin SDK 전용
     }
+
+    // 액션보드 — 누구나 읽기, 로그인 사용자만 생성
+    match /actionBoards/{boardId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
+
+      // 게시물 — 누구나 읽기, 로그인 사용자만 등록
+      match /posts/{postId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow delete: if request.auth != null && (
+          request.auth.uid == resource.data.uid ||
+          request.auth.uid == get(/databases/$(database)/documents/actionBoards/$(boardId)).data.uid
+        );
+      }
+    }
   }
 }

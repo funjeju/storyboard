@@ -44,10 +44,24 @@ RULES:
 4. For other domains: optimized for the specific tool/platform
 5. Make it as detailed and specific as the collected info allows — fill gaps with sensible creative choices
 
+MANDATORY — PROFESSIONAL ROLE PREFIX:
+The very first line of finalPrompt MUST be a professional role declaration matching the domain.
+Use exactly one of these prefixes (translate/adapt naturally):
+
+- 이미지생성 (photo/illustration): "Envisioned by a world-class commercial art director and photographer. "
+- 이미지생성 (graphic design/card/poster/logo): "Designed by a senior graphic designer with 20 years of brand identity experience. "
+- 영상제작: "Directed by an award-winning cinematographer and creative director. "
+- 음악생성: "Composed and produced by a Grammy-level music producer and sound designer. "
+- 텍스트카피: "Written by a senior brand copywriter and conversion optimization specialist. "
+- 범용AI: "Architected by a world-class prompt engineer and AI systems specialist. "
+- 기타: "Created by a top-tier professional in the relevant domain. "
+
+Pick the most fitting prefix for the user's specific request, then continue with the full prompt content.
+
 OUTPUT:
 {
   "domain": "이미지생성 / 텍스트카피 / 범용AI / etc",
-  "finalPrompt": "The complete generated prompt",
+  "finalPrompt": "[ROLE PREFIX] + [full detailed prompt]",
   "reasoning": "한 문장 — 어떤 핵심 요소들로 프롬프트를 구성했는지"
 }`;
 

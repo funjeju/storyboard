@@ -528,16 +528,35 @@ export default function DetailPageMaker() {
 
   // ── Bulk generation ────────────────────────────────────────────────────────
 
-  const generateAllContent = async () => {
+  const generateAllContent = async (mode: "parallel" | "sequential") => {
     const ctrl = makeCtrl();
     const sig = ctrl.signal;
     let research = project.overallResearch;
-    const sortedModules = [...project.modules].sort((a, b) => a.order - b.order);
-    const total = 1 + sortedModules.length * 2;
+    const mods = [...project.modules].sort((a, b) => a.order - b.order);
+    // steps: 1 research + 3 per module (copy+prompt+image) + 2 thumbnail (prompt+image)
+    const total = 1 + mods.length * 3 + 2;
     let done = 0;
 
+    const tick = (label: string) => { done++; setBulkProgress(p => ({ ...p, done, label })); };
+
+    // Helper: generate and upload image, returns final URL
+    const fetchImage = async (prompt: string, targetId: string, refImg?: string): Promise<string> => {
+      const fullPrompt = project.styleDNA ? `${prompt} Style: ${project.styleDNA.promptBase}` : prompt;
+      const body: Record<string, unknown> = { prompt: fullPrompt };
+      if (refImg) body.refImageBase64 = refImg;
+      const res = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: sig });
+      const data = await res.json();
+      if (!res.ok || !data.imageUrl) throw new Error(data.error || "이미지 실패");
+      let url: string = data.imageUrl;
+      if (user && url.startsWith("data:")) {
+        try { const r = await uploadImageDataUrl(user.uid, `detail/${project.id}`, `${targetId}-${Date.now()}.png`, url); url = r.url; } catch { /* keep base64 */ }
+      }
+      return url;
+    };
+
+    // Research
     if (!research) {
-      setBulkProgress({ active: true, done: 0, total, label: "종합 리서치 중..." });
+      setBulkProgress({ active: true, done: 0, total, label: "🔍 리서치 중..." });
       try {
         const { research: r } = await callApi<{ research: Record<string, unknown> }>("/api/research", { productInfo: project.productInfo }, sig);
         research = r; updateProject({ overallResearch: r });
@@ -547,38 +566,64 @@ export default function DetailPageMaker() {
         freeCtrl(ctrl); return;
       }
     }
-
     done = 1;
-    setBulkProgress({ active: true, done, total, label: "썸네일 + 모듈 콘텐츠 생성 중..." });
+    setBulkProgress({ active: true, done, total, label: mode === "sequential" ? "순차 생성 시작..." : "병렬 생성 시작..." });
 
-    const thumbnailTask = (async () => {
+    // Thumbnail pipeline
+    const thumbTask = async () => {
       try {
+        setBulkProgress(p => ({ ...p, label: "🖼️ 썸네일 프롬프트..." }));
         const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
           sectionType: "thumbnail", productInfo: project.productInfo, styleDNA: project.styleDNA,
           copy: null, sectionGuidance: null, lockedSectionPrompts: [],
         }, sig);
         updateThumbnail({ imagePrompt: prompt });
-      } catch { /* ignore */ }
-      finally { done += 1; setBulkProgress(p => ({ ...p, done })); }
-    })();
+        tick("🖼️ 썸네일 이미지...");
+        updateThumbnail({ imageLoading: true });
+        const url = await fetchImage(prompt, "thumbnail");
+        updateThumbnail({ imageUrl: url, imageLoading: false });
+        tick("🖼️ 썸네일 완료");
+      } catch { updateThumbnail({ imageLoading: false }); done += 2; setBulkProgress(p => ({ ...p, done })); }
+    };
 
-    const moduleTasks = sortedModules.map(mod => (async () => {
+    // Single module pipeline: copy → prompt → image
+    const runModule = async (mod: Module, idx: number) => {
+      const label = (step: string) => `${mode === "sequential" ? `${idx + 1}번 ` : ""}${mod.label} — ${step}`;
       try {
+        setBulkProgress(p => ({ ...p, label: label("카피") }));
         const { copy } = await callApi<{ copy: Record<string, unknown> }>("/api/copy-gen", {
           sectionType: mod.moduleType, tone: project.tone, productInfo: project.productInfo, research, platform: project.platform,
         }, sig);
         updateModule(mod.id, { copy });
-        done += 1; setBulkProgress(p => ({ ...p, done }));
+        tick(label("프롬프트"));
+
         const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
           sectionType: mod.moduleType, productInfo: project.productInfo, styleDNA: project.styleDNA,
-          copy, sectionGuidance: null, lockedSectionPrompts: [],
+          copy, sectionGuidance: null, lockedSectionPrompts: [], hasRefImage: !!mod.refImageBase64,
         }, sig);
         updateModule(mod.id, { imagePrompt: prompt });
-      } catch { /* ignore */ }
-      finally { done += 1; setBulkProgress(p => ({ ...p, done })); }
-    })());
+        tick(label("이미지"));
 
-    await Promise.all([thumbnailTask, ...moduleTasks]);
+        updateModule(mod.id, { imageLoading: true });
+        const url = await fetchImage(prompt, mod.id, mod.refImageBase64 || undefined);
+        updateModule(mod.id, { imageUrl: url, imageLoading: false });
+        tick(label("완료 ✓"));
+      } catch (e) {
+        updateModule(mod.id, { imageLoading: false });
+        if (!isAbort(e)) { done += 3; setBulkProgress(p => ({ ...p, done })); }
+      }
+    };
+
+    if (mode === "sequential") {
+      await thumbTask();
+      for (let i = 0; i < mods.length; i++) {
+        if (sig.aborted) break;
+        await runModule(mods[i], i);
+      }
+    } else {
+      await Promise.all([thumbTask(), ...mods.map((mod, i) => runModule(mod, i))]);
+    }
+
     setBulkProgress({ active: false, done: 0, total: 0, label: "" });
     freeCtrl(ctrl);
   };
@@ -1063,9 +1108,14 @@ export default function DetailPageMaker() {
                   </div>
                 )}
               </div>
-              <button className="btn" onClick={generateAllContent} disabled={bulkProgress.active || !project.productInfo.name || sortedModules.length === 0} style={{ padding: "16px 28px", background: "white", color: "#7C3AED", fontSize: 14, borderRadius: 12, whiteSpace: "nowrap" }}>
-                {bulkProgress.active ? "생성 중..." : "🚀 한번에 생성"}
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button className="btn" onClick={() => generateAllContent("sequential")} disabled={bulkProgress.active || !project.productInfo.name || sortedModules.length === 0} style={{ padding: "12px 22px", background: "white", color: "#7C3AED", fontSize: 13, borderRadius: 10, whiteSpace: "nowrap", fontWeight: 700 }}>
+                  {bulkProgress.active ? "생성 중..." : "🔢 순차 생성"}
+                </button>
+                <button className="btn" onClick={() => generateAllContent("parallel")} disabled={bulkProgress.active || !project.productInfo.name || sortedModules.length === 0} style={{ padding: "12px 22px", background: "rgba(255,255,255,0.15)", color: "white", fontSize: 13, borderRadius: 10, whiteSpace: "nowrap", fontWeight: 700, border: "1.5px solid rgba(255,255,255,0.4)" }}>
+                  {bulkProgress.active ? "생성 중..." : "⚡ 병렬 생성"}
+                </button>
+              </div>
             </div>
           </div>
 

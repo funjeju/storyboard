@@ -4,6 +4,18 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 export const maxDuration = 60;
 
+function extractJSON(raw: string): unknown {
+  const trimmed = raw.trim();
+  try { return JSON.parse(trimmed); } catch { /* try extraction */ }
+  // Strip markdown fences
+  const stripped = trimmed.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "").trim();
+  try { return JSON.parse(stripped); } catch { /* try regex */ }
+  // Extract first {...} block
+  const match = stripped.match(/\{[\s\S]*\}/);
+  if (match) { try { return JSON.parse(match[0]); } catch { /* fall through */ } }
+  throw new Error(`JSON extraction failed. Raw (first 300): ${raw.slice(0, 300)}`);
+}
+
 const QUESTION_SYSTEM = `You are a MetaPrompt interviewer. Ask ONE focused question to gather information for generating a high-quality AI prompt.
 
 RULES:
@@ -52,6 +64,7 @@ export async function POST(req: NextRequest) {
     }));
 
     if (mode === "generate") {
+      // generate mode: use thinking model for best quality final prompt
       const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
         systemInstruction: PROMPT_SYSTEM,
@@ -59,25 +72,27 @@ export async function POST(req: NextRequest) {
           maxOutputTokens: 4096,
           temperature: 0.8,
           responseMimeType: "application/json",
-        } as never,
+        },
       });
       const result = await model.generateContent({ contents });
-      const data = JSON.parse(result.response.text().trim());
+      const raw = result.response.text();
+      const data = extractJSON(raw) as Record<string, unknown>;
       return NextResponse.json({ ...data, isDone: true });
     }
 
-    // mode === "question"
+    // mode === "question": use gemini-2.0-flash — fast, stable JSON, no thinking overhead
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       systemInstruction: QUESTION_SYSTEM,
       generationConfig: {
         maxOutputTokens: 512,
         temperature: 0.7,
         responseMimeType: "application/json",
-      } as never,
+      },
     });
     const result = await model.generateContent({ contents });
-    const data = JSON.parse(result.response.text().trim());
+    const raw = result.response.text();
+    const data = extractJSON(raw) as Record<string, unknown>;
     return NextResponse.json({ ...data, isDone: false });
 
   } catch (error) {

@@ -233,81 +233,119 @@ export async function POST(req: NextRequest) {
       : "";
 
     // ── Per-module text rendering rules ────────────────────────────────────────
-    // role: headline = H1 bold large | subheadline = H2 medium | body = small paragraph
-    //       bullet = small list items | badge = small pill/tag | label = positional label | cta-btn = button
+    // Each module's copy structure (from copy-gen) is mapped to typographic layers.
+    // role: headline=H1 bold | subheadline=H2 medium | body=small paragraph
+    //       bullet=list items | badge=pill/tag | label-left/right=split label | cta-btn=button
     type TRole = "headline" | "subheadline" | "body" | "bullet" | "badge" | "label-left" | "label-right" | "cta-btn";
-    interface TLayer { field: string; role: TRole; maxChars: number; arrayIndex?: number }
+    interface TLayer { field: string; role: TRole; maxChars: number; arrayLimit?: number }
+
     const RULES: Record<string, TLayer[]> = {
-      // ── Hook ──────────────────────────────────────────────────────────────
-      hero_hook:         [{ field:"headline",    role:"headline",    maxChars:20 },
-                          { field:"subheadline", role:"subheadline", maxChars:28 }],
-      strong_copy:       [{ field:"statement",   role:"headline",    maxChars:20 },
-                          { field:"support",     role:"subheadline", maxChars:30 }],
-      problem_statement: [{ field:"problemHeader",role:"headline",   maxChars:22 },
-                          { field:"bridge",      role:"subheadline", maxChars:28 }],
-      pain_point:        [{ field:"hook",        role:"headline",    maxChars:20 },
-                          { field:"pivot",       role:"subheadline", maxChars:28 }],
-      // ── Trust ─────────────────────────────────────────────────────────────
-      customer_reviews:  [{ field:"headline",    role:"headline",    maxChars:22 },
-                          { field:"trust",       role:"subheadline", maxChars:35 }],
-                          // testimonial quote rendered by image model from context
-      expert_cert:       [{ field:"certTitle",   role:"headline",    maxChars:20 },
-                          { field:"expertName",  role:"subheadline", maxChars:20 },
-                          { field:"credential",  role:"body",        maxChars:28 }],
-      clinical_results:  [{ field:"headline",    role:"headline",    maxChars:22 }],
-                          // stats rendered as large number callouts by image model
-      origin:            [{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"closing",     role:"subheadline", maxChars:28 }],
-      manufacturing:     [{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"quality",     role:"subheadline", maxChars:30 }],
-      brand_story:       [{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"mission",     role:"subheadline", maxChars:28 }],
-      before_after:      [{ field:"beforeTitle", role:"label-left",  maxChars:10 },
-                          { field:"afterTitle",  role:"label-right", maxChars:10 },
-                          { field:"result",      role:"badge",       maxChars:22 }],
-      // ── Product ───────────────────────────────────────────────────────────
-      feature_desc:      [{ field:"title",       role:"headline",    maxChars:20 }],
-                          // features rendered as icon+text bullets by image model
-      ingredient_desc:   [{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"safety",      role:"subheadline", maxChars:30 }],
-      comparison_table:  [{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"conclusion",  role:"subheadline", maxChars:28 }],
-      usage_guide:       [{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"result",      role:"subheadline", maxChars:28 }],
-      option_desc:       [{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"recommendation",role:"subheadline",maxChars:28}],
-      faq:               [], // no text — image is purely supportive backdrop
-      // ── Emotional ─────────────────────────────────────────────────────────
-      lifestyle_image:   [{ field:"headline",    role:"headline",    maxChars:22 }],
-                          // breathing room — headline only, no sub
-      emotional_copy:    [{ field:"opening",     role:"headline",    maxChars:22 },
-                          { field:"resonance",   role:"subheadline", maxChars:28 }],
-      usage_scenario:    [{ field:"title",       role:"headline",    maxChars:20 }],
-      brand_philosophy:  [{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"commitment",  role:"subheadline", maxChars:28 }],
-      // ── Conversion ────────────────────────────────────────────────────────
-      discount_benefit:  [{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"mainBenefit", role:"subheadline", maxChars:28 },
-                          { field:"urgency",     role:"badge",       maxChars:22 }],
-      limited_quantity:  [{ field:"alert",       role:"headline",    maxChars:18 },
-                          { field:"remaining",   role:"badge",       maxChars:14 },
-                          { field:"reason",      role:"subheadline", maxChars:28 }],
-      recommended_bundle:[{ field:"title",       role:"headline",    maxChars:20 },
-                          { field:"bestPick",    role:"badge",       maxChars:22 }],
-      cta:               [{ field:"headline",    role:"headline",    maxChars:20 },
-                          { field:"ctaText",     role:"cta-btn",     maxChars:10 },
-                          { field:"urgency",     role:"subheadline", maxChars:28 }],
+      // ── Hook — image is the hero; text overlay is minimal ─────────────────
+      hero_hook:         [{ field:"headline",     role:"headline",    maxChars:20 },
+                          { field:"subheadline",  role:"subheadline", maxChars:30 }],
+      strong_copy:       [{ field:"statement",    role:"headline",    maxChars:20 },
+                          { field:"support",      role:"subheadline", maxChars:40 }],
+      // copy: {problemHeader, painPoints:string[], bridge}
+      problem_statement: [{ field:"problemHeader",role:"headline",    maxChars:25 },
+                          { field:"painPoints",   role:"bullet",      maxChars:200 },  // string[] → each as bullet
+                          { field:"bridge",       role:"badge",       maxChars:30 }],
+      pain_point:        [{ field:"hook",         role:"headline",    maxChars:20 },
+                          { field:"pivot",        role:"subheadline", maxChars:30 }],
+
+      // ── Trust — credibility text must be specific and present ─────────────
+      // copy: {headline, testimonials:[{name,quote,rating}], trust}
+      customer_reviews:  [{ field:"headline",     role:"headline",    maxChars:25 },
+                          { field:"testimonials", role:"body",        maxChars:120, arrayLimit:1 },  // 1st quote
+                          { field:"trust",        role:"badge",       maxChars:50 }],
+      // copy: {certTitle, expertName, credential, endorsement, badge}
+      expert_cert:       [{ field:"certTitle",    role:"headline",    maxChars:20 },
+                          { field:"expertName",   role:"subheadline", maxChars:20 },
+                          { field:"credential",   role:"body",        maxChars:30 },
+                          { field:"badge",        role:"badge",       maxChars:15 }],
+      // copy: {headline, stats:[{number,label,detail}], disclaimer}
+      clinical_results:  [{ field:"headline",     role:"headline",    maxChars:25 },
+                          { field:"stats",        role:"bullet",      maxChars:300 }],  // number+label as large callouts
+      // copy: {title, story, highlights:string[], closing}
+      origin:            [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"highlights",   role:"bullet",      maxChars:200 },  // string[] → 3 bullets
+                          { field:"closing",      role:"badge",       maxChars:30 }],
+      // copy: {title, process:[{step,desc}], quality}
+      manufacturing:     [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"process",      role:"bullet",      maxChars:300 },  // step:desc per item
+                          { field:"quality",      role:"badge",       maxChars:40 }],
+      // copy: {title, story, mission, promise}
+      brand_story:       [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"mission",      role:"subheadline", maxChars:30 },
+                          { field:"promise",      role:"badge",       maxChars:30 }],
+      // copy: {beforeTitle, before, afterTitle, after, result}
+      before_after:      [{ field:"beforeTitle",  role:"label-left",  maxChars:15 },
+                          { field:"afterTitle",   role:"label-right", maxChars:15 },
+                          { field:"result",       role:"badge",       maxChars:25 }],
+
+      // ── Product — most text-heavy; feature/ingredient lists MUST appear ───
+      // copy: {title, features:[{icon,name,benefit}], summary}
+      feature_desc:      [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"features",     role:"bullet",      maxChars:500 },  // ALL items: icon name — benefit
+                          { field:"summary",      role:"badge",       maxChars:40 }],
+      // copy: {title, intro, ingredients:[{name,benefit}], safety}
+      ingredient_desc:   [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"intro",        role:"subheadline", maxChars:40 },
+                          { field:"ingredients",  role:"bullet",      maxChars:500 },  // name — benefit
+                          { field:"safety",       role:"badge",       maxChars:40 }],
+      // copy: {title, headers, rows:[{item,ours,theirs}], conclusion}
+      comparison_table:  [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"rows",         role:"bullet",      maxChars:400 },  // item: ✓ours vs ✗theirs
+                          { field:"conclusion",   role:"badge",       maxChars:30 }],
+      // copy: {title, steps:[{num,action,tip}], result}
+      usage_guide:       [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"steps",        role:"bullet",      maxChars:300 },  // num. action — tip
+                          { field:"result",       role:"badge",       maxChars:30 }],
+      // copy: {title, options:[{name,desc,bestFor}], recommendation}
+      option_desc:       [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"options",      role:"bullet",      maxChars:300 },  // name — bestFor
+                          { field:"recommendation",role:"badge",      maxChars:30 }],
+      faq:               [],  // NO text overlay — image is pure supportive backdrop; Q&A rendered in page
+
+      // ── Emotional — image carries the emotion; text stays minimal ─────────
+      lifestyle_image:   [{ field:"headline",     role:"headline",    maxChars:25 }],  // headline only, breathing room
+      emotional_copy:    [{ field:"opening",      role:"headline",    maxChars:25 },
+                          { field:"resonance",    role:"subheadline", maxChars:30 }],
+      usage_scenario:    [{ field:"title",        role:"headline",    maxChars:20 }],
+      // copy: {title, philosophy, values:string[], commitment}
+      brand_philosophy:  [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"values",       role:"bullet",      maxChars:150 },  // string[] → 3 value bullets
+                          { field:"commitment",   role:"badge",       maxChars:30 }],
+
+      // ── Conversion — urgency and benefit text must be visible ─────────────
+      // copy: {title, mainBenefit, benefits:[{icon,text}], urgency}
+      discount_benefit:  [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"mainBenefit",  role:"subheadline", maxChars:30 },
+                          { field:"benefits",     role:"bullet",      maxChars:300 },  // icon text
+                          { field:"urgency",      role:"badge",       maxChars:25 }],
+      // copy: {alert, reason, remaining, cta}
+      limited_quantity:  [{ field:"alert",        role:"headline",    maxChars:20 },
+                          { field:"remaining",    role:"badge",       maxChars:15 },
+                          { field:"reason",       role:"subheadline", maxChars:30 }],
+      // copy: {title, bundles:[{name,items,saving,tag}], bestPick}
+      recommended_bundle:[{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"bundles",      role:"bullet",      maxChars:400 },  // [tag] name saving
+                          { field:"bestPick",     role:"badge",       maxChars:25 }],
+      // copy: {headline, ctaText, urgency, guarantee}
+      cta:               [{ field:"headline",     role:"headline",    maxChars:20 },
+                          { field:"ctaText",      role:"cta-btn",     maxChars:10 },
+                          { field:"urgency",      role:"subheadline", maxChars:30 },
+                          { field:"guarantee",    role:"body",        maxChars:40 }],
     };
 
     const ROLE_STYLE: Record<TRole, string> = {
-      "headline":    "bold, very large Korean sans-serif, white with text-shadow",
+      "headline":    "bold, very large Korean sans-serif, white with strong drop-shadow",
       "subheadline": "medium weight, smaller Korean sans-serif, white or light gray",
       "body":        "small regular Korean text, white or light gray, max 2 lines",
-      "bullet":      "small Korean text with bullet dot prefix, white, list format",
-      "badge":       "small pill/tag shape, accent color background, Korean text inside",
-      "label-left":  "positioned far left, bold Korean label, white with dark area behind",
-      "label-right": "positioned far right, bold Korean label, white with dark area behind",
-      "cta-btn":     "button shape with rounded corners, high-contrast fill, bold Korean text",
+      "bullet":      "small Korean text, each item on its own line with bullet dot (•) prefix, white, clearly separated",
+      "badge":       "small rounded pill/tag shape, accent color background, bold Korean text inside",
+      "label-left":  "far LEFT edge, bold Korean label, white text on dark semi-transparent area",
+      "label-right": "far RIGHT edge, bold Korean label, white text on dark semi-transparent area",
+      "cta-btn":     "button shape with rounded corners, high-contrast solid fill, large bold Korean text",
     };
 
     const layers = RULES[sectionType] || [{ field:"headline", role:"headline" as TRole, maxChars:20 }];
@@ -315,7 +353,41 @@ export async function POST(req: NextRequest) {
     const renderLayers = layers
       .map(l => {
         const v = c?.[l.field];
-        const text = typeof v === "string" ? v.trim() : "";
+        let text = "";
+        if (typeof v === "string") {
+          text = v.trim();
+        } else if (Array.isArray(v)) {
+          type AnyObj = Record<string, unknown>;
+          const limit = l.arrayLimit ?? 5;
+          const arr = (v as (string | AnyObj)[]).slice(0, limit);
+          text = arr.map(item => {
+            if (typeof item === "string") return item;
+            const o = item as AnyObj;
+            const s = (k: string) => (typeof o[k] === "string" ? (o[k] as string) : "");
+            // testimonials: {name, quote, rating}
+            if (o.quote !== undefined) return `"${s("quote")}"${s("name") ? ` — ${s("name")}` : ""}`;
+            // stats: {number, label, detail}
+            if (o.number !== undefined && o.label !== undefined) return `${s("number")} ${s("label")}`;
+            // manufacturing process: {step, desc}
+            if (o.step !== undefined && o.desc !== undefined) return `${s("step")}: ${s("desc")}`;
+            // usage steps: {num, action, tip}
+            if (o.num !== undefined && o.action !== undefined) return `${o.num}. ${s("action")}${s("tip") ? ` — ${s("tip")}` : ""}`;
+            // features: {icon, name, benefit}
+            if (o.icon !== undefined && o.name !== undefined && o.benefit !== undefined) return `${s("icon")} ${s("name")} — ${s("benefit")}`;
+            // ingredients: {name, benefit} (no icon)
+            if (o.name !== undefined && o.benefit !== undefined) return `${s("name")} — ${s("benefit")}`;
+            // options: {name, desc, bestFor}
+            if (o.name !== undefined && o.bestFor !== undefined) return `${s("name")} — ${s("bestFor")}`;
+            // discount benefits: {icon, text}
+            if (o.icon !== undefined && o.text !== undefined) return `${s("icon")} ${s("text")}`;
+            // bundles: {name, items, saving, tag}
+            if (o.name !== undefined && o.saving !== undefined) return `${s("tag") ? `[${s("tag")}] ` : ""}${s("name")} ${s("saving")}`;
+            // comparison rows: {item, ours, theirs}
+            if (o.item !== undefined && o.ours !== undefined) return `${s("item")}: ✓${s("ours")} vs ✗${s("theirs")}`;
+            // fallback: join string values
+            return Object.values(o).filter(x => typeof x === "string").join(" ").slice(0, 60);
+          }).join(" / ");
+        }
         if (!text || text.length > l.maxChars) return null;
         return { role: l.role, text, style: ROLE_STYLE[l.role] };
       })
@@ -328,7 +400,13 @@ ${JSON.stringify(copy, null, 2)}
 → VISUAL TONE: Match lighting, color temperature, and mood to the emotional register of this copy.
 ${renderLayers.length > 0 ? `
 → TYPOGRAPHY TO RENDER IN IMAGE (critical — must be clearly legible):
-${renderLayers.map(l => `  [${l.role.toUpperCase()}] "${l.text}" — ${l.style}`).join("\n")}
+${renderLayers.map(l => {
+  if (l.role === "bullet") {
+    const items = l.text.split(" / ");
+    return `  [BULLET LIST] — ${l.style}:\n${items.map(it => `    • ${it}`).join("\n")}`;
+  }
+  return `  [${l.role.toUpperCase()}] "${l.text}" — ${l.style}`;
+}).join("\n")}
 
 Typography rules:
   • Text placement: ${brief.copySpace}
@@ -343,10 +421,10 @@ Typography rules:
       : "";
 
     const refImageContext = hasRefImage
-      ? `\n\nREFERENCE PRODUCT PHOTO WILL BE PROVIDED TO THE IMAGE MODEL.
-Your prompt MUST begin with this instruction block:
-"Using the provided reference product photo: extract the product's exact visual characteristics (shape, color, texture, surface details, label/packaging); recompose the product in a fresh professional commercial scene; do NOT copy the reference composition — dramatically improve lighting, staging, and visual storytelling while keeping the product unmistakably identifiable; treat the reference as a product brief, not a template to copy."
-After this instruction block, continue with the scene description, lighting, and typography as normal.`
+      ? `\n\nREFERENCE IMAGE WILL BE PROVIDED TO THE IMAGE MODEL (gpt-image-2 images.edit).
+Your prompt MUST begin with this exact instruction block:
+"Using the provided reference image: (1) extract and PRESERVE the product's exact visual characteristics — shape, color, texture, surface finish, label, packaging detail; (2) if the reference contains a person or model, PRESERVE their presence and role in the scene — maintain their body language type, proximity to product, and contextual relationship; (3) dramatically improve the commercial quality: upgrade the lighting (studio-grade key+fill or intentional natural), refine the background to be clean and intentional, elevate the overall staging to catalog level; (4) do NOT simply copy the reference composition — create a superior version with better lighting, framing, and production value, while keeping the product and any person/model unmistakably present."
+After this instruction block, continue with scene description, background, lighting, and typography layers as normal.`
       : "";
 
     const user = `Generate a PHOTOREALISTIC commercial product photography prompt for the "${sectionType}" section of an e-commerce detail page.

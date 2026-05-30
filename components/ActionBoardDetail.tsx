@@ -8,6 +8,7 @@ import {
   subscribeToBoardPosts,
   addBoardPost,
   deleteBoardPost,
+  updateBoardPost,
   updateBoardPostPosition,
   type CloudActionBoard,
   type CloudBoardPost,
@@ -44,10 +45,11 @@ const PALETTE = [
   "#E1BEE7","#D7CCC8","#FFFFFF","#F5F5F5",
 ];
 
-function PostCard({ post, canDelete, onDelete, onMouseDown, isDragging }: {
+function PostCard({ post, canDelete, onDelete, onEdit, onMouseDown, isDragging }: {
   post: CloudBoardPost;
   canDelete: boolean;
   onDelete: () => void;
+  onEdit: () => void;
   onMouseDown: (e: React.MouseEvent) => void;
   isDragging: boolean;
 }) {
@@ -79,7 +81,10 @@ function PostCard({ post, canDelete, onDelete, onMouseDown, isDragging }: {
           <span style={{ fontSize:10, color:"#9CA3AF" }}>{fmtDate(post.createdAt)}</span>
         </div>
         {canDelete && (
-          <button onClick={onDelete} style={{ background:"none", border:"none", cursor:"pointer", fontSize:14, color:"#9CA3AF", lineHeight:1 }} title="삭제">×</button>
+          <div style={{ display:"flex", gap:2 }}>
+            <button onClick={e => { e.stopPropagation(); onEdit(); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 5px", borderRadius:4 }} title="수정">✏️</button>
+            <button onClick={onDelete} style={{ background:"none", border:"none", cursor:"pointer", fontSize:14, color:"#9CA3AF", padding:"2px 5px", borderRadius:4 }} title="삭제">×</button>
+          </div>
         )}
       </div>
 
@@ -269,6 +274,40 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [cardColor, setCardColor] = useState(PALETTE[0]);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
+
+  // edit post state
+  const [editPost, setEditPost]       = useState<CloudBoardPost | null>(null);
+  const [editText, setEditText]       = useState("");
+  const [editField, setEditField]     = useState(""); // audioName / youtubeUrl / pptName
+  const [editColor, setEditColor]     = useState(PALETTE[0]);
+  const [editSaving, setEditSaving]   = useState(false);
+
+  const openEditPost = (post: CloudBoardPost) => {
+    setEditPost(post);
+    setEditText(post.text ?? "");
+    setEditField(
+      post.contentType === "audio"   ? (post.audioName   ?? "") :
+      post.contentType === "youtube" ? (post.youtubeUrl  ?? "") :
+      post.contentType === "ppt"     ? (post.pptName     ?? "") : ""
+    );
+    setEditColor(post.bgColor ?? PALETTE[0]);
+  };
+
+  const handleEditSave = async () => {
+    if (!editPost) return;
+    setEditSaving(true);
+    try {
+      const fields: Parameters<typeof updateBoardPost>[2] = { bgColor: editColor };
+      if (editPost.contentType === "text")    fields.text       = editText;
+      if (editPost.contentType === "audio")   fields.audioName  = editField;
+      if (editPost.contentType === "youtube") fields.youtubeUrl = editField;
+      if (editPost.contentType === "ppt")     fields.pptName    = editField;
+      await updateBoardPost(boardId, editPost.id, fields);
+      setEditPost(null);
+    } catch (e) { console.error(e); }
+    setEditSaving(false);
+  };
+
   const fileRef     = useRef<HTMLInputElement>(null);
   const audioRef2   = useRef<HTMLInputElement>(null);
   const pptFileRef  = useRef<HTMLInputElement>(null);
@@ -493,6 +532,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   post={post}
                   canDelete={!!user && (user.uid === post.uid || user.uid === board.uid)}
                   onDelete={() => deleteBoardPost(boardId, post.id)}
+                  onEdit={() => openEditPost(post)}
                   onMouseDown={e => handleCardMouseDown(e, post.id)}
                   isDragging={isDragging}
                 />
@@ -620,6 +660,72 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 style={{ flex:2, padding:"13px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}
               >
                 {submitting ? (uploadPct > 0 ? `업로드 ${uploadPct}%` : "등록 중...") : "📌 게시물 등록"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit post modal ── */}
+      {editPost && (
+        <div onClick={() => setEditPost(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+            style={{ background:"white", borderRadius:24, padding:"36px 32px", width:"100%", maxWidth:460, boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}
+          >
+            <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:20 }}>✏️ 게시물 수정</div>
+
+            {editPost.contentType === "text" && (
+              <div style={{ marginBottom:16 }}>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>내용</label>
+                <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={5}
+                  style={{ width:"100%", padding:"12px", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontFamily:"inherit", resize:"vertical", outline:"none" }} />
+              </div>
+            )}
+            {editPost.contentType === "audio" && (
+              <div style={{ marginBottom:16 }}>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>트랙 제목</label>
+                <input value={editField} onChange={e => setEditField(e.target.value)}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>오디오 파일 교체는 지원하지 않습니다.</div>
+              </div>
+            )}
+            {editPost.contentType === "youtube" && (
+              <div style={{ marginBottom:16 }}>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>YouTube URL</label>
+                <input value={editField} onChange={e => setEditField(e.target.value)} placeholder="https://youtu.be/..."
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
+              </div>
+            )}
+            {editPost.contentType === "ppt" && (
+              <div style={{ marginBottom:16 }}>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>발표 제목</label>
+                <input value={editField} onChange={e => setEditField(e.target.value)}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>PPT 파일 교체는 지원하지 않습니다.</div>
+              </div>
+            )}
+            {editPost.contentType === "image" && editPost.imageUrl && (
+              <div style={{ marginBottom:16 }}>
+                <img src={editPost.imageUrl} alt="" style={{ width:"100%", borderRadius:12, maxHeight:160, objectFit:"cover" }} />
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>배경색만 수정 가능합니다.</div>
+              </div>
+            )}
+
+            <div style={{ marginBottom:24 }}>
+              <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>🎨 카드 배경색</label>
+              <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+                {PALETTE.map(c => (
+                  <div key={c} onClick={() => setEditColor(c)} style={{ width:28, height:28, borderRadius:8, background:c, border:`2.5px solid ${editColor===c?"#7C3AED":"#E5E7EB"}`, cursor:"pointer", boxShadow:editColor===c?"0 0 0 2px rgba(124,58,237,0.25)":"none", transition:"all 0.12s" }} />
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setEditPost(null)} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>취소</button>
+              <button onClick={handleEditSave} disabled={editSaving}
+                style={{ flex:2, padding:"13px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}
+              >
+                {editSaving ? "저장 중..." : "✏️ 수정 완료"}
               </button>
             </div>
           </div>

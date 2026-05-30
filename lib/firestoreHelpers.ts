@@ -231,6 +231,14 @@ export async function updateBoardPostPosition(boardId: string, postId: string, x
   await setDoc(postDoc(boardId, postId), { x, y }, { merge: true });
 }
 
+export async function updateBoardPost(
+  boardId: string,
+  postId: string,
+  fields: Partial<Pick<CloudBoardPost, "text" | "audioName" | "youtubeUrl" | "pptName" | "bgColor">>,
+) {
+  await setDoc(postDoc(boardId, postId), fields, { merge: true });
+}
+
 export function subscribeToBoardPosts(boardId: string, cb: (posts: CloudBoardPost[]) => void): Unsubscribe {
   const q = query(postsCol(boardId), orderBy("createdAt", "desc"));
   return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudBoardPost)));

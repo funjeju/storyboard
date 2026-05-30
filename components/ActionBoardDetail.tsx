@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -8,6 +8,7 @@ import {
   subscribeToBoardPosts,
   addBoardPost,
   deleteBoardPost,
+  updateBoardPostPosition,
   type CloudActionBoard,
   type CloudBoardPost,
 } from "@/lib/firestoreHelpers";
@@ -37,10 +38,12 @@ function getYoutubeId(url: string) {
 // ── Sticky note card ──────────────────────────────────────────────────────────
 const NOTE_COLORS = ["#FFF9C4","#FFE0B2","#F8BBD0","#C8E6C9","#B3E5FC","#E1BEE7","#FFFFFF"];
 
-function PostCard({ post, canDelete, onDelete }: {
+function PostCard({ post, canDelete, onDelete, onMouseDown, isDragging }: {
   post: CloudBoardPost;
   canDelete: boolean;
   onDelete: () => void;
+  onMouseDown: (e: React.MouseEvent) => void;
+  isDragging: boolean;
 }) {
   const [playing, setPlaying] = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
@@ -54,7 +57,10 @@ function PostCard({ post, canDelete, onDelete }: {
   };
 
   return (
-    <div style={{ background:color, borderRadius:16, padding:"18px 18px 14px", boxShadow:"0 4px 14px rgba(0,0,0,0.09)", position:"relative", minHeight:120, display:"flex", flexDirection:"column", gap:10, animation:"fadeUp 0.3s ease both" }}>
+    <div
+      onMouseDown={onMouseDown}
+      style={{ background:color, borderRadius:16, padding:"18px 18px 14px", boxShadow: isDragging ? "0 20px 48px rgba(0,0,0,0.22)" : "0 4px 14px rgba(0,0,0,0.09)", position:"relative", minHeight:120, display:"flex", flexDirection:"column", gap:10, cursor: isDragging ? "grabbing" : "grab", userSelect:"none", transform: isDragging ? "scale(1.03)" : "scale(1)", transition: isDragging ? "box-shadow 0.15s,transform 0.1s" : "box-shadow 0.25s,transform 0.25s" }}
+    >
       {/* Author */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ display:"flex", alignItems:"center", gap:7 }}>
@@ -136,6 +142,56 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // ── Drag state ──────────────────────────────────────────────────────────────
+  type Pos = { x: number; y: number };
+  const [positions, setPositions] = useState<Record<string, Pos>>({});
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const dragRef = useRef<{ id: string; mouseX: number; mouseY: number; cardX: number; cardY: number } | null>(null);
+  const posRef  = useRef<Record<string, Pos>>({});
+
+  // keep posRef in sync so mouseup closure has latest positions
+  useEffect(() => { posRef.current = positions; }, [positions]);
+
+  // Assign positions from Firestore data or default grid
+  useEffect(() => {
+    setPositions(prev => {
+      const next = { ...prev };
+      posts.forEach((p, i) => {
+        if (next[p.id]) return; // already positioned
+        next[p.id] = p.x !== undefined && p.y !== undefined
+          ? { x: p.x, y: p.y }
+          : { x: (i % 4) * 290 + 20 + (i % 2) * 12, y: Math.floor(i / 4) * 310 + 20 + (i % 3) * 8 };
+      });
+      return next;
+    });
+  }, [posts]);
+
+  const handleCardMouseDown = useCallback((e: React.MouseEvent, postId: string) => {
+    const tag = (e.target as HTMLElement).closest("button,a,audio,iframe,select");
+    if (tag) return; // don't intercept interactive elements
+    e.preventDefault();
+    const pos = posRef.current[postId] ?? { x: 0, y: 0 };
+    dragRef.current = { id: postId, mouseX: e.clientX, mouseY: e.clientY, cardX: pos.x, cardY: pos.y };
+    setDraggingId(postId);
+  }, []);
+
+  const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragRef.current) return;
+    const { id, mouseX, mouseY, cardX, cardY } = dragRef.current;
+    const x = Math.max(0, cardX + e.clientX - mouseX);
+    const y = Math.max(0, cardY + e.clientY - mouseY);
+    setPositions(prev => ({ ...prev, [id]: { x, y } }));
+  }, []);
+
+  const handleCanvasMouseUp = useCallback(async () => {
+    if (!dragRef.current) return;
+    const { id } = dragRef.current;
+    dragRef.current = null;
+    setDraggingId(null);
+    const pos = posRef.current[id];
+    if (pos) updateBoardPostPosition(boardId, id, pos.x, pos.y).catch(() => {});
+  }, [boardId]);
 
   // form
   const [cType, setCType]     = useState<ContentType>("text");
@@ -263,8 +319,13 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         </div>
       )}
 
-      {/* Posts grid */}
-      <div style={{ maxWidth:1280, margin:"0 auto", padding:"32px 24px 80px" }}>
+      {/* Free-position canvas */}
+      <div
+        style={{ position:"relative", minHeight:"calc(100vh - 120px)", overflow:"hidden" }}
+        onMouseMove={handleCanvasMouseMove}
+        onMouseUp={handleCanvasMouseUp}
+        onMouseLeave={handleCanvasMouseUp}
+      >
         {posts.length === 0 ? (
           <div style={{ textAlign:"center", padding:"80px 0", color:"#9CA3AF" }}>
             <div style={{ fontSize:48, marginBottom:16 }}>📝</div>
@@ -272,17 +333,31 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
             {canPost && <div style={{ fontSize:13, marginTop:8 }}>첫 번째 메모를 붙여보세요!</div>}
           </div>
         ) : (
-          <div style={{ columns:"280px 4", gap:16 }}>
-            {posts.map(post => (
-              <div key={post.id} style={{ breakInside:"avoid", marginBottom:16 }}>
+          posts.map(post => {
+            const pos = positions[post.id] ?? { x: 20, y: 20 };
+            const isDragging = draggingId === post.id;
+            return (
+              <div
+                key={post.id}
+                style={{
+                  position: "absolute",
+                  left: pos.x,
+                  top: pos.y,
+                  width: 260,
+                  zIndex: isDragging ? 999 : 1,
+                  transition: isDragging ? "none" : "left 0.15s, top 0.15s",
+                }}
+              >
                 <PostCard
                   post={post}
                   canDelete={!!user && (user.uid === post.uid || user.uid === board.uid)}
                   onDelete={() => deleteBoardPost(boardId, post.id)}
+                  onMouseDown={e => handleCardMouseDown(e, post.id)}
+                  isDragging={isDragging}
                 />
               </div>
-            ))}
-          </div>
+            );
+          })
         )}
       </div>
 

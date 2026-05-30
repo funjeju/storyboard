@@ -160,6 +160,8 @@ export interface CloudBoardPost {
   audioName?: string;
   youtubeUrl?: string;
   createdAt: number;
+  x?: number;   // free-position canvas x
+  y?: number;   // free-position canvas y
 }
 
 function boardsCol() {
@@ -222,6 +224,10 @@ export async function deleteBoardPost(boardId: string, postId: string) {
     const current = (snap.data() as CloudActionBoard).postCount ?? 1;
     await setDoc(bRef, { postCount: Math.max(0, current - 1), updatedAt: Date.now() }, { merge: true });
   }
+}
+
+export async function updateBoardPostPosition(boardId: string, postId: string, x: number, y: number) {
+  await setDoc(postDoc(boardId, postId), { x, y }, { merge: true });
 }
 
 export function subscribeToBoardPosts(boardId: string, cb: (posts: CloudBoardPost[]) => void): Unsubscribe {

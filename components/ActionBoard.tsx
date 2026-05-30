@@ -283,7 +283,7 @@ export default function ActionBoard() {
       {/* Create modal */}
       {showCreate && (
         <div onClick={() => setShowCreate(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"40px 36px", width:"100%", maxWidth:460, boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"40px 36px", width:"100%", maxWidth:460, boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
             <div style={{ fontSize:24, fontWeight:800, color:"#111827", marginBottom:6 }}>📋 새 액션보드</div>
             <div style={{ fontSize:13, color:"#6B7280", marginBottom:28 }}>보드 제목과 입력 가능 기간을 설정하세요</div>
 

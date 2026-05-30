@@ -289,7 +289,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       {/* Add post modal */}
       {showForm && (
         <div onClick={() => setShowForm(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:"24px 24px 0 0", padding:"32px 28px", width:"100%", maxWidth:560, boxShadow:"0 -12px 40px rgba(0,0,0,0.15)", animation:"fadeUp 0.25s ease both" }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:"24px 24px 0 0", padding:"32px 28px", width:"100%", maxWidth:560, boxShadow:"0 -12px 40px rgba(0,0,0,0.15)", animation:"fadeUp 0.25s ease both" }}>
             <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:20 }}>✍️ 게시물 작성</div>
 
             {/* Content type tabs */}

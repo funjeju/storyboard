@@ -1,0 +1,368 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
+import {
+  getActionBoard,
+  subscribeToBoardPosts,
+  addBoardPost,
+  deleteBoardPost,
+  type CloudActionBoard,
+  type CloudBoardPost,
+} from "@/lib/firestoreHelpers";
+
+const P = "#7C3AED";
+const PINK = "#EC4899";
+
+type ContentType = "text" | "image" | "audio" | "youtube";
+
+function getBoardStatus(board: CloudActionBoard) {
+  const now = Date.now();
+  if (now < board.startAt) return "upcoming";
+  if (now <= board.endAt) return "open";
+  return "closed";
+}
+
+function fmtDate(ts: number) {
+  const d = new Date(ts);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
+function getYoutubeId(url: string) {
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+// ── Sticky note card ──────────────────────────────────────────────────────────
+const NOTE_COLORS = ["#FFF9C4","#FFE0B2","#F8BBD0","#C8E6C9","#B3E5FC","#E1BEE7","#FFFFFF"];
+
+function PostCard({ post, canDelete, onDelete }: {
+  post: CloudBoardPost;
+  canDelete: boolean;
+  onDelete: () => void;
+}) {
+  const [playing, setPlaying] = useState(false);
+  const [showPlayer, setShowPlayer] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const color = NOTE_COLORS[Math.abs([...post.id].reduce((a, c) => a + c.charCodeAt(0), 0)) % NOTE_COLORS.length];
+
+  const toggleAudio = () => {
+    if (!audioRef.current) return;
+    if (playing) { audioRef.current.pause(); setPlaying(false); }
+    else { audioRef.current.play(); setPlaying(true); }
+  };
+
+  return (
+    <div style={{ background:color, borderRadius:16, padding:"18px 18px 14px", boxShadow:"0 4px 14px rgba(0,0,0,0.09)", position:"relative", minHeight:120, display:"flex", flexDirection:"column", gap:10, animation:"fadeUp 0.3s ease both" }}>
+      {/* Author */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+          {post.authorPhoto
+            ? <img src={post.authorPhoto} alt="" style={{ width:22, height:22, borderRadius:"50%", objectFit:"cover" }} />
+            : <div style={{ width:22, height:22, borderRadius:"50%", background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"white", fontWeight:800 }}>{post.authorName[0]}</div>
+          }
+          <span style={{ fontSize:11, fontWeight:600, color:"#374151" }}>{post.authorName}</span>
+          <span style={{ fontSize:10, color:"#9CA3AF" }}>{fmtDate(post.createdAt)}</span>
+        </div>
+        {canDelete && (
+          <button onClick={onDelete} style={{ background:"none", border:"none", cursor:"pointer", fontSize:14, color:"#9CA3AF", lineHeight:1 }} title="삭제">×</button>
+        )}
+      </div>
+
+      {/* Content */}
+      {post.contentType === "text" && (
+        <p style={{ fontSize:14, color:"#1F2937", lineHeight:1.65, whiteSpace:"pre-wrap", flex:1 }}>{post.text}</p>
+      )}
+
+      {post.contentType === "image" && post.imageUrl && (
+        <img src={post.imageUrl} alt="첨부 이미지" style={{ width:"100%", borderRadius:10, objectFit:"cover", maxHeight:200 }} />
+      )}
+
+      {post.contentType === "audio" && post.audioUrl && (
+        <div>
+          <div style={{ fontSize:13, fontWeight:600, color:"#374151", marginBottom:8 }}>🎵 {post.audioName || "오디오"}</div>
+          <audio ref={audioRef} src={post.audioUrl} onEnded={() => setPlaying(false)} style={{ display:"none" }} />
+          <button
+            onClick={toggleAudio}
+            style={{ padding:"8px 18px", background:playing?`linear-gradient(135deg,${P},${PINK})`:"white", border:`2px solid ${P}`, borderRadius:10, fontSize:13, fontWeight:700, color:playing?"white":P, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}
+          >
+            {playing ? "⏸ 일시정지" : "▶ 재생"}
+          </button>
+        </div>
+      )}
+
+      {post.contentType === "youtube" && post.youtubeUrl && (
+        <div>
+          {!showPlayer ? (
+            <div
+              onClick={() => setShowPlayer(true)}
+              style={{ position:"relative", borderRadius:10, overflow:"hidden", cursor:"pointer" }}
+            >
+              {getYoutubeId(post.youtubeUrl) && (
+                <img
+                  src={`https://img.youtube.com/vi/${getYoutubeId(post.youtubeUrl)}/mqdefault.jpg`}
+                  alt="YouTube 썸네일"
+                  style={{ width:"100%", display:"block", borderRadius:10 }}
+                />
+              )}
+              <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.25)", borderRadius:10 }}>
+                <div style={{ width:44, height:44, borderRadius:"50%", background:"rgba(255,0,0,0.9)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ position:"relative", paddingTop:"56.25%", borderRadius:10, overflow:"hidden" }}>
+              <iframe
+                src={`https://www.youtube.com/embed/${getYoutubeId(post.youtubeUrl)}?autoplay=1`}
+                style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }}
+                allowFullScreen
+                allow="autoplay"
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+export default function ActionBoardDetail({ boardId }: { boardId: string }) {
+  const { user, signIn } = useAuth();
+  const [board, setBoard]     = useState<CloudActionBoard | null>(null);
+  const [posts, setPosts]     = useState<CloudBoardPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // form
+  const [cType, setCType]     = useState<ContentType>("text");
+  const [text, setText]       = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [audioUrl, setAudioUrl] = useState("");
+  const [audioName, setAudioName] = useState("");
+  const [ytUrl, setYtUrl]     = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    getActionBoard(boardId).then(b => { setBoard(b); setLoading(false); });
+    const unsub = subscribeToBoardPosts(boardId, setPosts);
+    return unsub;
+  }, [boardId]);
+
+  const status = board ? getBoardStatus(board) : "closed";
+  const canPost = status === "open" && !!user;
+
+  const handleImageFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = e => setImageUrl(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async () => {
+    if (!user || !board) return;
+    const validContent =
+      (cType === "text" && text.trim()) ||
+      (cType === "image" && imageUrl) ||
+      (cType === "audio" && audioUrl) ||
+      (cType === "youtube" && ytUrl.trim());
+    if (!validContent) return;
+
+    setSubmitting(true);
+    try {
+      const post: CloudBoardPost = {
+        id: crypto.randomUUID(),
+        boardId,
+        uid: user.uid,
+        authorName: user.displayName ?? "익명",
+        authorPhoto: user.photoURL ?? "",
+        contentType: cType,
+        createdAt: Date.now(),
+        ...(cType === "text"    && { text: text.trim() }),
+        ...(cType === "image"   && { imageUrl }),
+        ...(cType === "audio"   && { audioUrl, audioName: audioName || "오디오" }),
+        ...(cType === "youtube" && { youtubeUrl: ytUrl.trim() }),
+      };
+      await addBoardPost(boardId, post);
+      setText(""); setImageUrl(""); setAudioUrl(""); setAudioName(""); setYtUrl("");
+      setShowForm(false);
+    } catch { /* silent */ }
+    setSubmitting(false);
+  };
+
+  if (loading) return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#F4F6FA" }}>
+      <div style={{ fontSize:14, color:"#9CA3AF" }}>불러오는 중...</div>
+    </div>
+  );
+
+  if (!board) return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#F4F6FA" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontSize:40, marginBottom:12 }}>😢</div>
+        <div style={{ fontSize:16, color:"#374151" }}>보드를 찾을 수 없어요</div>
+        <Link href="/actionboard" style={{ display:"inline-block", marginTop:16, color:P, fontWeight:600 }}>← 목록으로</Link>
+      </div>
+    </div>
+  );
+
+  const statusColors = { open:"#059669", upcoming:"#2563EB", closed:"#6B7280" };
+  const statusLabels = { open:"🟢 입력 진행중", upcoming:"🔵 곧 시작", closed:"⚫ 입력 마감" };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#F0F2F8", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap');
+        * { box-sizing:border-box; margin:0; padding:0; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        .type-btn { transition:all 0.15s; cursor:pointer; }
+        .type-btn:hover { border-color:${P}!important; }
+        textarea:focus,input:focus { outline:none; border-color:${P}!important; }
+      `}</style>
+
+      {/* Nav */}
+      <nav style={{ background:"white", borderBottom:"1px solid #E5E7EB", padding:"0 32px", height:60, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <Link href="/actionboard" style={{ display:"flex", alignItems:"center", gap:6, textDecoration:"none", fontSize:13, color:"#6B7280", fontWeight:600 }}>
+            ← 액션보드
+          </Link>
+          <div style={{ width:1, height:16, background:"#E5E7EB" }} />
+          <span style={{ fontSize:14, fontWeight:800, color:"#111827" }}>{board.title}</span>
+          <span style={{ fontSize:11, fontWeight:700, color:statusColors[status], background:`${statusColors[status]}18`, padding:"3px 10px", borderRadius:100 }}>
+            {statusLabels[status]}
+          </span>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:12, color:"#9CA3AF" }}>마감: {fmtDate(board.endAt)}</span>
+          {status === "open" && (
+            user
+              ? <button onClick={() => setShowForm(true)} style={{ padding:"8px 18px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:10, fontSize:13, fontWeight:700, color:"white", cursor:"pointer" }}>+ 게시물 추가</button>
+              : <button onClick={signIn} style={{ padding:"8px 18px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:10, fontSize:13, fontWeight:700, color:"white", cursor:"pointer" }}>로그인 후 참여</button>
+          )}
+        </div>
+      </nav>
+
+      {/* Board info bar */}
+      <div style={{ background:"white", borderBottom:"1px solid #E5E7EB", padding:"12px 32px", display:"flex", alignItems:"center", gap:24 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#6B7280" }}>
+          {board.creatorPhoto && <img src={board.creatorPhoto} alt="" style={{ width:18, height:18, borderRadius:"50%" }} />}
+          <span>개설자: <strong style={{ color:"#374151" }}>{board.creatorName}</strong></span>
+        </div>
+        <div style={{ fontSize:12, color:"#6B7280" }}>📅 {fmtDate(board.startAt)} ~ {fmtDate(board.endAt)}</div>
+        <div style={{ fontSize:12, color:"#6B7280" }}>📝 {posts.length}개 게시물</div>
+        {board.description && <div style={{ fontSize:12, color:"#6B7280" }}>💬 {board.description}</div>}
+      </div>
+
+      {/* Closed banner */}
+      {status === "closed" && (
+        <div style={{ background:"#FFF3CD", borderBottom:"1px solid #FCD34D", padding:"10px 32px", fontSize:13, color:"#92400E", fontWeight:600 }}>
+          ⚠️ 입력 기간이 종료되었습니다. 게시물 열람만 가능합니다.
+        </div>
+      )}
+
+      {/* Posts grid */}
+      <div style={{ maxWidth:1280, margin:"0 auto", padding:"32px 24px 80px" }}>
+        {posts.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"80px 0", color:"#9CA3AF" }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>📝</div>
+            <div style={{ fontSize:16, fontWeight:600 }}>아직 게시물이 없어요</div>
+            {canPost && <div style={{ fontSize:13, marginTop:8 }}>첫 번째 메모를 붙여보세요!</div>}
+          </div>
+        ) : (
+          <div style={{ columns:"280px 4", gap:16 }}>
+            {posts.map(post => (
+              <div key={post.id} style={{ breakInside:"avoid", marginBottom:16 }}>
+                <PostCard
+                  post={post}
+                  canDelete={!!user && (user.uid === post.uid || user.uid === board.uid)}
+                  onDelete={() => deleteBoardPost(boardId, post.id)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add post modal */}
+      {showForm && (
+        <div onClick={() => setShowForm(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:"24px 24px 0 0", padding:"32px 28px", width:"100%", maxWidth:560, boxShadow:"0 -12px 40px rgba(0,0,0,0.15)", animation:"fadeUp 0.25s ease both" }}>
+            <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:20 }}>✍️ 게시물 작성</div>
+
+            {/* Content type tabs */}
+            <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+              {([["text","📝 텍스트"],["image","🖼️ 이미지"],["audio","🎵 MP3"],["youtube","▶ 유튜브"]] as [ContentType,string][]).map(([t,label]) => (
+                <button
+                  key={t}
+                  onClick={() => setCType(t)}
+                  className="type-btn"
+                  style={{ flex:1, padding:"8px 0", borderRadius:10, border:`2px solid ${cType===t?P:"#E5E7EB"}`, background:cType===t?`rgba(124,58,237,0.07)`:"white", fontSize:12, fontWeight:700, color:cType===t?P:"#6B7280" }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Inputs by type */}
+            {cType === "text" && (
+              <textarea
+                value={text}
+                onChange={e => setText(e.target.value)}
+                placeholder="내용을 입력하세요..."
+                rows={5}
+                style={{ width:"100%", padding:"12px", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontFamily:"inherit", resize:"vertical" }}
+              />
+            )}
+
+            {cType === "image" && (
+              <div>
+                <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e => { if(e.target.files?.[0]) handleImageFile(e.target.files[0]); }} />
+                {imageUrl ? (
+                  <div style={{ position:"relative" }}>
+                    <img src={imageUrl} alt="" style={{ width:"100%", borderRadius:12, maxHeight:200, objectFit:"cover" }} />
+                    <button onClick={() => setImageUrl("")} style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.6)", border:"none", borderRadius:"50%", width:28, height:28, color:"white", cursor:"pointer", fontSize:14 }}>×</button>
+                  </div>
+                ) : (
+                  <div onClick={() => fileRef.current?.click()} style={{ border:"2px dashed #E5E7EB", borderRadius:12, padding:"40px", textAlign:"center", cursor:"pointer", color:"#9CA3AF" }}>
+                    <div style={{ fontSize:32, marginBottom:8 }}>🖼️</div>
+                    <div style={{ fontSize:13 }}>클릭하여 이미지 선택</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {cType === "audio" && (
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <input value={audioName} onChange={e => setAudioName(e.target.value)} placeholder="트랙 제목" style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
+                <input value={audioUrl} onChange={e => setAudioUrl(e.target.value)} placeholder="MP3 URL (Firebase Storage, S3 등)" style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
+              </div>
+            )}
+
+            {cType === "youtube" && (
+              <input
+                value={ytUrl}
+                onChange={e => setYtUrl(e.target.value)}
+                placeholder="YouTube URL (예: https://youtu.be/xxxxx)"
+                style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }}
+              />
+            )}
+
+            <div style={{ display:"flex", gap:10, marginTop:20 }}>
+              <button onClick={() => setShowForm(false)} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>취소</button>
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                style={{ flex:2, padding:"13px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}
+              >
+                {submitting ? "등록 중..." : "📌 게시물 등록"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

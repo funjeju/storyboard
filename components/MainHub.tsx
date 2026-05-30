@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import AuthButton from "@/components/AuthButton";
 
 const TOOLS = [
@@ -181,6 +182,12 @@ export default function MainHub() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <Link
+            href="/actionboard"
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", background:"rgba(124,58,237,0.07)", border:"1.5px solid rgba(124,58,237,0.2)", borderRadius:10, textDecoration:"none", fontSize:13, fontWeight:700, color:"#7C3AED", transition:"all 0.15s" }}
+          >
+            📋 액션보드
+          </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{
               width: 8, height: 8, borderRadius: "50%", background: "#10B981",

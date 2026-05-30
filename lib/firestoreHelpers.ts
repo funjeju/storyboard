@@ -131,6 +131,96 @@ export async function getDetailProject(uid: string, projectId: string): Promise<
   return snap.exists() ? (snap.data() as CloudDetailProject) : null;
 }
 
+// ─── Action Boards ────────────────────────────────────────────────────────────
+
+export interface CloudActionBoard {
+  id: string;
+  uid: string;
+  creatorName: string;
+  creatorPhoto: string;
+  title: string;
+  description: string;
+  startAt: number;      // posting open timestamp
+  endAt: number;        // posting close timestamp
+  postCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CloudBoardPost {
+  id: string;
+  boardId: string;
+  uid: string;
+  authorName: string;
+  authorPhoto: string;
+  contentType: "text" | "image" | "audio" | "youtube";
+  text?: string;
+  imageUrl?: string;
+  audioUrl?: string;
+  audioName?: string;
+  youtubeUrl?: string;
+  createdAt: number;
+}
+
+function boardsCol() {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "actionBoards");
+}
+function boardDoc(id: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "actionBoards", id);
+}
+function postsCol(boardId: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "actionBoards", boardId, "posts");
+}
+function postDoc(boardId: string, postId: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "actionBoards", boardId, "posts", postId);
+}
+
+export async function createActionBoard(board: Omit<CloudActionBoard, "updatedAt">) {
+  const ref = boardDoc(board.id);
+  await setDoc(ref, { ...board, updatedAt: Date.now() });
+}
+
+export async function getActionBoard(id: string): Promise<CloudActionBoard | null> {
+  const snap = await getDoc(boardDoc(id));
+  return snap.exists() ? (snap.data() as CloudActionBoard) : null;
+}
+
+export function subscribeToActionBoards(cb: (boards: CloudActionBoard[]) => void): Unsubscribe {
+  const q = query(boardsCol(), orderBy("createdAt", "desc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudActionBoard)));
+}
+
+export async function addBoardPost(boardId: string, post: CloudBoardPost) {
+  const ref = postDoc(boardId, post.id);
+  await setDoc(ref, post);
+  // increment postCount
+  const bRef = boardDoc(boardId);
+  const snap = await getDoc(bRef);
+  if (snap.exists()) {
+    const current = (snap.data() as CloudActionBoard).postCount ?? 0;
+    await setDoc(bRef, { postCount: current + 1, updatedAt: Date.now() }, { merge: true });
+  }
+}
+
+export async function deleteBoardPost(boardId: string, postId: string) {
+  await deleteDoc(postDoc(boardId, postId));
+  const bRef = boardDoc(boardId);
+  const snap = await getDoc(bRef);
+  if (snap.exists()) {
+    const current = (snap.data() as CloudActionBoard).postCount ?? 1;
+    await setDoc(bRef, { postCount: Math.max(0, current - 1), updatedAt: Date.now() }, { merge: true });
+  }
+}
+
+export function subscribeToBoardPosts(boardId: string, cb: (posts: CloudBoardPost[]) => void): Unsubscribe {
+  const q = query(postsCol(boardId), orderBy("createdAt", "desc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudBoardPost)));
+}
+
 // ─── MetaPrompts ─────────────────────────────────────────────────────────────
 
 export interface CloudMetaPrompt {

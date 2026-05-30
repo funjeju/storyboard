@@ -17,7 +17,12 @@ service cloud.firestore {
     match /actionBoards/{boardId} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+      // 보드 개설자: 모든 필드 수정 가능 / 일반 참여자: postCount·updatedAt만 수정 가능
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['postCount','updatedAt'])
+      );
 
       // 게시물 — 누구나 읽기, 로그인 사용자만 등록
       match /posts/{postId} {

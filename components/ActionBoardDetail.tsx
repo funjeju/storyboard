@@ -82,7 +82,7 @@ function PostCard({ post, canDelete, onDelete, onMouseDown, isDragging }: {
       )}
 
       {post.contentType === "image" && post.imageUrl && (
-        <img src={post.imageUrl} alt="첨부 이미지" style={{ width:"100%", borderRadius:10, objectFit:"cover", maxHeight:200 }} />
+        <img src={post.imageUrl} alt="첨부 이미지" style={{ width:"100%", borderRadius:10, display:"block" }} />
       )}
 
       {post.contentType === "audio" && post.audioUrl && (
@@ -144,9 +144,13 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [submitting, setSubmitting] = useState(false);
 
   // ── Drag state ──────────────────────────────────────────────────────────────
+  const CARD_W      = 260;
+  const SNAP_DIST   = 14;  // px threshold for snap
   type Pos = { x: number; y: number };
+  type SnapLine = { axis: "x" | "y"; pos: number };
   const [positions, setPositions] = useState<Record<string, Pos>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [snapLines, setSnapLines]   = useState<SnapLine[]>([]);
   const dragRef = useRef<{ id: string; mouseX: number; mouseY: number; cardX: number; cardY: number } | null>(null);
   const posRef  = useRef<Record<string, Pos>>({});
 
@@ -179,16 +183,40 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragRef.current) return;
     const { id, mouseX, mouseY, cardX, cardY } = dragRef.current;
-    const x = Math.max(0, cardX + e.clientX - mouseX);
-    const y = Math.max(0, cardY + e.clientY - mouseY);
+    let x = Math.max(0, cardX + e.clientX - mouseX);
+    let y = Math.max(0, cardY + e.clientY - mouseY);
+
+    // ── Snap alignment ──────────────────────────────────────────────────────
+    const lines: SnapLine[] = [];
+    const others = Object.entries(posRef.current).filter(([otherId]) => otherId !== id);
+
+    for (const [, op] of others) {
+      // X: left-left, left-right, right-left, right-right
+      const checks: [number, number, number][] = [
+        [x,          op.x,          op.x],
+        [x,          op.x + CARD_W, op.x + CARD_W],
+        [x + CARD_W, op.x,          op.x - CARD_W],
+        [x + CARD_W, op.x + CARD_W, op.x],
+      ];
+      for (const [edge, target, snapX] of checks) {
+        if (Math.abs(edge - target) < SNAP_DIST) {
+          x = snapX; lines.push({ axis:"x", pos: target }); break;
+        }
+      }
+      // Y: top-top, top-bottom
+      if (Math.abs(y - op.y) < SNAP_DIST) { y = op.y; lines.push({ axis:"y", pos:op.y }); }
+    }
+
+    setSnapLines(lines);
     setPositions(prev => ({ ...prev, [id]: { x, y } }));
-  }, []);
+  }, [CARD_W, SNAP_DIST]);
 
   const handleCanvasMouseUp = useCallback(async () => {
     if (!dragRef.current) return;
     const { id } = dragRef.current;
     dragRef.current = null;
     setDraggingId(null);
+    setSnapLines([]);
     const pos = posRef.current[id];
     if (pos) updateBoardPostPosition(boardId, id, pos.x, pos.y).catch(() => {});
   }, [boardId]);
@@ -321,11 +349,22 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
       {/* Free-position canvas */}
       <div
-        style={{ position:"relative", minHeight:"calc(100vh - 120px)", overflow:"hidden" }}
+        style={{ position:"relative", minHeight:"calc(100vh - 120px)", overflow:"visible" }}
         onMouseMove={handleCanvasMouseMove}
         onMouseUp={handleCanvasMouseUp}
         onMouseLeave={handleCanvasMouseUp}
       >
+        {/* Snap guide lines */}
+        {snapLines.map((line, i) => (
+          <div key={i} style={{
+            position:"absolute", pointerEvents:"none", zIndex:998,
+            ...(line.axis === "x"
+              ? { left:line.pos, top:0, width:1, height:"100%", background:"rgba(37,99,235,0.7)", boxShadow:"0 0 4px rgba(37,99,235,0.5)" }
+              : { top:line.pos,  left:0, height:1, width:"100%", background:"rgba(37,99,235,0.7)", boxShadow:"0 0 4px rgba(37,99,235,0.5)" }
+            ),
+          }} />
+        ))}
+
         {posts.length === 0 ? (
           <div style={{ textAlign:"center", padding:"80px 0", color:"#9CA3AF" }}>
             <div style={{ fontSize:48, marginBottom:16 }}>📝</div>
@@ -343,9 +382,9 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   position: "absolute",
                   left: pos.x,
                   top: pos.y,
-                  width: 260,
+                  width: CARD_W,
                   zIndex: isDragging ? 999 : 1,
-                  transition: isDragging ? "none" : "left 0.15s, top 0.15s",
+                  transition: isDragging ? "none" : "left 0.08s ease, top 0.08s ease",
                 }}
               >
                 <PostCard

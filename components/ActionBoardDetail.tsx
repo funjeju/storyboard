@@ -136,13 +136,19 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMaximize, on
       )}
 
       {post.contentType === "ppt" && post.pptUrl && (
-        <div
-          onClick={() => onOpenPpt(post.pptUrl!, post.pptName || "프레젠테이션")}
-          style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"20px 14px", cursor:"pointer", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}
-        >
-          <div style={{ fontSize:36 }}>📊</div>
-          <div style={{ fontSize:13, fontWeight:600, color:"#374151", wordBreak:"break-all" }}>{post.pptName || "프레젠테이션"}</div>
-          <div style={{ fontSize:11, color:"#7C3AED", fontWeight:600 }}>클릭하여 전체화면 보기 →</div>
+        <div style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"16px 14px", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+          <div style={{ fontSize:32 }}>📊</div>
+          <div style={{ fontSize:12, fontWeight:600, color:"#374151", wordBreak:"break-all", lineHeight:1.4 }}>{post.pptName || "프레젠테이션"}</div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
+            <button onClick={() => onOpenPpt(post.pptUrl!, post.pptName || "프레젠테이션")}
+              style={{ padding:"5px 12px", background:"#7C3AED", border:"none", borderRadius:8, fontSize:11, fontWeight:700, color:"white", cursor:"pointer" }}>
+              🔍 보기
+            </button>
+            <a href={post.pptUrl} download target="_blank" rel="noreferrer"
+              style={{ padding:"5px 12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:11, fontWeight:700, color:"#374151", textDecoration:"none" }}>
+              ⬇️ 다운로드
+            </a>
+          </div>
         </div>
       )}
     </div>
@@ -670,10 +676,16 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:9999, display:"flex", flexDirection:"column" }}>
           <div style={{ background:"#1a1a2e", padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
             <span style={{ color:"white", fontSize:14, fontWeight:700 }}>📊 {pptViewer.name}</span>
-            <button onClick={() => setPptViewer(null)} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.2)", color:"white", borderRadius:10, padding:"8px 20px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕ 닫기</button>
+            <div style={{ display:"flex", gap:10 }}>
+              <a href={pptViewer.url} download target="_blank" rel="noreferrer"
+                style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, padding:"8px 16px", cursor:"pointer", fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                ⬇️ 다운로드
+              </a>
+              <button onClick={() => setPptViewer(null)} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.2)", color:"white", borderRadius:10, padding:"8px 20px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕ 닫기</button>
+            </div>
           </div>
           <iframe
-            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(pptViewer.url)}`}
+            src={`https://docs.google.com/viewer?url=${encodeURIComponent(pptViewer.url)}&embedded=true`}
             style={{ flex:1, border:"none", width:"100%" }}
             allowFullScreen
           />
@@ -719,8 +731,14 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
               </div>
             )}
             {maximizedPost.contentType === "ppt" && maximizedPost.pptUrl && (
-              <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", gap:0 }}>
-                <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(maximizedPost.pptUrl)}`}
+              <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", gap:12 }}>
+                <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
+                  <a href={maximizedPost.pptUrl} download target="_blank" rel="noreferrer"
+                    style={{ padding:"8px 20px", background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                    ⬇️ PPT 다운로드
+                  </a>
+                </div>
+                <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(maximizedPost.pptUrl)}&embedded=true`}
                   style={{ flex:1, border:"none", width:"100%", minHeight:500, borderRadius:12 }} allowFullScreen />
               </div>
             )}

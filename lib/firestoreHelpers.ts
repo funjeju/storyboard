@@ -184,6 +184,14 @@ export async function createActionBoard(board: Omit<CloudActionBoard, "updatedAt
   await setDoc(ref, { ...board, updatedAt: Date.now() });
 }
 
+export async function updateActionBoard(id: string, fields: Partial<Pick<CloudActionBoard, "title" | "description" | "startAt" | "endAt">>) {
+  await setDoc(boardDoc(id), { ...fields, updatedAt: Date.now() }, { merge: true });
+}
+
+export async function deleteActionBoard(id: string) {
+  await deleteDoc(boardDoc(id));
+}
+
 export async function getActionBoard(id: string): Promise<CloudActionBoard | null> {
   const snap = await getDoc(boardDoc(id));
   return snap.exists() ? (snap.data() as CloudActionBoard) : null;

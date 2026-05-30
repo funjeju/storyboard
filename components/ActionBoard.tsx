@@ -6,6 +6,8 @@ import { useAuth } from "@/components/AuthProvider";
 import {
   subscribeToActionBoards,
   createActionBoard,
+  updateActionBoard,
+  deleteActionBoard,
   type CloudActionBoard,
 } from "@/lib/firestoreHelpers";
 
@@ -46,6 +48,11 @@ function datepickToTs(p: DatePick) {
 
 function nowPick(offsetHours = 0): DatePick {
   const d = new Date(Date.now() + offsetHours * 3600_000);
+  return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), hour: d.getHours(), min: d.getMinutes() < 30 ? 0 : 30 };
+}
+
+function tsToDatePick(ts: number): DatePick {
+  const d = new Date(ts);
   return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), hour: d.getHours(), min: d.getMinutes() < 30 ? 0 : 30 };
 }
 
@@ -100,11 +107,62 @@ export default function ActionBoard() {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating]     = useState(false);
 
-  // form state
-  const [title, setTitle]       = useState("");
-  const [desc, setDesc]         = useState("");
+  // create form state
+  const [title, setTitle]         = useState("");
+  const [desc, setDesc]           = useState("");
   const [startPick, setStartPick] = useState<DatePick>(() => nowPick(0));
-  const [endPick, setEndPick]   = useState<DatePick>(() => nowPick(9));
+  const [endPick, setEndPick]     = useState<DatePick>(() => nowPick(9));
+
+  // edit state
+  const [editBoard, setEditBoard]     = useState<CloudActionBoard | null>(null);
+  const [editTitle, setEditTitle]     = useState("");
+  const [editDesc, setEditDesc]       = useState("");
+  const [editStart, setEditStart]     = useState<DatePick>(() => nowPick(0));
+  const [editEnd, setEditEnd]         = useState<DatePick>(() => nowPick(9));
+  const [editSaving, setEditSaving]   = useState(false);
+
+  // delete state
+  const [deleteTarget, setDeleteTarget] = useState<CloudActionBoard | null>(null);
+  const [deleting, setDeleting]         = useState(false);
+
+  const openEdit = (b: CloudActionBoard, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setEditBoard(b);
+    setEditTitle(b.title);
+    setEditDesc(b.description);
+    setEditStart(tsToDatePick(b.startAt));
+    setEditEnd(tsToDatePick(b.endAt));
+  };
+
+  const openDelete = (b: CloudActionBoard, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setDeleteTarget(b);
+  };
+
+  const handleEdit = async () => {
+    if (!editBoard || !editTitle.trim()) return;
+    setEditSaving(true);
+    try {
+      await updateActionBoard(editBoard.id, {
+        title: editTitle.trim(),
+        description: editDesc.trim(),
+        startAt: datepickToTs(editStart),
+        endAt: datepickToTs(editEnd),
+      });
+      setEditBoard(null);
+    } catch { /* silent */ }
+    setEditSaving(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteActionBoard(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch { /* silent */ }
+    setDeleting(false);
+  };
 
   useEffect(() => {
     const unsub = subscribeToActionBoards(setBoards);
@@ -269,7 +327,21 @@ export default function ActionBoard() {
 
                       <div style={{ padding:"10px 0", borderTop:"1px solid #F3F4F6", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                         <span style={{ fontSize:12, color:st.color, fontWeight:700, background:st.bg, padding:"3px 10px", borderRadius:100 }}>{st.label}</span>
-                        <span style={{ fontSize:13, fontWeight:700, color:P }}>보드 열기 →</span>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          {user?.uid === board.uid && (
+                            <>
+                              <button
+                                onClick={e => openEdit(board, e)}
+                                style={{ padding:"4px 10px", background:"#F3F4F6", border:"none", borderRadius:7, fontSize:12, fontWeight:600, color:"#374151", cursor:"pointer" }}
+                              >✏️ 수정</button>
+                              <button
+                                onClick={e => openDelete(board, e)}
+                                style={{ padding:"4px 10px", background:"#FEF2F2", border:"none", borderRadius:7, fontSize:12, fontWeight:600, color:"#DC2626", cursor:"pointer" }}
+                              >🗑 삭제</button>
+                            </>
+                          )}
+                          <span style={{ fontSize:13, fontWeight:700, color:P }}>열기 →</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -326,6 +398,78 @@ export default function ActionBoard() {
                 style={{ flex:2, padding:"13px", background:title.trim()?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:title.trim()?"white":"#9CA3AF", cursor:title.trim()?"pointer":"default", boxShadow:title.trim()?`0 4px 16px rgba(124,58,237,0.3)`:"none" }}
               >
                 {creating ? "생성 중..." : "📋 보드 생성"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit modal ── */}
+      {editBoard && (
+        <div onClick={() => setEditBoard(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"40px 36px", width:"100%", maxWidth:460, boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
+            <div style={{ fontSize:20, fontWeight:800, color:"#111827", marginBottom:6 }}>✏️ 보드 수정</div>
+            <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>{editBoard.title}</div>
+
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>보드 제목 *</label>
+                <input
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>설명 (선택)</label>
+                <input
+                  value={editDesc}
+                  onChange={e => setEditDesc(e.target.value)}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+              </div>
+              <DateTimePicker label="입력 시작" icon="📅" value={editStart} onChange={setEditStart} />
+              <DateTimePicker label="입력 마감" icon="🔒" value={editEnd} onChange={setEditEnd} />
+            </div>
+
+            <div style={{ display:"flex", gap:10, marginTop:28 }}>
+              <button onClick={() => setEditBoard(null)} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>
+                취소
+              </button>
+              <button
+                onClick={handleEdit}
+                disabled={editSaving || !editTitle.trim()}
+                style={{ flex:2, padding:"13px", background:editTitle.trim()?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:editTitle.trim()?"white":"#9CA3AF", cursor:editTitle.trim()?"pointer":"default", boxShadow:editTitle.trim()?`0 4px 16px rgba(124,58,237,0.3)`:"none" }}
+              >
+                {editSaving ? "저장 중..." : "✏️ 수정 완료"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirm modal ── */}
+      {deleteTarget && (
+        <div onClick={() => setDeleteTarget(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"36px", width:"100%", maxWidth:380, textAlign:"center", boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
+            <div style={{ fontSize:44, marginBottom:14 }}>🗑</div>
+            <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:8 }}>보드를 삭제할까요?</div>
+            <div style={{ fontSize:14, color:"#6B7280", lineHeight:1.6, marginBottom:8 }}>
+              <strong style={{ color:"#374151" }}>"{deleteTarget.title}"</strong>
+            </div>
+            <div style={{ fontSize:13, color:"#EF4444", background:"#FEF2F2", borderRadius:10, padding:"10px 14px", marginBottom:24 }}>
+              ⚠️ 보드 안의 모든 게시물도 함께 삭제됩니다.<br />이 작업은 되돌릴 수 없습니다.
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setDeleteTarget(null)} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>
+                취소
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{ flex:1, padding:"13px", background:"#EF4444", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:"pointer" }}
+              >
+                {deleting ? "삭제 중..." : "삭제"}
               </button>
             </div>
           </div>

@@ -180,14 +180,15 @@ export default function MainHub() {
               CREATIVE TOOLKIT
             </div>
           </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 1, height: 28, background: "#E5E7EB", margin: "0 4px" }} />
           <Link
             href="/actionboard"
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", background:"rgba(124,58,237,0.07)", border:"1.5px solid rgba(124,58,237,0.2)", borderRadius:10, textDecoration:"none", fontSize:13, fontWeight:700, color:"#7C3AED", transition:"all 0.15s" }}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", background:"rgba(124,58,237,0.07)", border:"1.5px solid rgba(124,58,237,0.2)", borderRadius:10, textDecoration:"none", fontSize:13, fontWeight:700, color:"#7C3AED" }}
           >
             📋 액션보드
           </Link>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{
               width: 8, height: 8, borderRadius: "50%", background: "#10B981",

@@ -40,6 +40,21 @@ function getYoutubeId(url: string) {
   return m ? m[1] : null;
 }
 
+// Convert URLs inside plain text into clickable links
+function linkify(text: string): React.ReactNode[] {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return text.split(urlRegex).map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noreferrer"
+        onClick={e => e.stopPropagation()}
+        onMouseDown={e => e.stopPropagation()}
+        style={{ color:"#2563EB", textDecoration:"underline", wordBreak:"break-all" }}>
+        {part}
+      </a>
+    ) : part
+  );
+}
+
 // ── Sticky note card ──────────────────────────────────────────────────────────
 const NOTE_COLORS = ["#FFF9C4","#FFE0B2","#F8BBD0","#C8E6C9","#B3E5FC","#E1BEE7","#FFFFFF"];
 const PALETTE = [
@@ -511,7 +526,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   <span style={{ fontSize:11, fontWeight:600, color:"#374151" }}>{post.authorName}</span>
                   <span style={{ fontSize:10, color:"#9CA3AF" }}>{fmtDate(post.createdAt)}</span>
                 </div>
-                {post.contentType === "text"  && <p style={{ fontSize:13, color:"#1F2937", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{post.text}</p>}
+                {post.contentType === "text"  && <p style={{ fontSize:13, color:"#1F2937", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{linkify(post.text ?? "")}</p>}
                 {post.contentType === "image" && post.imageUrl && <img src={post.imageUrl} alt="" style={{ width:"100%", borderRadius:8 }} />}
                 {post.contentType === "youtube" && post.youtubeUrl && getYoutubeId(post.youtubeUrl) && <img src={`https://img.youtube.com/vi/${getYoutubeId(post.youtubeUrl)}/mqdefault.jpg`} alt="" style={{ width:"100%", borderRadius:8 }} />}
                 {isAdmin && (
@@ -762,7 +777,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
           <div style={{ flex:1, overflow:"auto", display:"flex", alignItems:"center", justifyContent:"center", padding:40 }}>
             {maximizedPost.contentType === "text" && (
               <div style={{ maxWidth:800, width:"100%", background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, padding:"48px 56px", fontSize:20, lineHeight:1.8, color:"#1F2937", whiteSpace:"pre-wrap" }}>
-                {maximizedPost.text}
+                {linkify(maximizedPost.text ?? "")}
               </div>
             )}
             {maximizedPost.contentType === "image" && maximizedPost.imageUrl && (

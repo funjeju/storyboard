@@ -58,10 +58,33 @@ function linkify(text: string): React.ReactNode[] {
 // ── Sticky note card ──────────────────────────────────────────────────────────
 const NOTE_COLORS = ["#FFF9C4","#FFE0B2","#F8BBD0","#C8E6C9","#B3E5FC","#E1BEE7","#FFFFFF"];
 const PALETTE = [
-  "#FFF9C4","#FFE0B2","#FFCDD2","#F8BBD0",
-  "#C8E6C9","#DCEDC8","#B3E5FC","#BBDEFB",
-  "#E1BEE7","#D7CCC8","#FFFFFF","#F5F5F5",
+  "#FFF9C4","#FFE0B2","#FFCDD2","#F8BBD0","#E1BEE7",
+  "#C8E6C9","#B3E5FC","#BBDEFB","#D7CCC8","#FFFFFF",
 ];
+
+// Color swatches + custom picker, reusable for create & edit forms
+function ColorPalette({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+  const isCustom = !PALETTE.includes(value);
+  return (
+    <div style={{ display:"flex", gap:7, flexWrap:"wrap", alignItems:"center" }}>
+      {PALETTE.map(c => (
+        <div key={c} onClick={() => onChange(c)}
+          style={{ width:28, height:28, borderRadius:8, background:c, border:`2.5px solid ${value===c?"#7C3AED":"#E5E7EB"}`, cursor:"pointer", boxShadow:value===c?"0 0 0 2px rgba(124,58,237,0.25)":"none", transition:"all 0.12s" }} />
+      ))}
+      {/* Custom color picker */}
+      <label title="직접 색상 선택"
+        style={{ width:28, height:28, borderRadius:8, cursor:"pointer", position:"relative", overflow:"hidden",
+          border:`2.5px solid ${isCustom?"#7C3AED":"#E5E7EB"}`,
+          boxShadow:isCustom?"0 0 0 2px rgba(124,58,237,0.25)":"none",
+          background: isCustom ? value : "conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)",
+          display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <input type="color" value={isCustom ? value : "#7C3AED"} onChange={e => onChange(e.target.value)}
+          style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, cursor:"pointer", border:"none", padding:0 }} />
+        {!isCustom && <span style={{ fontSize:11, filter:"drop-shadow(0 0 1px white)" }}>🎨</span>}
+      </label>
+    </div>
+  );
+}
 
 function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMaximize, onMouseDown, isDragging }: {
   post: CloudBoardPost;
@@ -861,11 +884,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
             <div style={{ marginBottom:24 }}>
               <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>🎨 카드 배경색</label>
-              <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
-                {PALETTE.map(c => (
-                  <div key={c} onClick={() => setEditColor(c)} style={{ width:28, height:28, borderRadius:8, background:c, border:`2.5px solid ${editColor===c?"#7C3AED":"#E5E7EB"}`, cursor:"pointer", boxShadow:editColor===c?"0 0 0 2px rgba(124,58,237,0.25)":"none", transition:"all 0.12s" }} />
-                ))}
-              </div>
+              <ColorPalette value={editColor} onChange={setEditColor} />
             </div>
 
             <div style={{ display:"flex", gap:10 }}>

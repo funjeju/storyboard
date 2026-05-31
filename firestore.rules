@@ -39,6 +39,12 @@ service cloud.firestore {
       match /posts/{postId} {
         allow read: if true;
         allow create: if request.auth != null;
+        // 수정: 작성자 또는 보드 개설자는 전체 수정 / 그 외 로그인 사용자는 위치(x,y)만 이동 가능
+        allow update: if request.auth != null && (
+          request.auth.uid == resource.data.uid ||
+          request.auth.uid == get(/databases/$(database)/documents/actionBoards/$(boardId)).data.uid ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['x','y'])
+        );
         allow delete: if request.auth != null && (
           request.auth.uid == resource.data.uid ||
           request.auth.uid == get(/databases/$(database)/documents/actionBoards/$(boardId)).data.uid

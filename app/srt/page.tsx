@@ -12,6 +12,31 @@ const BLUE = "#3B82F6";
 
 const MAX_MP3_SIZE = 25 * 1024 * 1024; // OpenAI Whisper API 한도
 
+interface Cue { index: number; time: string; text: string }
+
+// SRT 문자열 → 큐 배열
+function parseSrt(srt: string): Cue[] {
+  return srt
+    .split(/\n\s*\n/)
+    .map(block => block.trim())
+    .filter(Boolean)
+    .map(block => {
+      const lines = block.split("\n");
+      const index = parseInt(lines[0], 10) || 0;
+      const time = lines[1] ?? "";
+      const text = lines.slice(2).join("\n");
+      return { index, time, text };
+    })
+    .filter(c => c.time.includes("-->"));
+}
+
+// 큐 배열 → SRT 문자열 (편집 반영 + 번호 재정렬)
+function buildSrt(cues: Cue[]): string {
+  return cues
+    .map((c, i) => `${i + 1}\n${c.time}\n${c.text.trim()}`)
+    .join("\n\n");
+}
+
 export default function SrtPage() {
   const { user, loading: authLoading, signIn } = useAuth();
 
@@ -20,6 +45,7 @@ export default function SrtPage() {
   const [status, setStatus]     = useState<"idle" | "uploading" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [srtContent, setSrt]    = useState("");
+  const [cues, setCues]         = useState<Cue[]>([]);
   const [mp3Drag, setMp3Drag]   = useState(false);
   const [txtDrag, setTxtDrag]   = useState(false);
   const mp3Ref = useRef<HTMLInputElement>(null);
@@ -69,9 +95,11 @@ export default function SrtPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "오류가 발생했습니다.");
 
-      setSrt(data.srt || "");
+      const srt = data.srt || "";
+      setSrt(srt);
+      setCues(parseSrt(srt));
       setStatus("done");
-      downloadSrt(data.srt || "");
+      // 자동 다운로드 제거 — 사용자가 검수·편집 후 직접 다운로드
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setStatus("error");
@@ -79,7 +107,7 @@ export default function SrtPage() {
   };
 
   const downloadSrt = (content: string) => {
-    const blob = new Blob([content], { type: "text/plain; charset=utf-8" });
+    const blob = new Blob(["﻿" + content], { type: "text/plain; charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -94,7 +122,7 @@ export default function SrtPage() {
     else                { setTxtDrag(false); setTxtFile(e.dataTransfer.files[0] || null); }
   };
 
-  const segmentCount = srtContent ? srtContent.split("\n\n").filter(Boolean).length : 0;
+  const segmentCount = cues.length;
   const busy = status === "uploading" || status === "loading";
 
   return (
@@ -259,13 +287,30 @@ export default function SrtPage() {
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
                 <div>
                   <div style={{ fontSize:12, fontWeight:700, color:"#374151" }}>생성 완료</div>
-                  <div style={{ fontSize:11, color:"#9CA3AF", marginTop:2 }}>{segmentCount}개 자막 세그먼트</div>
+                  <div style={{ fontSize:11, color:"#9CA3AF", marginTop:2 }}>{segmentCount}개 세그먼트 · 텍스트 클릭하여 수정 가능</div>
                 </div>
-                <button onClick={() => downloadSrt(srtContent)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, background:BLUE, color:"white", border:"none", fontSize:12, fontWeight:700, cursor:"pointer" }}>↓ 다운로드</button>
+                <button onClick={() => downloadSrt(buildSrt(cues))} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, background:BLUE, color:"white", border:"none", fontSize:12, fontWeight:700, cursor:"pointer" }}>↓ 다운로드</button>
               </div>
-              <pre style={{ background:"white", borderRadius:12, border:"1px solid #F3F4F6", padding:14, fontSize:11, color:"#6B7280", fontFamily:"'Courier New',monospace", lineHeight:1.7, overflow:"auto", maxHeight:240, whiteSpace:"pre-wrap" }}>
-                {srtContent.slice(0, 1200)}{srtContent.length > 1200 ? "\n\n..." : ""}
-              </pre>
+              <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:420, overflow:"auto", paddingRight:4 }}>
+                {cues.map((cue, i) => (
+                  <div key={i} style={{ background:"white", borderRadius:10, border:"1px solid #E5E7EB", padding:"10px 12px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                      <span style={{ fontSize:10, fontWeight:800, color:"white", background:BLUE, borderRadius:5, padding:"1px 7px" }}>{i + 1}</span>
+                      <span style={{ fontSize:10, color:"#9CA3AF", fontFamily:"'Courier New',monospace" }}>{cue.time}</span>
+                    </div>
+                    <textarea
+                      value={cue.text}
+                      onChange={e => {
+                        const next = [...cues];
+                        next[i] = { ...next[i], text: e.target.value };
+                        setCues(next);
+                      }}
+                      rows={Math.max(1, cue.text.split("\n").length)}
+                      style={{ width:"100%", border:"none", outline:"none", resize:"vertical", fontSize:13, lineHeight:1.5, color:"#1F2937", fontFamily:"inherit", background:"transparent" }}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -1,356 +1,277 @@
-'use client'
+"use client";
 
-import { useState, useRef } from 'react'
-import Link from 'next/link'
-import { ref as storageRef, uploadBytes } from 'firebase/storage'
-import { storage } from '@/lib/firebase'
-import { useAuth } from '@/providers/AuthProvider'
-import ImageSegmentPanel from '@/components/srt/ImageSegmentPanel'
+import { useState, useRef } from "react";
+import Link from "next/link";
+import { ref as storageRef, uploadBytes } from "firebase/storage";
+import { storage } from "@/lib/firebase";
+import { useAuth } from "@/components/AuthProvider";
 
-function WaveIcon() {
-  return (
-    <svg width="40" height="20" viewBox="0 0 40 20" fill="none" className="opacity-60">
-      {[2, 6, 10, 14, 18, 22, 26, 30, 34, 38].map((x, i) => (
-        <rect
-          key={i}
-          x={x} y={10 - [4,8,12,10,6,14,8,12,6,10][i] / 2}
-          width="2" height={[4,8,12,10,6,14,8,12,6,10][i]}
-          rx="1" fill="#3B82F6"
-          style={{ opacity: 0.4 + i * 0.06 }}
-        />
-      ))}
-    </svg>
-  )
-}
+const P = "#7C3AED";
+const PINK = "#EC4899";
+const BLUE = "#3B82F6";
 
-const MAX_MP3_SIZE = 25 * 1024 * 1024 // 25MB — OpenAI Whisper API 한도
+const MAX_MP3_SIZE = 25 * 1024 * 1024; // OpenAI Whisper API 한도
 
 export default function SrtPage() {
-  const { user, loading: authLoading, openAuthModal } = useAuth()
+  const { user, loading: authLoading, signIn } = useAuth();
 
-  const [mp3File, setMp3File]   = useState<File | null>(null)
-  const [txtFile, setTxtFile]   = useState<File | null>(null)
-  const [status, setStatus]     = useState<'idle' | 'uploading' | 'loading' | 'done' | 'error'>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
-  const [srtContent, setSrtContent] = useState('')
-  const [sessionId, setSessionId] = useState('')
-  const [lyricSnapshot, setLyricSnapshot] = useState('')
-  const [mp3Drag, setMp3Drag]   = useState(false)
-  const [txtDrag, setTxtDrag]   = useState(false)
-  const mp3Ref = useRef<HTMLInputElement>(null)
-  const txtRef = useRef<HTMLInputElement>(null)
+  const [mp3File, setMp3File]   = useState<File | null>(null);
+  const [txtFile, setTxtFile]   = useState<File | null>(null);
+  const [status, setStatus]     = useState<"idle" | "uploading" | "loading" | "done" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [srtContent, setSrt]    = useState("");
+  const [mp3Drag, setMp3Drag]   = useState(false);
+  const [txtDrag, setTxtDrag]   = useState(false);
+  const mp3Ref = useRef<HTMLInputElement>(null);
+  const txtRef = useRef<HTMLInputElement>(null);
 
   const pickMp3 = (file: File | null) => {
-    if (!file) { setMp3File(null); return }
+    if (!file) { setMp3File(null); return; }
     if (file.size > MAX_MP3_SIZE) {
-      setErrorMsg(`MP3 파일이 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB). 25MB 이하 파일만 사용 가능합니다.`)
-      setStatus('error')
-      setMp3File(null)
-      return
+      setErrorMsg(`MP3 파일이 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB). 25MB 이하만 가능합니다.`);
+      setStatus("error");
+      setMp3File(null);
+      return;
     }
-    setErrorMsg('')
-    setStatus('idle')
-    setMp3File(file)
-  }
+    setErrorMsg("");
+    setStatus("idle");
+    setMp3File(file);
+  };
 
   const handleGenerate = async () => {
-    if (!mp3File) return
-    if (!user) { openAuthModal('login'); return }
+    if (!mp3File) return;
+    if (!user) { signIn(); return; }
+    if (!storage) { setErrorMsg("스토리지 초기화 실패"); setStatus("error"); return; }
 
-    setStatus('uploading')
-    setErrorMsg('')
-    setSrtContent('')
+    setStatus("uploading");
+    setErrorMsg("");
+    setSrt("");
 
     try {
-      // 1. Storage에 임시 업로드 (Vercel body 한도 우회)
-      const ext = mp3File.name.split('.').pop() || 'mp3'
-      const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`
-      const mp3Path = `srt_temp/${user.uid}/${fileId}`
-      await uploadBytes(storageRef(storage, mp3Path), mp3File, { contentType: mp3File.type || 'audio/mpeg' })
+      // 1. Storage 임시 업로드 (Vercel body 한도 우회)
+      const ext = mp3File.name.split(".").pop() || "mp3";
+      const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+      const mp3Path = `srt_temp/${user.uid}/${fileId}`;
+      await uploadBytes(storageRef(storage, mp3Path), mp3File, { contentType: mp3File.type || "audio/mpeg" });
 
-      // 2. TXT 내용 읽기 (옵션) — 이미지 모드에서 재사용하기 위해 보관
-      let txtContent = ''
-      if (txtFile) txtContent = await txtFile.text()
-      setLyricSnapshot(txtContent)
+      // 2. TXT 스크립트 (옵션)
+      let txtContent = "";
+      if (txtFile) txtContent = await txtFile.text();
 
-      // 3. API 호출 (경로 + 토큰)
-      setStatus('loading')
-      const token = await user.getIdToken()
-      const res = await fetch('/api/srt-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          mp3Path,
-          mp3MimeType: mp3File.type || 'audio/mpeg',
-          mp3Name: mp3File.name,
-          txtContent,
-        }),
-      })
-      if (!res.ok) {
-        const contentType = res.headers.get('content-type') || ''
-        const errMsg = contentType.includes('application/json')
-          ? (await res.json()).error
-          : await res.text()
-        throw new Error(errMsg || '오류가 발생했습니다.')
-      }
-      const text = await res.text()
-      setSrtContent(text)
-      // 이미지 생성 세션 ID 부여 (storage 경로 segregation)
-      setSessionId(`s${Date.now()}${Math.random().toString(36).slice(2, 8)}`)
-      setStatus('done')
-      downloadSrt(text)
-    } catch (e: any) {
-      setErrorMsg(e.message)
-      setStatus('error')
+      // 3. API 호출
+      setStatus("loading");
+      const token = await user.getIdToken();
+      const res = await fetch("/api/srt-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ mp3Path, mp3MimeType: mp3File.type || "audio/mpeg", mp3Name: mp3File.name, txtContent }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "오류가 발생했습니다.");
+
+      setSrt(data.srt || "");
+      setStatus("done");
+      downloadSrt(data.srt || "");
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
+      setStatus("error");
     }
-  }
+  };
 
   const downloadSrt = (content: string) => {
-    const blob = new Blob([content], { type: 'text/plain; charset=utf-8' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = (mp3File?.name.replace(/\.[^.]+$/, '') || 'subtitles') + '.srt'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+    const blob = new Blob([content], { type: "text/plain; charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (mp3File?.name.replace(/\.[^.]+$/, "") || "subtitles") + ".srt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-  const onDrop = (e: React.DragEvent, type: 'mp3' | 'txt') => {
-    e.preventDefault()
-    if (type === 'mp3') { setMp3Drag(false); pickMp3(e.dataTransfer.files[0] || null) }
-    else                { setTxtDrag(false); setTxtFile(e.dataTransfer.files[0] || null) }
-  }
+  const onDrop = (e: React.DragEvent, type: "mp3" | "txt") => {
+    e.preventDefault();
+    if (type === "mp3") { setMp3Drag(false); pickMp3(e.dataTransfer.files[0] || null); }
+    else                { setTxtDrag(false); setTxtFile(e.dataTransfer.files[0] || null); }
+  };
 
-  const segmentCount = srtContent ? srtContent.split('\n\n').filter(Boolean).length : 0
+  const segmentCount = srtContent ? srtContent.split("\n\n").filter(Boolean).length : 0;
+  const busy = status === "uploading" || status === "loading";
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] flex flex-col">
-      {/* 헤더 */}
-      <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center gap-3">
-        <Link href="/" className="text-gray-400 hover:text-gray-600 text-sm transition-colors">← 홈</Link>
-        <div className="w-px h-4 bg-gray-200" />
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center">
-            <span className="text-white text-[10px] font-black tracking-tight">SRT</span>
-          </div>
-          <span className="font-bold text-gray-900 text-sm">SRT Generator</span>
-        </div>
-      </header>
+    <div style={{ minHeight: "100vh", background: "#F5F7FA", fontFamily: "'Noto Sans KR',-apple-system,sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap');
+        * { box-sizing:border-box; margin:0; padding:0; }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
 
-      {/* 메인 */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
-        {/* 타이틀 */}
-        <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <WaveIcon />
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">자막 자동 생성</h1>
-            <WaveIcon />
+      {/* Nav */}
+      <nav style={{ background:"white", borderBottom:"1px solid #E5E7EB", padding:"0 32px", height:60, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <Link href="/" style={{ display:"flex", alignItems:"center", gap:10, textDecoration:"none" }}>
+            <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:"white", fontWeight:800 }}>✦</div>
+            <span style={{ fontSize:14, fontWeight:800, color:"#111827" }}>AI Studio</span>
+          </Link>
+          <div style={{ width:1, height:20, background:"#E5E7EB" }} />
+          <span style={{ fontSize:14, fontWeight:700, color:BLUE }}>📝 SRT 자막 생성기</span>
+        </div>
+        {user && (
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            {user.photoURL && <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:"50%" }} />}
+            <span style={{ fontSize:13, fontWeight:600, color:"#374151" }}>{user.displayName}</span>
           </div>
-          <p className="text-gray-500 text-sm max-w-sm mx-auto leading-relaxed">
+        )}
+      </nav>
+
+      <main style={{ maxWidth:520, margin:"0 auto", padding:"48px 20px 80px" }}>
+        {/* Title */}
+        <div style={{ textAlign:"center", marginBottom:32, animation:"fadeUp 0.4s ease both" }}>
+          <h1 style={{ fontSize:28, fontWeight:800, color:"#0F172A", letterSpacing:-0.8, marginBottom:10 }}>🎙️ 자막 자동 생성</h1>
+          <p style={{ fontSize:14, color:"#6B7280", lineHeight:1.7 }}>
             MP3 파일만으로 SRT 자막을 생성하거나,<br />
             스크립트 TXT를 함께 올리면 정확도가 높아져요
           </p>
         </div>
 
-        {/* 카드 */}
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 space-y-5">
+        {/* Card */}
+        <div style={{ background:"white", borderRadius:20, border:"1px solid #E5E7EB", boxShadow:"0 2px 12px rgba(0,0,0,0.05)", overflow:"hidden", animation:"fadeUp 0.5s ease both" }}>
+          <div style={{ padding:24, display:"flex", flexDirection:"column", gap:20 }}>
 
-            {/* MP3 업로드 */}
+            {/* MP3 */}
             <div>
-              <div className="flex items-center gap-2 mb-2.5">
-                <span className="w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] flex items-center justify-center font-bold shrink-0">1</span>
-                <span className="text-sm font-semibold text-gray-800">MP3 오디오 파일</span>
-                <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">필수</span>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                <span style={{ width:20, height:20, borderRadius:"50%", background:BLUE, color:"white", fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>1</span>
+                <span style={{ fontSize:14, fontWeight:700, color:"#1F2937" }}>MP3 오디오 파일</span>
+                <span style={{ marginLeft:"auto", fontSize:10, fontWeight:700, color:BLUE, background:"#EFF6FF", padding:"2px 8px", borderRadius:100 }}>필수</span>
               </div>
               <div
                 onClick={() => mp3Ref.current?.click()}
-                onDrop={e => onDrop(e, 'mp3')}
-                onDragOver={e => { e.preventDefault(); setMp3Drag(true) }}
+                onDrop={e => onDrop(e, "mp3")}
+                onDragOver={e => { e.preventDefault(); setMp3Drag(true); }}
                 onDragLeave={() => setMp3Drag(false)}
-                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all select-none ${
-                  mp3Drag   ? 'border-blue-400 bg-blue-50 scale-[1.01]'
-                  : mp3File ? 'border-blue-300 bg-blue-50'
-                  : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                }`}
+                style={{ border:`2px dashed ${mp3Drag||mp3File?BLUE:"#E5E7EB"}`, borderRadius:14, padding:mp3File?"16px":"28px 16px", textAlign:"center", cursor:"pointer", background:mp3Drag||mp3File?"#EFF6FF":"transparent", transition:"all 0.15s" }}
               >
                 {mp3File ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                      <span className="text-lg">🎵</span>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <span style={{ fontSize:22 }}>🎵</span>
+                    <div style={{ textAlign:"left", minWidth:0, flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:"#1D4ED8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{mp3File.name}</div>
+                      <div style={{ fontSize:12, color:"#60A5FA" }}>{(mp3File.size / 1024 / 1024).toFixed(1)} MB</div>
                     </div>
-                    <div className="text-left min-w-0">
-                      <p className="text-sm font-semibold text-blue-700 truncate max-w-[200px]">{mp3File.name}</p>
-                      <p className="text-xs text-blue-400">{(mp3File.size / 1024 / 1024).toFixed(1)} MB</p>
-                    </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); setMp3File(null) }}
-                      className="ml-auto text-blue-300 hover:text-blue-500 text-lg leading-none"
-                    >×</button>
+                    <button onClick={e => { e.stopPropagation(); setMp3File(null); }} style={{ background:"none", border:"none", color:"#93C5FD", fontSize:18, cursor:"pointer" }}>×</button>
                   </div>
                 ) : (
                   <>
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mx-auto mb-2">
-                      <span className="text-xl">🎵</span>
-                    </div>
-                    <p className="text-sm text-gray-600 font-medium">클릭하거나 드래그</p>
-                    <p className="text-xs text-gray-400 mt-1">MP3, WAV, M4A · 최대 25MB</p>
+                    <div style={{ fontSize:26, marginBottom:6 }}>🎵</div>
+                    <div style={{ fontSize:14, color:"#4B5563", fontWeight:500 }}>클릭하거나 드래그</div>
+                    <div style={{ fontSize:12, color:"#9CA3AF", marginTop:4 }}>MP3, WAV, M4A · 최대 25MB</div>
                   </>
                 )}
               </div>
-              <input ref={mp3Ref} type="file" accept="audio/*" className="hidden"
-                onChange={e => pickMp3(e.target.files?.[0] || null)} />
+              <input ref={mp3Ref} type="file" accept="audio/*" style={{ display:"none" }} onChange={e => pickMp3(e.target.files?.[0] || null)} />
             </div>
 
-            {/* 구분선 */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-gray-100" />
-              <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">선택 — 정확도 향상</span>
-              <div className="flex-1 h-px bg-gray-100" />
+            {/* Divider */}
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ flex:1, height:1, background:"#F3F4F6" }} />
+              <span style={{ fontSize:10, color:"#9CA3AF", fontWeight:700, letterSpacing:1 }}>선택 — 정확도 향상</span>
+              <div style={{ flex:1, height:1, background:"#F3F4F6" }} />
             </div>
 
-            {/* TXT 업로드 */}
+            {/* TXT */}
             <div>
-              <div className="flex items-center gap-2 mb-2.5">
-                <span className={`w-5 h-5 rounded-full text-white text-[10px] flex items-center justify-center font-bold shrink-0 ${txtFile ? 'bg-emerald-500' : 'bg-gray-300'}`}>2</span>
-                <span className="text-sm font-semibold text-gray-800">스크립트 TXT 파일</span>
-                <span className="ml-auto text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">선택</span>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                <span style={{ width:20, height:20, borderRadius:"50%", background:txtFile?"#10B981":"#D1D5DB", color:"white", fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>2</span>
+                <span style={{ fontSize:14, fontWeight:700, color:"#1F2937" }}>스크립트 TXT 파일</span>
+                <span style={{ marginLeft:"auto", fontSize:10, fontWeight:700, color:"#9CA3AF", background:"#F3F4F6", padding:"2px 8px", borderRadius:100 }}>선택</span>
               </div>
               <div
                 onClick={() => txtRef.current?.click()}
-                onDrop={e => onDrop(e, 'txt')}
-                onDragOver={e => { e.preventDefault(); setTxtDrag(true) }}
+                onDrop={e => onDrop(e, "txt")}
+                onDragOver={e => { e.preventDefault(); setTxtDrag(true); }}
                 onDragLeave={() => setTxtDrag(false)}
-                className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all select-none ${
-                  txtDrag   ? 'border-emerald-400 bg-emerald-50 scale-[1.01]'
-                  : txtFile ? 'border-emerald-300 bg-emerald-50'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                }`}
+                style={{ border:`2px dashed ${txtDrag||txtFile?"#10B981":"#E5E7EB"}`, borderRadius:14, padding:txtFile?"14px":"20px 16px", textAlign:"center", cursor:"pointer", background:txtDrag||txtFile?"#F0FDF4":"transparent", transition:"all 0.15s" }}
               >
                 {txtFile ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                      <span className="text-lg">📄</span>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <span style={{ fontSize:20 }}>📄</span>
+                    <div style={{ textAlign:"left", minWidth:0, flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:"#15803D", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{txtFile.name}</div>
+                      <div style={{ fontSize:12, color:"#4ADE80" }}>{(txtFile.size / 1024).toFixed(0)} KB</div>
                     </div>
-                    <div className="text-left min-w-0">
-                      <p className="text-sm font-semibold text-emerald-700 truncate max-w-[200px]">{txtFile.name}</p>
-                      <p className="text-xs text-emerald-400">{(txtFile.size / 1024).toFixed(0)} KB</p>
-                    </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); setTxtFile(null) }}
-                      className="ml-auto text-emerald-300 hover:text-emerald-500 text-lg leading-none"
-                    >×</button>
+                    <button onClick={e => { e.stopPropagation(); setTxtFile(null); }} style={{ background:"none", border:"none", color:"#86EFAC", fontSize:18, cursor:"pointer" }}>×</button>
                   </div>
                 ) : (
                   <>
-                    <span className="text-xl block mb-1">📄</span>
-                    <p className="text-sm text-gray-400">스크립트 TXT 파일 드래그 또는 클릭</p>
+                    <div style={{ fontSize:20, marginBottom:4 }}>📄</div>
+                    <div style={{ fontSize:13, color:"#9CA3AF" }}>스크립트 TXT 드래그 또는 클릭</div>
                   </>
                 )}
               </div>
-              <input ref={txtRef} type="file" accept=".txt,text/plain" className="hidden"
-                onChange={e => setTxtFile(e.target.files?.[0] || null)} />
+              <input ref={txtRef} type="file" accept=".txt,text/plain" style={{ display:"none" }} onChange={e => setTxtFile(e.target.files?.[0] || null)} />
             </div>
 
-            {/* 모드 표시 */}
+            {/* Mode */}
             {mp3File && (
-              <div className={`rounded-xl px-4 py-3 flex items-center gap-2.5 text-sm ${
-                txtFile
-                  ? 'bg-emerald-50 border border-emerald-100'
-                  : 'bg-blue-50 border border-blue-100'
-              }`}>
-                <span className="text-base">{txtFile ? '✨' : '🎙️'}</span>
+              <div style={{ borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", gap:10, background:txtFile?"#F0FDF4":"#EFF6FF", border:`1px solid ${txtFile?"#BBF7D0":"#BFDBFE"}` }}>
+                <span style={{ fontSize:18 }}>{txtFile ? "✨" : "🎙️"}</span>
                 <div>
-                  <p className={`font-semibold text-xs ${txtFile ? 'text-emerald-700' : 'text-blue-600'}`}>
-                    {txtFile ? '고정확도 모드' : '표준 모드'}
-                  </p>
-                  <p className={`text-xs mt-0.5 ${txtFile ? 'text-emerald-500' : 'text-blue-400'}`}>
-                    {txtFile
-                      ? 'MP3 타이밍 + 스크립트 텍스트를 정렬합니다'
-                      : 'TXT 스크립트를 추가하면 정확도가 올라가요'}
-                  </p>
+                  <div style={{ fontSize:12, fontWeight:700, color:txtFile?"#15803D":"#2563EB" }}>{txtFile ? "고정확도 모드" : "표준 모드"}</div>
+                  <div style={{ fontSize:11, color:txtFile?"#22C55E":"#60A5FA", marginTop:2 }}>
+                    {txtFile ? "MP3 타이밍 + 스크립트 텍스트를 정렬합니다" : "TXT 스크립트를 추가하면 정확도가 올라가요"}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* 에러 */}
-            {status === 'error' && (
-              <div className="bg-red-50 border border-red-100 text-red-600 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+            {/* Error */}
+            {status === "error" && (
+              <div style={{ background:"#FEF2F2", border:"1px solid #FECACA", color:"#DC2626", borderRadius:12, padding:"12px 14px", fontSize:13, display:"flex", gap:8, lineHeight:1.5, wordBreak:"break-all" }}>
                 <span>⚠️</span>{errorMsg}
               </div>
             )}
 
-            {/* 비로그인 안내 */}
+            {/* Not logged in */}
             {!authLoading && !user && (
-              <div className="bg-amber-50 border border-amber-100 text-amber-700 rounded-xl px-4 py-3 text-xs flex items-center gap-2">
+              <div style={{ background:"#FFFBEB", border:"1px solid #FDE68A", color:"#B45309", borderRadius:12, padding:"12px 14px", fontSize:12, display:"flex", gap:8 }}>
                 <span>🔒</span>SRT 자막 생성은 로그인 후 이용 가능합니다.
               </div>
             )}
 
-            {/* 생성 버튼 */}
+            {/* Generate */}
             <button
               onClick={handleGenerate}
-              disabled={!mp3File || status === 'uploading' || status === 'loading' || authLoading}
-              className={`w-full py-4 rounded-xl font-bold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-                status === 'done'
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white shadow-sm shadow-blue-200'
-              }`}
+              disabled={!mp3File || busy || authLoading}
+              style={{ width:"100%", padding:"15px", borderRadius:14, border:"none", fontSize:14, fontWeight:700, cursor:(!mp3File||busy)?"not-allowed":"pointer", opacity:(!mp3File||busy||authLoading)?0.5:1, color:"white", background:status==="done"?"#10B981":`linear-gradient(135deg,${BLUE},${P})`, display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:`0 4px 14px rgba(59,130,246,0.3)` }}
             >
-              {status === 'uploading' ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  파일 업로드 중...
-                </>
-              ) : status === 'loading' ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  자막 생성 중... (1~2분 소요)
-                </>
-              ) : status === 'done' ? (
-                '✅ 완료 — 다시 생성하기'
-              ) : !user && !authLoading ? (
-                '로그인하고 시작하기'
-              ) : (
-                'SRT 자막 파일 생성 →'
-              )}
+              {status === "uploading" ? (<><span style={{ width:16, height:16, border:"2px solid rgba(255,255,255,0.3)", borderTopColor:"white", borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />파일 업로드 중...</>)
+                : status === "loading" ? (<><span style={{ width:16, height:16, border:"2px solid rgba(255,255,255,0.3)", borderTopColor:"white", borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />자막 생성 중... (1~2분)</>)
+                : status === "done" ? "✅ 완료 — 다시 생성하기"
+                : !user && !authLoading ? "로그인하고 시작하기"
+                : "SRT 자막 파일 생성 →"}
             </button>
           </div>
 
-          {/* 완료 — 미리보기 */}
-          {status === 'done' && srtContent && (
-            <div className="border-t border-gray-100 bg-gray-50 p-6">
-              <div className="flex items-center justify-between mb-3">
+          {/* Result preview */}
+          {status === "done" && srtContent && (
+            <div style={{ borderTop:"1px solid #F3F4F6", background:"#F9FAFB", padding:24 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
                 <div>
-                  <p className="text-xs font-bold text-gray-700">생성 완료</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">{segmentCount}개 자막 세그먼트</p>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#374151" }}>생성 완료</div>
+                  <div style={{ fontSize:11, color:"#9CA3AF", marginTop:2 }}>{segmentCount}개 자막 세그먼트</div>
                 </div>
-                <button
-                  onClick={() => downloadSrt(srtContent)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold transition-colors"
-                >
-                  ↓ 다운로드
-                </button>
+                <button onClick={() => downloadSrt(srtContent)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, background:BLUE, color:"white", border:"none", fontSize:12, fontWeight:700, cursor:"pointer" }}>↓ 다운로드</button>
               </div>
-              <pre className="bg-white rounded-xl border border-gray-100 p-4 text-[11px] text-gray-500 font-mono leading-relaxed overflow-auto max-h-52">
-                {srtContent.slice(0, 800)}{srtContent.length > 800 ? '\n\n...' : ''}
+              <pre style={{ background:"white", borderRadius:12, border:"1px solid #F3F4F6", padding:14, fontSize:11, color:"#6B7280", fontFamily:"'Courier New',monospace", lineHeight:1.7, overflow:"auto", maxHeight:240, whiteSpace:"pre-wrap" }}>
+                {srtContent.slice(0, 1200)}{srtContent.length > 1200 ? "\n\n..." : ""}
               </pre>
             </div>
           )}
-
-          {/* 이미지 생성 패널 — SRT 완료 후, 로그인 사용자에게만 */}
-          {status === 'done' && srtContent && user && sessionId && (
-            <ImageSegmentPanel
-              user={user}
-              sessionId={sessionId}
-              srtContent={srtContent}
-              lyricText={lyricSnapshot}
-            />
-          )}
         </div>
 
-        <p className="mt-8 text-[11px] text-gray-400">Powered by Gemini AI</p>
+        <p style={{ marginTop:28, textAlign:"center", fontSize:11, color:"#9CA3AF" }}>Powered by OpenAI Whisper</p>
       </main>
     </div>
-  )
+  );
 }

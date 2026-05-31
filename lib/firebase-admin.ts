@@ -20,10 +20,13 @@ function getAdminApp(): App {
       clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
       privateKey:  (process.env.FIREBASE_ADMIN_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
     }),
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   });
 
   return adminApp;
 }
+
+export { getAdminApp };
 
 export function getAdminDb(): Firestore {
   if (!adminDb) adminDb = getFirestore(getAdminApp());

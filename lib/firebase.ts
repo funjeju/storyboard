@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   type Firestore,
 } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { getAnalytics, type Analytics } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -28,18 +29,20 @@ const firebaseConfig = {
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
+let storage: FirebaseStorage | undefined;
 let analytics: Analytics | undefined;
 
 if (typeof window !== "undefined" && firebaseConfig.apiKey) {
   app       = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
   auth      = getAuth(app);
   db        = getFirestore(app);
+  storage   = getStorage(app);
   if (firebaseConfig.measurementId) {
     analytics = getAnalytics(app);
   }
 }
 
-export { auth, db, analytics };
+export { auth, db, storage, analytics };
 
 export const googleProvider = new GoogleAuthProvider();
 

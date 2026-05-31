@@ -110,6 +110,27 @@ const TOOLS = [
     badge: "BETA",
     ctaText: "✂️ 자동 컷편집",
   },
+  {
+    id: "srt",
+    icon: "📝",
+    name: "SRT Subtitle Maker",
+    nameKo: "SRT 자막 생성기",
+    desc: "대본·스크립트를 붙여넣으면 타임코드 자막 완성",
+    features: [
+      "대본 → SRT 자동 타이밍 변환",
+      "한국어 읽기 속도 최적화",
+      "txt·srt 파일 업로드 지원",
+      ".srt 다운로드 + 복사",
+    ],
+    gradient: "linear-gradient(135deg, #0C4A6E 0%, #0EA5E9 50%, #7C3AED 100%)",
+    accentGrad: "linear-gradient(135deg, #0EA5E9, #7C3AED)",
+    accent: "#0EA5E9",
+    accentRgb: "14,165,233",
+    border: "rgba(14,165,233,0.25)",
+    href: "/srt",
+    badge: "NEW",
+    ctaText: "📝 자막 만들기",
+  },
 ];
 
 export default function MainHub() {
@@ -200,7 +221,7 @@ export default function MainHub() {
               width: 8, height: 8, borderRadius: "50%", background: "#10B981",
               boxShadow: "0 0 0 3px rgba(16,185,129,0.2)",
             }} />
-            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>5 tools active</span>
+            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>6 tools active</span>
           </div>
           <AuthButton />
         </div>
@@ -241,7 +262,7 @@ export default function MainHub() {
         {/* ── TOOL CARDS — 3열 고정 ── */}
         <div className="hub-grid" style={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
+          gridTemplateColumns: "repeat(6, 1fr)",
           gap: 20,
           paddingBottom: 80,
         }}>

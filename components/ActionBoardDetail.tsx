@@ -702,11 +702,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
             {/* Color palette */}
             <div>
               <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:8 }}>🎨 카드 배경색</div>
-              <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
-                {PALETTE.map(c => (
-                  <div key={c} onClick={() => setCardColor(c)} style={{ width:28, height:28, borderRadius:8, background:c, border:`2.5px solid ${cardColor===c?"#7C3AED":"#E5E7EB"}`, cursor:"pointer", boxShadow:cardColor===c?"0 0 0 2px rgba(124,58,237,0.25)":"none", transition:"all 0.12s" }} />
-                ))}
-              </div>
+              <ColorPalette value={cardColor} onChange={setCardColor} />
             </div>
 
             {/* Admin announcement toggle */}

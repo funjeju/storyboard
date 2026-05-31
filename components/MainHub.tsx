@@ -156,7 +156,7 @@ export default function MainHub() {
         .hub-header { padding: 0 48px !important; }
         .hub-hero { padding: 48px 20px 0 !important; }
         .hub-h1 { font-size: 52px !important; }
-        .hub-grid { grid-template-columns: repeat(5,1fr) !important; gap: 20px !important; }
+        .hub-grid { grid-template-columns: repeat(6,1fr) !important; gap: 20px !important; }
         @media (max-width: 1280px) {
           .hub-grid { grid-template-columns: repeat(3,1fr) !important; }
         }

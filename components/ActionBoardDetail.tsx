@@ -10,8 +10,11 @@ import {
   deleteBoardPost,
   updateBoardPost,
   updateBoardPostPosition,
+  createFeedPost,
   type CloudActionBoard,
   type CloudBoardPost,
+  type CloudFeedPost,
+  type FeedCategory,
 } from "@/lib/firestoreHelpers";
 import { uploadImageDataUrl, uploadBoardFile } from "@/lib/firebaseStorage";
 
@@ -384,8 +387,35 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         ...(cType === "ppt"     && { pptUrl: finalPptUrl, pptName: pptName || pptFile?.name || "프레젠테이션" }),
       };
       await addBoardPost(boardId, post);
+
+      // ── Auto-share to feed (image/audio/youtube only) ──────────────────────
+      const feedCat: FeedCategory | null =
+        cType === "image"   ? "image" :
+        cType === "audio"   ? "music" :
+        cType === "youtube" ? "video" : null;
+      if (shareToFeed && feedCat) {
+        const feedPost: CloudFeedPost = {
+          id: crypto.randomUUID(),
+          uid: user.uid,
+          authorName: user.displayName ?? "익명",
+          authorPhoto: user.photoURL ?? "",
+          category: feedCat,
+          title: feedTitle.trim() || audioName || audioFile?.name || board.title,
+          ...(feedCat === "image" && { imageUrl: finalImageUrl }),
+          ...(feedCat === "music" && { audioUrl: finalAudioUrl }),
+          ...(feedCat === "video" && { youtubeUrl: ytUrl.trim() }),
+          likes: 0,
+          views: 0,
+          fromBoardId: boardId,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        createFeedPost(feedPost).catch(e => console.error("[feed share]", e));
+      }
+
       setText(""); setImageUrl(""); setAudioUrl(""); setAudioName(""); setAudioFile(null);
       setYtUrl(""); setPptFile(null); setPptName(""); setIsAnnouncement(false);
+      setShareToFeed(false); setFeedTitle("");
       setCardColor(PALETTE[0]);
       setShowForm(false);
     } catch (e) {
@@ -648,6 +678,27 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   <div style={{ fontSize:11, color:"#9CA3AF" }}>보드 최상단 고정 — 관리자만 가능</div>
                 </div>
               </label>
+            )}
+
+            {/* Share to feed toggle — only for image/audio/youtube */}
+            {(cType === "image" || cType === "audio" || cType === "youtube") && (
+              <div style={{ background:"rgba(236,72,153,0.05)", borderRadius:10, border:"1.5px solid rgba(236,72,153,0.15)", overflow:"hidden" }}>
+                <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", padding:"10px 14px" }}>
+                  <input type="checkbox" checked={shareToFeed} onChange={e => setShareToFeed(e.target.checked)} style={{ width:16, height:16, accentColor:"#EC4899" }} />
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#EC4899" }}>🌐 피드에도 공유</div>
+                    <div style={{ fontSize:11, color:"#9CA3AF" }}>크리에이터 피드에 함께 전시됩니다</div>
+                  </div>
+                </label>
+                {shareToFeed && (
+                  <input
+                    value={feedTitle}
+                    onChange={e => setFeedTitle(e.target.value)}
+                    placeholder="피드 제목 (비워두면 자동 설정)"
+                    style={{ width:"100%", padding:"10px 14px", border:"none", borderTop:"1px solid rgba(236,72,153,0.15)", fontSize:13, fontFamily:"inherit", outline:"none", background:"white" }}
+                  />
+                )}
+              </div>
             )}
 
             {/* Upload progress */}

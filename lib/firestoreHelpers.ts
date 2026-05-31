@@ -15,6 +15,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  increment,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -175,17 +176,11 @@ export async function deleteFeedPost(postId: string) {
 }
 
 export async function likeFeedPost(postId: string, delta: 1 | -1) {
-  const snap = await getDoc(feedDoc(postId));
-  if (!snap.exists()) return;
-  const current = (snap.data() as CloudFeedPost).likes ?? 0;
-  await setDoc(feedDoc(postId), { likes: Math.max(0, current + delta) }, { merge: true });
+  await setDoc(feedDoc(postId), { likes: increment(delta) }, { merge: true });
 }
 
 export async function incrementFeedViews(postId: string) {
-  const snap = await getDoc(feedDoc(postId));
-  if (!snap.exists()) return;
-  const current = (snap.data() as CloudFeedPost).views ?? 0;
-  await setDoc(feedDoc(postId), { views: current + 1 }, { merge: true });
+  await setDoc(feedDoc(postId), { views: increment(1) }, { merge: true });
 }
 
 export function subscribeToFeedPosts(
@@ -281,22 +276,14 @@ export function subscribeToActionBoards(cb: (boards: CloudActionBoard[]) => void
 }
 
 export async function addBoardPost(boardId: string, post: CloudBoardPost) {
-  // Only await the post write — postCount is best-effort, never blocks the user
+  // Post write is awaited; postCount uses atomic increment (concurrent-safe), fire-and-forget
   await setDoc(postDoc(boardId, post.id), post);
-  getDoc(boardDoc(boardId)).then(snap => {
-    if (!snap.exists()) return;
-    const current = (snap.data() as CloudActionBoard).postCount ?? 0;
-    return setDoc(boardDoc(boardId), { postCount: current + 1, updatedAt: Date.now() }, { merge: true });
-  }).catch(() => {});
+  setDoc(boardDoc(boardId), { postCount: increment(1), updatedAt: Date.now() }, { merge: true }).catch(() => {});
 }
 
 export async function deleteBoardPost(boardId: string, postId: string) {
   await deleteDoc(postDoc(boardId, postId));
-  getDoc(boardDoc(boardId)).then(snap => {
-    if (!snap.exists()) return;
-    const current = (snap.data() as CloudActionBoard).postCount ?? 1;
-    return setDoc(boardDoc(boardId), { postCount: Math.max(0, current - 1), updatedAt: Date.now() }, { merge: true });
-  }).catch(() => {});
+  setDoc(boardDoc(boardId), { postCount: increment(-1), updatedAt: Date.now() }, { merge: true }).catch(() => {});
 }
 
 export async function updateBoardPostPosition(boardId: string, postId: string, x: number, y: number) {

@@ -274,6 +274,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [pptName, setPptName]   = useState("");
   const [cardColor, setCardColor] = useState(PALETTE[0]);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
+  const [shareToFeed, setShareToFeed] = useState(false);
+  const [feedTitle, setFeedTitle]     = useState("");
   const [uploadPct, setUploadPct] = useState(0);
 
   // PPT full-screen viewer

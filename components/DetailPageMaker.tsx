@@ -44,6 +44,8 @@ interface Module {
   imagePrompt: string;
   imageUrl: string;
   refImageBase64: string;
+  modelImageBase64: string;
+  styleRefBase64: string;
   copyLoading: boolean;
   promptLoading: boolean;
   imageLoading: boolean;
@@ -76,6 +78,7 @@ interface ProjectState {
   platform: Platform;
   refImages: string[];
   productImages: string[];
+  modelImage: string;
   styleDNA: StyleDNA | null;
   overallResearch: Record<string, unknown> | null;
   thumbnail: Thumbnail;
@@ -146,6 +149,54 @@ const STEP_LABELS = ["제품 정보", "스타일 DNA", "AI 모듈 전략", "콘�
 
 const PROJECTS_KEY = "dpm_projects_v2";
 const CURRENT_KEY  = "dpm_current_project_v2";
+
+// Firestore 1MB 제한 대응 — base64 블롭 제거 후 저장
+function stripForCloud(p: ProjectState): ProjectState {
+  return {
+    ...p,
+    refImages:     [],   // base64 → localStorage만 보관
+    productImages: [],   // base64 → localStorage만 보관
+    modelImage:    "",   // base64 → localStorage만 보관
+    modules: p.modules.map(m => ({
+      ...m,
+      refImageBase64: "",
+      modelImageBase64: "",
+      styleRefBase64: "",
+      imageUrl: m.imageUrl?.startsWith("data:") ? "" : (m.imageUrl ?? ""),
+    })),
+    thumbnail: {
+      ...p.thumbnail,
+      imageUrl: p.thumbnail.imageUrl?.startsWith("data:") ? "" : (p.thumbnail.imageUrl ?? ""),
+    },
+  };
+}
+
+// ── Reference image auto-resolution ──────────────────────────────────────────
+
+const MODEL_FRIENDLY_MODULES: ModuleType[] = [
+  "hero_hook", "lifestyle_image", "emotional_copy", "usage_scenario", "before_after", "cta",
+];
+
+function resolveRefImage(
+  mod: Module,
+  productImages: string[],
+  globalModelImage: string,
+): { refImageBase64: string | undefined; hasRefImage: boolean; hasModelImage: boolean; styleRef: boolean } {
+  // Per-module overrides — 우선순위 순서
+  if (mod.modelImageBase64) return { refImageBase64: mod.modelImageBase64, hasRefImage: false, hasModelImage: true,  styleRef: false };
+  if (mod.styleRefBase64)   return { refImageBase64: mod.styleRefBase64,   hasRefImage: false, hasModelImage: false, styleRef: true  };
+  if (mod.refImageBase64)   return { refImageBase64: mod.refImageBase64,   hasRefImage: true,  hasModelImage: false, styleRef: false };
+
+  // Auto-resolve: 모델 친화 모듈 + 글로벌 모델
+  if (MODEL_FRIENDLY_MODULES.includes(mod.moduleType) && globalModelImage) {
+    return { refImageBase64: globalModelImage, hasRefImage: false, hasModelImage: true, styleRef: false };
+  }
+  // Auto-resolve: 제품 이미지
+  if (productImages.length > 0) {
+    return { refImageBase64: productImages[0], hasRefImage: true, hasModelImage: false, styleRef: false };
+  }
+  return { refImageBase64: undefined, hasRefImage: false, hasModelImage: false, styleRef: false };
+}
 
 // ── Platform constraint ───────────────────────────────────────────────────────
 
@@ -276,6 +327,7 @@ function newProjectState(): ProjectState {
     platform: "smartstore",
     refImages: [],
     productImages: [],
+    modelImage: "",
     styleDNA: null,
     overallResearch: null,
     thumbnail: { imagePrompt: "", imageUrl: "", promptLoading: false, imageLoading: false },
@@ -301,6 +353,8 @@ function moduleFromLibrary(type: ModuleType, order: number, score = 0, reason = 
     imagePrompt: "",
     imageUrl: "",
     refImageBase64: "",
+    modelImageBase64: "",
+    styleRefBase64: "",
     copyLoading: false,
     promptLoading: false,
     imageLoading: false,
@@ -343,9 +397,12 @@ export default function DetailPageMaker() {
   const [saveLabel, setSaveLabel] = useState<"idle" | "saving" | "done">("idle");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef       = useRef<HTMLInputElement>(null);
   const productImgRef = useRef<HTMLInputElement>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const modelImgRef   = useRef<HTMLInputElement>(null);
+  const [previewTarget, setPreviewTarget] = useState<{ url: string; modId: string | "thumbnail" | null; basePrompt: string } | null>(null);
+  const [refineInput, setRefineInput]     = useState("");
+  const [refining, setRefining]           = useState(false);
   const abortCtrls = useRef<Set<AbortController>>(new Set());
 
   const makeCtrl = () => {
@@ -382,7 +439,7 @@ export default function DetailPageMaker() {
         if (cloud) {
           try {
             const raw = JSON.parse(cloud.projectData);
-            const parsed: ProjectState = resetLoadingFlags({ ...raw, productImages: raw.productImages ?? [] });
+            const parsed: ProjectState = resetLoadingFlags({ ...raw, productImages: raw.productImages ?? [], modelImage: raw.modelImage ?? "" });
             setProject(parsed);
             const s = parsed.modules?.length ? 3 : parsed.styleDNA ? 2 : parsed.productInfo.name ? 1 : 0;
             setStep(s);
@@ -415,7 +472,7 @@ export default function DetailPageMaker() {
         totalSections: totalModules,
         createdAt: p.updatedAt,
         updatedAt: Date.now(),
-        projectData: JSON.stringify(toSave),
+        projectData: JSON.stringify(stripForCloud(toSave)),
       }).catch(e => console.warn("Firestore save failed", e))
         .finally(() => setCloudSyncing(false));
     }
@@ -451,7 +508,7 @@ export default function DetailPageMaker() {
   const openProject = (id: string) => {
     const loaded = loadProject(id);
     if (loaded) {
-      setProject(resetLoadingFlags({ ...loaded, productImages: loaded.productImages ?? [] }));
+      setProject(resetLoadingFlags({ ...loaded, productImages: loaded.productImages ?? [], modelImage: loaded.modelImage ?? "" }));
       setStep(loaded.modules?.length ? 3 : loaded.styleDNA ? 2 : loaded.productInfo.name ? 1 : 0);
     }
   };
@@ -492,15 +549,12 @@ export default function DetailPageMaker() {
     setPlanLoading(true);
     const ctrl = makeCtrl();
     try {
-      // Step 1: ensure research is available
-      let research = project.overallResearch;
-      if (!research) {
-        const { research: r } = await callApi<{ research: Record<string, unknown> }>(
-          "/api/research", { productInfo: project.productInfo }, ctrl.signal,
-        );
-        research = r;
-        updateProject({ overallResearch: r });
-      }
+      // Step 1: 항상 신규 리서치 실행 (이전 프로젝트 데이터 오염 방지)
+      const { research: r } = await callApi<{ research: Record<string, unknown> }>(
+        "/api/research", { productInfo: project.productInfo }, ctrl.signal,
+      );
+      const research = r;
+      updateProject({ overallResearch: r });
 
       // Step 2: module plan driven by research, not platform
       const data = await callApi<{ strategy: string; modules: { moduleType: ModuleType; score: number; reason: string }[] }>(
@@ -572,19 +626,55 @@ export default function DetailPageMaker() {
     finally { freeCtrl(ctrl); }
   };
 
-  const genModulePrompt = async (mod: Module, copyOverride?: Record<string, unknown> | null) => {
+  const genModulePrompt = async (mod: Module, copyOverride?: Record<string, unknown> | null, forceModel?: boolean) => {
     updateModule(mod.id, { promptLoading: true });
     const ctrl = makeCtrl();
     try {
+      const resolved = forceModel
+        ? { hasRefImage: false, hasModelImage: true, styleRef: false }
+        : resolveRefImage(mod, project.productImages, project.modelImage);
       const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
         sectionType: mod.moduleType, productInfo: project.productInfo, styleDNA: project.styleDNA,
         copy: copyOverride ?? mod.copy, sectionGuidance: null, lockedSectionPrompts: [],
-        hasRefImage: !!mod.refImageBase64, platform: project.platform,
+        hasRefImage: resolved.hasRefImage, hasModelImage: resolved.hasModelImage,
+        styleRef: resolved.styleRef, platform: project.platform,
       }, ctrl.signal);
       updateModule(mod.id, { imagePrompt: prompt, promptLoading: false });
       return prompt;
     } catch (e) { updateModule(mod.id, { promptLoading: false }); if (!isAbort(e)) throw e; }
     finally { freeCtrl(ctrl); }
+  };
+
+  const genWithModel = async (mod: Module) => {
+    const modelRef = mod.modelImageBase64 || project.modelImage;
+    if (!modelRef) { alert("Step 0 또는 모듈 카드에서 모델 이미지를 먼저 업로드해주세요."); return; }
+    try {
+      const prompt = await genModulePrompt(mod, null, true);
+      if (prompt) await genImage(prompt, mod.id, modelRef);
+    } catch (e) { if (!isAbort(e)) alert("모델 생성 실패: " + String(e)); }
+  };
+
+  const handleRefine = async () => {
+    if (!previewTarget || !refineInput.trim() || refining) return;
+    setRefining(true);
+    try {
+      const combinedPrompt = `${previewTarget.basePrompt}\n\nREFINEMENT INSTRUCTION (apply to the existing image): ${refineInput.trim()}`;
+      const res = await fetch("/api/image", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: combinedPrompt, refImageBase64: previewTarget.url }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.imageUrl) throw new Error(data.error || "생성 실패");
+      let url: string = data.imageUrl;
+      if (user && url.startsWith("data:")) {
+        try { const r = await uploadImageDataUrl(user.uid, `detail/${project.id}`, `refine-${Date.now()}.png`, url); url = r.url; } catch { /* keep base64 */ }
+      }
+      if (previewTarget.modId === "thumbnail") updateThumbnail({ imageUrl: url });
+      else if (previewTarget.modId) updateModule(previewTarget.modId, { imageUrl: url });
+      setPreviewTarget(prev => prev ? { ...prev, url } : null);
+      setRefineInput("");
+    } catch (e) { alert("수정 실패: " + String(e)); }
+    finally { setRefining(false); }
   };
 
   const genThumbnailPrompt = async () => {
@@ -656,17 +746,15 @@ export default function DetailPageMaker() {
       return url;
     };
 
-    // Research
-    if (!research) {
-      setBulkProgress({ active: true, done: 0, total, label: "🔍 리서치 중..." });
-      try {
-        const { research: r } = await callApi<{ research: Record<string, unknown> }>("/api/research", { productInfo: project.productInfo }, sig);
-        research = r; updateProject({ overallResearch: r });
-      } catch (e) {
-        setBulkProgress({ active: false, done: 0, total: 0, label: "" });
-        if (!isAbort(e)) alert("리서치 실패: " + String(e));
-        freeCtrl(ctrl); return;
-      }
+    // Research — 항상 신규 실행 (이전 프로젝트 오염 방지)
+    setBulkProgress({ active: true, done: 0, total, label: "🔍 리서치 중..." });
+    try {
+      const { research: r } = await callApi<{ research: Record<string, unknown> }>("/api/research", { productInfo: project.productInfo }, sig);
+      research = r; updateProject({ overallResearch: r });
+    } catch (e) {
+      setBulkProgress({ active: false, done: 0, total: 0, label: "" });
+      if (!isAbort(e)) alert("리서치 실패: " + String(e));
+      freeCtrl(ctrl); return;
     }
     done = 1;
     setBulkProgress({ active: true, done, total, label: mode === "sequential" ? "순차 생성 시작..." : "병렬 생성 시작..." });
@@ -688,8 +776,11 @@ export default function DetailPageMaker() {
       } catch { updateThumbnail({ imageLoading: false }); done += 2; setBulkProgress(p => ({ ...p, done })); }
     };
 
+    // Sequential: accumulate completed prompts for visual continuity
+    const seqLockedPrompts: string[] = [];
+
     // Single module pipeline: copy → prompt → image
-    const runModule = async (mod: Module, idx: number) => {
+    const runModule = async (mod: Module, idx: number, lockedPrompts: string[]) => {
       const label = (step: string) => `${mode === "sequential" ? `${idx + 1}번 ` : ""}${mod.label} — ${step}`;
       try {
         setBulkProgress(p => ({ ...p, label: label("카피") }));
@@ -699,21 +790,25 @@ export default function DetailPageMaker() {
         updateModule(mod.id, { copy });
         tick(label("프롬프트"));
 
+        const resolved = resolveRefImage(mod, project.productImages, project.modelImage);
         const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
           sectionType: mod.moduleType, productInfo: project.productInfo, styleDNA: project.styleDNA,
-          copy, sectionGuidance: null, lockedSectionPrompts: [], hasRefImage: !!mod.refImageBase64,
-          platform: project.platform,
+          copy, sectionGuidance: null, lockedSectionPrompts: lockedPrompts,
+          hasRefImage: resolved.hasRefImage, hasModelImage: resolved.hasModelImage,
+          styleRef: resolved.styleRef, platform: project.platform,
         }, sig);
         updateModule(mod.id, { imagePrompt: prompt });
         tick(label("이미지"));
 
         updateModule(mod.id, { imageLoading: true });
-        const url = await fetchImage(prompt, mod.id, mod.refImageBase64 || undefined);
+        const url = await fetchImage(prompt, mod.id, resolved.refImageBase64);
         updateModule(mod.id, { imageUrl: url, imageLoading: false });
         tick(label("완료 ✓"));
+        return prompt;
       } catch (e) {
         updateModule(mod.id, { imageLoading: false });
         if (!isAbort(e)) { done += 3; setBulkProgress(p => ({ ...p, done })); }
+        return null;
       }
     };
 
@@ -721,10 +816,11 @@ export default function DetailPageMaker() {
       await thumbTask();
       for (let i = 0; i < mods.length; i++) {
         if (sig.aborted) break;
-        await runModule(mods[i], i);
+        const prompt = await runModule(mods[i], i, [...seqLockedPrompts]);
+        if (prompt) seqLockedPrompts.push(prompt);
       }
     } else {
-      await Promise.all([thumbTask(), ...mods.map((mod, i) => runModule(mod, i))]);
+      await Promise.all([thumbTask(), ...mods.map((mod, i) => runModule(mod, i, []))]);
     }
 
     setBulkProgress({ active: false, done: 0, total: 0, label: "" });
@@ -1042,9 +1138,9 @@ export default function DetailPageMaker() {
                   />
                 </div>
 
-                {/* Image upload */}
+                {/* Product images — up to 5 */}
                 <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 8 }}>제품 이미지</label>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>제품 이미지 <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(최대 5장 — 모든 모듈 이미지에 자동 적용)</span></label>
                   <input
                     ref={productImgRef}
                     type="file"
@@ -1054,7 +1150,9 @@ export default function DetailPageMaker() {
                     onChange={e => {
                       const files = Array.from(e.target.files ?? []);
                       if (!files.length) return;
-                      files.forEach(file => {
+                      const current = projectRef.current.productImages ?? [];
+                      const remaining = 5 - current.length;
+                      files.slice(0, remaining).forEach(file => {
                         const reader = new FileReader();
                         reader.onload = ev => {
                           const b64 = ev.target?.result as string;
@@ -1065,28 +1163,63 @@ export default function DetailPageMaker() {
                       e.target.value = "";
                     }}
                   />
-
-                  {/* Thumbnails */}
                   {(project.productImages ?? []).length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10, marginTop: 8 }}>
                       {(project.productImages ?? []).map((img, idx) => (
-                        <div key={idx} style={{ position: "relative", width: 72, height: 72 }}>
-                          <img src={img} alt="" style={{ width: 72, height: 72, borderRadius: 10, objectFit: "cover", border: "1.5px solid #E5E7EB" }} />
-                          <button
-                            onClick={() => updateProject({ productImages: (project.productImages ?? []).filter((_, i) => i !== idx) })}
-                            style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: "#EF4444", border: "none", color: "white", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
-                          >×</button>
+                        <div key={idx} style={{ position: "relative", width: 68, height: 68 }}>
+                          <img src={img} alt="" style={{ width: 68, height: 68, borderRadius: 10, objectFit: "cover", border: "1.5px solid #D1D5DB" }} />
+                          <button onClick={() => updateProject({ productImages: (project.productImages ?? []).filter((_, i) => i !== idx) })}
+                            style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", background: "#EF4444", border: "none", color: "white", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
                         </div>
                       ))}
                     </div>
                   )}
+                  {(project.productImages ?? []).length < 5 && (
+                    <button onClick={() => productImgRef.current?.click()}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", border: "2px dashed #D1D5DB", borderRadius: 10, background: "#F9FAFB", fontSize: 12, fontWeight: 600, color: "#6B7280", cursor: "pointer", width: "100%", justifyContent: "center" }}>
+                      📦 제품 이미지 추가 ({(project.productImages ?? []).length}/5)
+                    </button>
+                  )}
+                </div>
 
-                  <button
-                    onClick={() => productImgRef.current?.click()}
-                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "2px dashed #D1D5DB", borderRadius: 12, background: "#F9FAFB", fontSize: 13, fontWeight: 600, color: "#6B7280", cursor: "pointer", width: "100%", justifyContent: "center" }}
-                  >
-                    🖼️ 이미지 선택 (여러 장 가능)
-                  </button>
+                {/* Model image — 1 photo */}
+                <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 16, marginTop: 4 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 4 }}>모델 이미지 <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(1장 — 모델 친화 모듈에 자동 적용)</span></label>
+                  <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 10, lineHeight: 1.5 }}>
+                    hero_hook · lifestyle · emotional · usage_scenario · before/after · CTA 섹션에 자동 사용됩니다
+                  </div>
+                  <input
+                    ref={modelImgRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => updateProject({ modelImage: ev.target?.result as string });
+                      reader.readAsDataURL(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  {project.modelImage ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#EFF6FF", borderRadius: 10, border: "1.5px solid #BFDBFE" }}>
+                      <img src={project.modelImage} alt="model" style={{ width: 52, height: 52, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#1D4ED8" }}>👤 모델 등록됨</div>
+                        <div style={{ fontSize: 11, color: "#3B82F6", marginTop: 2 }}>모델 친화 모듈 이미지에 자동 반영</div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <button onClick={() => modelImgRef.current?.click()} style={{ padding: "4px 10px", background: "#2563EB", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, color: "white", cursor: "pointer" }}>교체</button>
+                        <button onClick={() => updateProject({ modelImage: "" })} style={{ padding: "4px 10px", background: "#FEF2F2", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#EF4444", cursor: "pointer" }}>삭제</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => modelImgRef.current?.click()}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", border: "2px dashed #BFDBFE", borderRadius: 10, background: "#F0F9FF", fontSize: 12, fontWeight: 600, color: "#2563EB", cursor: "pointer", width: "100%", justifyContent: "center" }}>
+                      👤 모델 이미지 업로드
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1392,7 +1525,7 @@ export default function DetailPageMaker() {
               onGenImage={() => genImage(project.thumbnail.imagePrompt, "thumbnail")}
               onUpdatePrompt={p => updateThumbnail({ imagePrompt: p })}
               onUploadImage={url => updateThumbnail({ imageUrl: url })}
-              onPreview={url => setPreviewUrl(url)}
+              onPreview={(url, prompt) => { setPreviewTarget({ url, modId: "thumbnail", basePrompt: prompt }); setRefineInput(""); }}
             />
           </div>
 
@@ -1408,12 +1541,22 @@ export default function DetailPageMaker() {
                 index={i}
                 onGenCopy={() => genModuleCopy(mod).catch(e => alert("카피 실패: " + String(e)))}
                 onGenPrompt={() => genModulePrompt(mod).catch(e => alert("프롬프트 실패: " + String(e)))}
-                onGenImage={() => genImage(mod.imagePrompt, mod.id, mod.refImageBase64 || undefined)}
+                onGenImage={() => { const r = resolveRefImage(mod, project.productImages, project.modelImage); genImage(mod.imagePrompt, mod.id, r.refImageBase64); }}
+                onGenWithModel={() => genWithModel(mod)}
                 onUpdatePrompt={p => updateModule(mod.id, { imagePrompt: p })}
                 onToggleLock={() => updateModule(mod.id, { locked: !mod.locked })}
                 onUploadImage={url => updateModule(mod.id, { imageUrl: url })}
                 onUploadRefImage={b64 => updateModule(mod.id, { refImageBase64: b64 })}
-                onPreview={url => setPreviewUrl(url)}
+                onUploadModelImage={b64 => updateModule(mod.id, { modelImageBase64: b64 })}
+                onUploadStyleRef={b64 => updateModule(mod.id, { styleRefBase64: b64 })}
+                onPreview={(url, prompt) => { setPreviewTarget({ url, modId: mod.id, basePrompt: prompt }); setRefineInput(""); }}
+                autoRefLabel={(() => {
+                  if (mod.modelImageBase64 || mod.styleRefBase64 || mod.refImageBase64) return null;
+                  const r = resolveRefImage(mod, project.productImages, project.modelImage);
+                  if (r.hasModelImage) return "👤 글로벌 모델 자동";
+                  if (r.hasRefImage)   return "📦 제품사진 자동";
+                  return null;
+                })()}
               />
             ))}
           </div>
@@ -1458,11 +1601,42 @@ export default function DetailPageMaker() {
         </div>
       )}
 
-      {/* ── Image preview modal ── */}
-      {previewUrl && (
-        <div onClick={() => setPreviewUrl(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out" }}>
-          <img src={previewUrl} onClick={e => e.stopPropagation()} alt="" style={{ maxWidth: "88vw", maxHeight: "90vh", borderRadius: 12, objectFit: "contain", boxShadow: "0 24px 80px rgba(0,0,0,0.5)", cursor: "default" }} />
-          <button onClick={() => setPreviewUrl(null)} style={{ position: "fixed", top: 20, right: 24, background: "rgba(255,255,255,0.12)", border: "none", color: "white", fontSize: 22, width: 40, height: 40, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(6px)" }}>×</button>
+      {/* ── Image preview + refine modal ── */}
+      {previewTarget && (
+        <div onClick={() => setPreviewTarget(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0, maxWidth: 600, width: "100%", maxHeight: "95vh" }}>
+            {/* Image */}
+            <img src={previewTarget.url} alt="" style={{ maxWidth: "100%", maxHeight: "60vh", borderRadius: "16px 16px 0 0", objectFit: "contain", boxShadow: "0 24px 80px rgba(0,0,0,0.5)", display: "block" }} />
+            {/* Refine panel */}
+            {previewTarget.modId !== null && (
+              <div style={{ width: "100%", background: "#1A1A2E", borderRadius: "0 0 16px 16px", padding: "20px 24px", boxShadow: "0 24px 80px rgba(0,0,0,0.5)" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#A78BFA", marginBottom: 10, letterSpacing: 0.5 }}>✏️ 세부 수정 프롬프트</div>
+                <textarea
+                  value={refineInput}
+                  onChange={e => setRefineInput(e.target.value)}
+                  placeholder="예: 배경을 더 밝게, 한국어 텍스트 크기를 키워줘, 제품을 더 크게"
+                  rows={3}
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1.5px solid #4C1D95", background: "#0F0F1A", color: "white", fontSize: 13, fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.6 }}
+                  onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleRefine(); }}
+                />
+                <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: "#6B7280", flex: 1 }}>Ctrl+Enter로 빠르게 생성</span>
+                  <button onClick={() => setPreviewTarget(null)} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 9, fontSize: 12, fontWeight: 600, color: "#9CA3AF", cursor: "pointer" }}>닫기</button>
+                  <button
+                    onClick={handleRefine}
+                    disabled={refining || !refineInput.trim()}
+                    style={{ padding: "8px 20px", background: refineInput.trim() && !refining ? "linear-gradient(135deg,#7C3AED,#EC4899)" : "#374151", border: "none", borderRadius: 9, fontSize: 12, fontWeight: 700, color: "white", cursor: refineInput.trim() && !refining ? "pointer" : "default", display: "flex", alignItems: "center", gap: 6 }}
+                  >
+                    {refining ? <><Spinner light /> 생성 중...</> : "✨ 수정 생성"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {previewTarget.modId === null && (
+              <button onClick={() => setPreviewTarget(null)} style={{ marginTop: 16, padding: "8px 20px", background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 9, color: "white", fontSize: 13, cursor: "pointer" }}>닫기</button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -1474,7 +1648,7 @@ export default function DetailPageMaker() {
 function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onUploadImage, onPreview }: {
   thumbnail: Thumbnail; onGenPrompt: () => void; onGenImage: () => void;
   onUpdatePrompt: (p: string) => void; onUploadImage: (url: string) => void;
-  onPreview: (url: string) => void;
+  onPreview: (url: string, prompt: string) => void;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
 
@@ -1490,7 +1664,7 @@ function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onU
     <div style={{ background: "white", borderRadius: 16, padding: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: `2px solid ${thumbnail.imageUrl ? "#FBBF24" : "#E5E7EB"}`, display: "grid", gridTemplateColumns: thumbnail.imageUrl ? "180px 1fr" : "1fr", gap: 16 }}>
       {thumbnail.imageUrl && (
         <div style={{ position: "relative" }}>
-          <img src={thumbnail.imageUrl} alt="thumbnail" onClick={() => onPreview(thumbnail.imageUrl)} style={{ width: 180, height: 180, objectFit: "cover", borderRadius: 12, cursor: "zoom-in" }} />
+          <img src={thumbnail.imageUrl} alt="thumbnail" onClick={() => onPreview(thumbnail.imageUrl, thumbnail.imagePrompt)} style={{ width: 180, height: 180, objectFit: "cover", borderRadius: 12, cursor: "zoom-in" }} />
           <button onClick={downloadImage} style={{ position: "absolute", bottom: 6, right: 6, padding: "4px 9px", borderRadius: 7, background: "rgba(0,0,0,0.55)", border: "none", color: "white", fontSize: 10, fontWeight: 700, cursor: "pointer", backdropFilter: "blur(4px)" }}>⬇️</button>
         </div>
       )}
@@ -1518,14 +1692,20 @@ function ThumbnailCard({ thumbnail, onGenPrompt, onGenImage, onUpdatePrompt, onU
   );
 }
 
-function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePrompt, onToggleLock, onUploadImage, onUploadRefImage, onPreview }: {
+function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onGenWithModel, onUpdatePrompt, onToggleLock, onUploadImage, onUploadRefImage, onUploadModelImage, onUploadStyleRef, onPreview, autoRefLabel }: {
   mod: Module; index: number; onGenCopy: () => void; onGenPrompt: () => void; onGenImage: () => void;
-  onUpdatePrompt: (p: string) => void; onToggleLock: () => void; onUploadImage: (url: string) => void;
-  onUploadRefImage: (base64: string) => void; onPreview: (url: string) => void;
+  onGenWithModel: () => void; onUpdatePrompt: (p: string) => void; onToggleLock: () => void;
+  onUploadImage: (url: string) => void; onUploadRefImage: (base64: string) => void;
+  onUploadModelImage: (base64: string) => void;
+  onUploadStyleRef: (base64: string) => void;
+  onPreview: (url: string, prompt: string) => void;
+  autoRefLabel?: string | null;
 }) {
   const catMeta = CATEGORY_META[mod.category];
-  const uploadRef = useRef<HTMLInputElement>(null);
-  const refUploadRef = useRef<HTMLInputElement>(null);
+  const uploadRef      = useRef<HTMLInputElement>(null);
+  const refUploadRef   = useRef<HTMLInputElement>(null);
+  const modelUploadRef = useRef<HTMLInputElement>(null);
+  const styleRefUploadRef = useRef<HTMLInputElement>(null);
 
   const downloadImage = () => {
     if (!mod.imageUrl) return;
@@ -1549,12 +1729,16 @@ function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePr
 
       {mod.imageUrl ? (
         <div style={{ position: "relative" }}>
-          <img src={mod.imageUrl} alt={mod.label} onClick={() => onPreview(mod.imageUrl)} style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", borderRadius: 10, cursor: "zoom-in" }} />
+          <img src={mod.imageUrl} alt={mod.label} onClick={() => onPreview(mod.imageUrl, mod.imagePrompt)} style={{ width: "100%", aspectRatio: "4/5", objectFit: "cover", borderRadius: 10, cursor: "zoom-in" }} />
           <button onClick={downloadImage} style={{ position: "absolute", bottom: 8, right: 8, padding: "5px 10px", borderRadius: 8, background: "rgba(0,0,0,0.55)", border: "none", color: "white", fontSize: 11, fontWeight: 700, cursor: "pointer", backdropFilter: "blur(4px)" }}>⬇️ 저장</button>
+          <div style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.85)", background: "rgba(0,0,0,0.45)", padding: "3px 8px", borderRadius: 6, backdropFilter: "blur(4px)" }}>클릭 → 세부 수정</div>
         </div>
       ) : (
-        <div style={{ width: "100%", aspectRatio: "4/5", background: "#F3F4F6", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#9CA3AF", fontSize: 11 }}>
+        <div style={{ width: "100%", aspectRatio: "4/5", background: "#F3F4F6", borderRadius: 10, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#9CA3AF", fontSize: 11, gap: 6 }}>
           {mod.imageLoading ? "이미지 생성 중..." : "이미지 없음"}
+          {!mod.imageLoading && autoRefLabel && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: autoRefLabel.startsWith("👤") ? "#1D4ED8" : "#374151", background: autoRefLabel.startsWith("👤") ? "#DBEAFE" : "#E5E7EB", padding: "2px 8px", borderRadius: 6 }}>{autoRefLabel}</span>
+          )}
         </div>
       )}
 
@@ -1571,8 +1755,24 @@ function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePr
       {mod.refImageBase64 && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#FFF7ED", borderRadius: 8, border: "1px solid #FED7AA" }}>
           <img src={mod.refImageBase64} alt="ref" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
-          <div style={{ flex: 1, fontSize: 10, color: "#92400E", fontWeight: 600 }}>참조 이미지 적용됨<br /><span style={{ fontWeight: 400, color: "#B45309" }}>이미지 생성 시 제품 특징 추출</span></div>
+          <div style={{ flex: 1, fontSize: 10, color: "#92400E", fontWeight: 600 }}>참조 이미지<br /><span style={{ fontWeight: 400, color: "#B45309" }}>이미지 생성 시 제품 특징 추출</span></div>
           <button onClick={() => onUploadRefImage("")} style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>×</button>
+        </div>
+      )}
+
+      {mod.modelImageBase64 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#EFF6FF", borderRadius: 8, border: "1px solid #BFDBFE" }}>
+          <img src={mod.modelImageBase64} alt="model" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: 10, color: "#1E40AF", fontWeight: 600 }}>모델 이미지<br /><span style={{ fontWeight: 400, color: "#3B82F6" }}>👤 이미지 생성 시 모델 반영</span></div>
+          <button onClick={() => onUploadModelImage("")} style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>×</button>
+        </div>
+      )}
+
+      {mod.styleRefBase64 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#F5F3FF", borderRadius: 8, border: "1px solid #DDD6FE" }}>
+          <img src={mod.styleRefBase64} alt="style-ref" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: 10, color: "#5B21B6", fontWeight: 600 }}>스타일 참조 적용됨<br /><span style={{ fontWeight: 400, color: "#7C3AED" }}>🎨 레이아웃·구도·톤 복제, 제품·텍스트만 교체</span></div>
+          <button onClick={() => onUploadStyleRef("")} style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontSize: 14, padding: "2px 4px" }}>×</button>
         </div>
       )}
 
@@ -1586,11 +1786,18 @@ function ModuleCard({ mod, index, onGenCopy, onGenPrompt, onGenImage, onUpdatePr
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button className="btn" onClick={onGenCopy} disabled={mod.copyLoading || mod.locked} style={{ padding: "6px 10px", background: "#DBEAFE", color: "#1E40AF", fontSize: 11, borderRadius: 6 }}>{mod.copyLoading ? <Spinner /> : "✍️ 카피"}</button>
         <button className="btn" onClick={onGenPrompt} disabled={mod.promptLoading || mod.locked} style={{ padding: "6px 10px", background: "#EDE9FE", color: "#5B21B6", fontSize: 11, borderRadius: 6 }}>{mod.promptLoading ? <Spinner /> : "🎯 프롬프트"}</button>
-        <button className="btn" onClick={onGenImage} disabled={!mod.imagePrompt || mod.imageLoading || mod.locked} style={{ padding: "6px 10px", background: mod.refImageBase64 ? "#FEF3C7" : "#FEF3C7", color: "#92400E", fontSize: 11, borderRadius: 6, border: mod.refImageBase64 ? "1.5px solid #F59E0B" : "none" }}>{mod.imageLoading ? <Spinner /> : mod.refImageBase64 ? "✨ 이미지 (참조)" : "✨ 이미지"}</button>
+        <button className="btn" onClick={onGenImage} disabled={!mod.imagePrompt || mod.imageLoading || mod.locked} style={{ padding: "6px 10px", background: "#FEF3C7", color: "#92400E", fontSize: 11, borderRadius: 6, border: mod.refImageBase64 ? "1.5px solid #F59E0B" : "none" }}>{mod.imageLoading ? <Spinner /> : mod.refImageBase64 ? "✨ 이미지 (참조)" : "✨ 이미지"}</button>
+        {mod.modelImageBase64 && (
+          <button className="btn" onClick={onGenWithModel} disabled={!mod.imagePrompt && !mod.copy || mod.imageLoading || mod.locked} style={{ padding: "6px 10px", background: "#DBEAFE", color: "#1D4ED8", fontSize: 11, borderRadius: 6, border: "1.5px solid #93C5FD", fontWeight: 700 }}>{mod.imageLoading ? <Spinner /> : "👤 모델로 생성"}</button>
+        )}
         <button className="btn" onClick={() => uploadRef.current?.click()} style={{ padding: "6px 10px", background: "#F3F4F6", color: "#374151", fontSize: 11, borderRadius: 6 }} title="완성 이미지 직접 업로드">📤</button>
-        <button className="btn" onClick={() => refUploadRef.current?.click()} style={{ padding: "6px 10px", background: mod.refImageBase64 ? "#FFF7ED" : "#F3F4F6", color: mod.refImageBase64 ? "#92400E" : "#374151", fontSize: 11, borderRadius: 6, border: mod.refImageBase64 ? "1px solid #FED7AA" : "none" }} title="참조 이미지 업로드 (AI가 제품 특징 추출)">📸</button>
+        <button className="btn" onClick={() => refUploadRef.current?.click()} style={{ padding: "6px 10px", background: mod.refImageBase64 ? "#FFF7ED" : "#F3F4F6", color: mod.refImageBase64 ? "#92400E" : "#374151", fontSize: 11, borderRadius: 6, border: mod.refImageBase64 ? "1px solid #FED7AA" : "none" }} title="참조 이미지 업로드">📸</button>
+        <button className="btn" onClick={() => modelUploadRef.current?.click()} style={{ padding: "6px 10px", background: mod.modelImageBase64 ? "#EFF6FF" : "#F3F4F6", color: mod.modelImageBase64 ? "#1D4ED8" : "#374151", fontSize: 11, borderRadius: 6, border: mod.modelImageBase64 ? "1px solid #93C5FD" : "none" }} title="모델 이미지 업로드">👤 모델</button>
+        <button className="btn" onClick={() => styleRefUploadRef.current?.click()} style={{ padding: "6px 10px", background: mod.styleRefBase64 ? "#F5F3FF" : "#F3F4F6", color: mod.styleRefBase64 ? "#5B21B6" : "#374151", fontSize: 11, borderRadius: 6, border: mod.styleRefBase64 ? "1px solid #DDD6FE" : "none" }} title="스타일 참조 이미지 업로드 — 레이아웃·구도 복제, 제품·텍스트는 우리 걸로">🎨 스타일</button>
         <input ref={uploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = ev => onUploadImage(ev.target?.result as string); r.readAsDataURL(f); } }} />
         <input ref={refUploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = ev => onUploadRefImage(ev.target?.result as string); r.readAsDataURL(f); } }} />
+        <input ref={modelUploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = ev => onUploadModelImage(ev.target?.result as string); r.readAsDataURL(f); e.target.value = ""; } }} />
+        <input ref={styleRefUploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = ev => onUploadStyleRef(ev.target?.result as string); r.readAsDataURL(f); e.target.value = ""; } }} />
       </div>
     </div>
   );

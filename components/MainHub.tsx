@@ -131,6 +131,27 @@ const TOOLS = [
     badge: "NEW",
     ctaText: "📝 자막 만들기",
   },
+  {
+    id: "url",
+    icon: "🔗",
+    name: "URL Shortener",
+    nameKo: "URL 단축기",
+    desc: "복잡한 주소를 study.funjeju.com/{slug}로 즉시 단축",
+    features: [
+      "커스텀 slug 직접 입력 가능",
+      "클릭 수 실시간 추적",
+      "외부 프로젝트 API 연동 지원",
+      "관리자 대시보드 제공",
+    ],
+    gradient: "linear-gradient(135deg, #064E3B 0%, #065F46 50%, #059669 100%)",
+    accentGrad: "linear-gradient(135deg, #059669, #34D399)",
+    accent: "#059669",
+    accentRgb: "5,150,105",
+    border: "rgba(5,150,105,0.25)",
+    href: "/url",
+    badge: "NEW",
+    ctaText: "🔗 URL 단축하기",
+  },
 ];
 
 export default function MainHub() {
@@ -156,8 +177,8 @@ export default function MainHub() {
         .hub-header { padding: 0 48px !important; }
         .hub-hero { padding: 48px 20px 0 !important; }
         .hub-h1 { font-size: 52px !important; }
-        .hub-grid { grid-template-columns: repeat(6,1fr) !important; gap: 20px !important; }
-        @media (max-width: 1280px) {
+        .hub-grid { grid-template-columns: repeat(4,1fr) !important; gap: 20px !important; }
+        @media (max-width: 1100px) {
           .hub-grid { grid-template-columns: repeat(3,1fr) !important; }
         }
         @media (max-width: 900px) {
@@ -214,6 +235,12 @@ export default function MainHub() {
           >
             🌐 피드
           </Link>
+          <Link
+            href="/url"
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", background:"rgba(5,150,105,0.07)", border:"1.5px solid rgba(5,150,105,0.2)", borderRadius:10, textDecoration:"none", fontSize:13, fontWeight:700, color:"#059669" }}
+          >
+            🔗 URL 단축
+          </Link>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -259,10 +286,10 @@ export default function MainHub() {
           </p>
         </div>
 
-        {/* ── TOOL CARDS — 3열 고정 ── */}
+        {/* ── TOOL CARDS — 최대 4열, 초과 시 다음 줄 ── */}
         <div className="hub-grid" style={{
           display: "grid",
-          gridTemplateColumns: "repeat(6, 1fr)",
+          gridTemplateColumns: "repeat(4, 1fr)",
           gap: 20,
           paddingBottom: 80,
         }}>

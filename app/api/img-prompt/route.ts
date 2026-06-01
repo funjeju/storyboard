@@ -294,7 +294,7 @@ const PLATFORM_IMAGE_SPEC: Record<string, Record<string, string>> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { sectionType, productInfo, styleDNA, copy, sectionGuidance, lockedSectionPrompts, hasRefImage, platform } = await req.json();
+    const { sectionType, productInfo, styleDNA, copy, sectionGuidance, lockedSectionPrompts, hasRefImage, hasModelImage, styleRef, platform } = await req.json();
 
     const brief = MODULE_VISUAL_BRIEF[sectionType] || MODULE_VISUAL_BRIEF.hero_hook;
 
@@ -523,11 +523,21 @@ Typography rules:
       ? `\n\nSTRATEGIC GUIDANCE:\n${JSON.stringify(sectionGuidance, null, 2)}`
       : "";
 
-    const refImageContext = hasRefImage
+    const refImageContext = styleRef
+      ? `\n\nSTYLE REFERENCE IMAGE WILL BE PROVIDED (gpt-image-2 images.edit — this is a COMPETITOR or INSPIRATION image, NOT our product).
+Your prompt MUST begin with this exact instruction block:
+"Using the provided style reference image for LAYOUT AND VISUAL INSPIRATION ONLY: (1) analyze and replicate the COMPOSITION STRUCTURE — camera angle, product placement zone, text overlay zones, negative space distribution, foreground/background relationship; (2) replicate the LIGHTING CHARACTER — color temperature (warm/cool), light source direction, softness or hardness of shadows, highlight style; (3) replicate the OVERALL MOOD and color palette energy — vibrant vs muted, clinical vs warm, bold vs minimal; (4) replicate the TYPOGRAPHIC LAYOUT PATTERN — where headlines, sub-copy, and badges sit in the frame and their relative sizing hierarchy; (5) COMPLETELY REPLACE every visual element from the reference — all products, people, logos, brand marks, text, and packaging must be entirely removed and replaced with our product described below; (6) the output should feel like a creative sibling to the reference — sharing its visual energy and layout language — but be 100% original with our product as the star."
+After this instruction block, describe our product details, then continue with background, lighting execution, and typography content as normal.`
+      : hasRefImage && !hasModelImage
       ? `\n\nREFERENCE IMAGE WILL BE PROVIDED TO THE IMAGE MODEL (gpt-image-2 images.edit).
 Your prompt MUST begin with this exact instruction block:
 "Using the provided reference image: (1) extract and PRESERVE the product's exact visual characteristics — shape, color, texture, surface finish, label, packaging detail; (2) if the reference contains a person or model, PRESERVE their presence and role in the scene — maintain their body language type, proximity to product, and contextual relationship; (3) dramatically improve the commercial quality: upgrade the lighting (studio-grade key+fill or intentional natural), refine the background to be clean and intentional, elevate the overall staging to catalog level; (4) do NOT simply copy the reference composition — create a superior version with better lighting, framing, and production value, while keeping the product and any person/model unmistakably present."
 After this instruction block, continue with scene description, background, lighting, and typography layers as normal.`
+      : hasModelImage
+      ? `\n\nMODEL PHOTO WILL BE PROVIDED (gpt-image-2 images.edit — the reference IS the human model).
+Your prompt MUST begin with this exact instruction block:
+"Using the provided model photo: (1) PRESERVE the model's exact appearance — face, hair color and style, skin tone, body type, clothing if visible; (2) place this model naturally in a professional commercial product photography scene that fits the section's visual brief; (3) incorporate the product prominently — held in hand, displayed beside the model, or in active use by the model; (4) upgrade to catalog-quality commercial lighting — studio softbox key+fill, clean intentional background (${brief.visualCode}); (5) the model should appear natural, confident, and at ease — not posed stiffly; (6) maintain photorealistic quality throughout — this must look like a professional brand shoot, not AI art."
+After this instruction block, continue with scene description, background, lighting setup, and typography layers as normal.`
       : "";
 
     const user = `Generate a PHOTOREALISTIC commercial product photography prompt for the "${sectionType}" section of an e-commerce detail page.

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { RESERVED_SLUGS, generateRandomSlug } from "@/lib/slugRegistry";
+import { RESERVED_SLUGS, generateRandomSlug } from "@/lib/slugConstants";
 import type { UrlRecord } from "@/lib/slugRegistry";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SLUG_BASE_URL ?? "https://study.funjeju.com";

@@ -2,12 +2,8 @@ import { redirect, notFound } from "next/navigation";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
-interface Props {
-  params: { slug: string };
-}
-
-export default async function SlugRedirectPage({ params }: Props) {
-  const { slug } = params;
+export default async function SlugRedirectPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
 
   try {
     const db = getAdminDb();

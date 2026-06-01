@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { RESERVED_SLUGS } from "@/lib/slugRegistry";
+import { RESERVED_SLUGS } from "@/lib/slugConstants";
 
 export async function POST(req: NextRequest) {
   try {

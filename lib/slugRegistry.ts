@@ -3,6 +3,7 @@ import {
   query, where, orderBy, limit,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { RESERVED_SLUGS } from "@/lib/slugConstants";
 
 export interface UrlRecord {
   id: string;
@@ -16,11 +17,7 @@ export interface UrlRecord {
   status: "active" | "deleted";
 }
 
-export const RESERVED_SLUGS = new Set([
-  "api", "url", "feed", "storyboard", "suno", "library", "detail",
-  "autocut", "srt", "metaprompt", "actionboard", "dashboard",
-  "_next", "favicon.ico", "robots.txt", "sitemap.xml",
-]);
+export { RESERVED_SLUGS, generateRandomSlug } from "@/lib/slugConstants";
 
 function col() {
   if (!db) throw new Error("Firestore not initialised");
@@ -62,7 +59,3 @@ export async function getAllSlugs(): Promise<UrlRecord[]> {
   return snap.docs.map(d => d.data() as UrlRecord);
 }
 
-export function generateRandomSlug(length = 6): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-}

@@ -11,8 +11,12 @@ import {
   updateBoardPost,
   updateBoardPostPosition,
   createFeedPost,
+  addBoardComment,
+  deleteBoardComment,
+  subscribeToBoardComments,
   type CloudActionBoard,
   type CloudBoardPost,
+  type CloudBoardComment,
   type CloudFeedPost,
   type FeedCategory,
 } from "@/lib/firestoreHelpers";
@@ -195,6 +199,14 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, i
           </div>
         </div>
       )}
+
+      {/* Comment count badge */}
+      {(post.commentCount ?? 0) > 0 && (
+        <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, color:"#6B7280" }}>
+          <span>💬</span>
+          <span>{post.commentCount}개의 댓글</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -221,6 +233,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const postsRef = useRef<CloudBoardPost[]>([]);
   // Card maximize overlay — declared here so handleCanvasMouseUp can reference it
   const [maximizedPost, setMaximizedPost] = useState<CloudBoardPost | null>(null);
+
+  // Comments for maximized post
+  const [comments, setComments] = useState<CloudBoardComment[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   // keep refs in sync so mouseup closures have latest state
   useEffect(() => { posRef.current = positions; }, [positions]);
@@ -370,6 +388,26 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     setEditSaving(false);
   };
 
+  const handleCommentSubmit = async () => {
+    if (!user || !maximizedPost || !commentText.trim()) return;
+    setCommentSubmitting(true);
+    try {
+      const comment: CloudBoardComment = {
+        id: crypto.randomUUID(),
+        postId: maximizedPost.id,
+        boardId,
+        uid: user.uid,
+        authorName: user.displayName ?? "익명",
+        authorPhoto: user.photoURL ?? "",
+        text: commentText.trim(),
+        createdAt: Date.now(),
+      };
+      await addBoardComment(boardId, maximizedPost.id, comment);
+      setCommentText("");
+    } catch (e) { console.error(e); }
+    setCommentSubmitting(false);
+  };
+
   const fileRef     = useRef<HTMLInputElement>(null);
   const audioRef2   = useRef<HTMLInputElement>(null);
   const pptFileRef  = useRef<HTMLInputElement>(null);
@@ -379,6 +417,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     const unsub = subscribeToBoardPosts(boardId, setPosts);
     return unsub;
   }, [boardId]);
+
+  useEffect(() => {
+    if (!maximizedPost) { setComments([]); setCommentText(""); return; }
+    const unsub = subscribeToBoardComments(boardId, maximizedPost.id, setComments);
+    return unsub;
+  }, [boardId, maximizedPost?.id]);
 
   const status = board ? getBoardStatus(board) : "closed";
   const canPost = status === "open" && !!user;
@@ -807,25 +851,25 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
             <button onClick={() => setMaximizedPost(null)} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.2)", color:"white", borderRadius:10, padding:"8px 20px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕ 닫기</button>
           </div>
 
-          {/* Content */}
-          <div style={{ flex:1, overflow:"auto", display:"flex", alignItems:"center", justifyContent:"center", padding:40 }}>
-            {maximizedPost.contentType === "text" && (
-              <div style={{ maxWidth:800, width:"100%", background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, padding:"48px 56px", fontSize:20, lineHeight:1.8, color:"#1F2937", whiteSpace:"pre-wrap" }}>
-                {linkify(maximizedPost.text ?? "")}
-              </div>
-            )}
-            {maximizedPost.contentType === "image" && maximizedPost.imageUrl && (
-              <img src={maximizedPost.imageUrl} alt="" style={{ maxWidth:"100%", maxHeight:"100%", borderRadius:16, objectFit:"contain" }} />
-            )}
-            {maximizedPost.contentType === "audio" && maximizedPost.audioUrl && (
-              <div style={{ background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, padding:"60px 80px", textAlign:"center" }}>
-                <div style={{ fontSize:64, marginBottom:24 }}>🎵</div>
-                <div style={{ fontSize:22, fontWeight:700, color:"#1F2937", marginBottom:32 }}>{maximizedPost.audioName}</div>
-                <audio controls src={maximizedPost.audioUrl} style={{ width:400 }} />
-              </div>
-            )}
-            {maximizedPost.contentType === "youtube" && maximizedPost.youtubeUrl && (
-              <div style={{ width:"100%", maxWidth:960 }}>
+          {/* Content + Comments */}
+          <div style={{ flex:1, overflow:"auto", display:"flex", flexDirection:"column", alignItems:"center", padding:"40px 40px 0" }}>
+            <div style={{ width:"100%", maxWidth:960 }}>
+              {maximizedPost.contentType === "text" && (
+                <div style={{ background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, padding:"48px 56px", fontSize:20, lineHeight:1.8, color:"#1F2937", whiteSpace:"pre-wrap" }}>
+                  {linkify(maximizedPost.text ?? "")}
+                </div>
+              )}
+              {maximizedPost.contentType === "image" && maximizedPost.imageUrl && (
+                <img src={maximizedPost.imageUrl} alt="" style={{ maxWidth:"100%", maxHeight:560, borderRadius:16, objectFit:"contain", display:"block", margin:"0 auto" }} />
+              )}
+              {maximizedPost.contentType === "audio" && maximizedPost.audioUrl && (
+                <div style={{ background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, padding:"60px 80px", textAlign:"center" }}>
+                  <div style={{ fontSize:64, marginBottom:24 }}>🎵</div>
+                  <div style={{ fontSize:22, fontWeight:700, color:"#1F2937", marginBottom:32 }}>{maximizedPost.audioName}</div>
+                  <audio controls src={maximizedPost.audioUrl} style={{ width:400 }} />
+                </div>
+              )}
+              {maximizedPost.contentType === "youtube" && maximizedPost.youtubeUrl && (
                 <div style={{ position:"relative", paddingTop:"56.25%", borderRadius:16, overflow:"hidden" }}>
                   <iframe
                     src={`https://www.youtube.com/embed/${getYoutubeId(maximizedPost.youtubeUrl) ?? ""}?autoplay=1`}
@@ -834,20 +878,87 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   />
                 </div>
-              </div>
-            )}
-            {maximizedPost.contentType === "ppt" && maximizedPost.pptUrl && (
-              <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", gap:12 }}>
-                <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
-                  <a href={maximizedPost.pptUrl} download target="_blank" rel="noreferrer"
-                    style={{ padding:"8px 20px", background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:600, textDecoration:"none" }}>
-                    ⬇️ PPT 다운로드
-                  </a>
+              )}
+              {maximizedPost.contentType === "ppt" && maximizedPost.pptUrl && (
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
+                    <a href={maximizedPost.pptUrl} download target="_blank" rel="noreferrer"
+                      style={{ padding:"8px 20px", background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                      ⬇️ PPT 다운로드
+                    </a>
+                  </div>
+                  <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(maximizedPost.pptUrl)}&embedded=true`}
+                    style={{ border:"none", width:"100%", height:500, borderRadius:12 }} allowFullScreen />
                 </div>
-                <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(maximizedPost.pptUrl)}&embedded=true`}
-                  style={{ flex:1, border:"none", width:"100%", minHeight:500, borderRadius:12 }} allowFullScreen />
+              )}
+
+              {/* ── Comments section ── */}
+              <div style={{ marginTop:40, marginBottom:40 }}>
+                <div style={{ fontSize:14, fontWeight:700, color:"rgba(255,255,255,0.85)", marginBottom:16 }}>
+                  💬 댓글 {comments.length > 0 ? `${comments.length}개` : ""}
+                </div>
+
+                {/* Comment list */}
+                {comments.length > 0 && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:16 }}>
+                    {comments.map(c => (
+                      <div key={c.id} style={{ background:"rgba(255,255,255,0.08)", borderRadius:14, padding:"12px 16px", display:"flex", gap:10, alignItems:"flex-start" }}>
+                        {c.authorPhoto
+                          ? <img src={c.authorPhoto} alt="" style={{ width:28, height:28, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
+                          : <div style={{ width:28, height:28, borderRadius:"50%", background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"white", fontWeight:800, flexShrink:0 }}>{c.authorName[0]}</div>
+                        }
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:"rgba(255,255,255,0.9)" }}>{c.authorName}</span>
+                            <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{fmtDate(c.createdAt)}</span>
+                          </div>
+                          <p style={{ fontSize:13, color:"rgba(255,255,255,0.8)", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{c.text}</p>
+                        </div>
+                        {user && (user.uid === c.uid || (board && user.uid === board.uid)) && (
+                          <button
+                            onClick={() => deleteBoardComment(boardId, maximizedPost.id, c.id)}
+                            style={{ background:"none", border:"none", cursor:"pointer", color:"rgba(255,255,255,0.35)", fontSize:16, padding:"0 4px", flexShrink:0, lineHeight:1 }}
+                            title="댓글 삭제"
+                          >×</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Comment input */}
+                {user ? (
+                  <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
+                    {user.photoURL
+                      ? <img src={user.photoURL} alt="" style={{ width:32, height:32, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
+                      : <div style={{ width:32, height:32, borderRadius:"50%", background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"white", fontWeight:800, flexShrink:0 }}>{(user.displayName ?? "?")[0]}</div>
+                    }
+                    <div style={{ flex:1, position:"relative" }}>
+                      <textarea
+                        ref={commentInputRef}
+                        value={commentText}
+                        onChange={e => setCommentText(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleCommentSubmit(); } }}
+                        placeholder="댓글을 입력하세요... (Shift+Enter 줄바꿈)"
+                        rows={2}
+                        style={{ width:"100%", padding:"10px 14px", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:12, fontSize:13, color:"white", fontFamily:"inherit", resize:"none", outline:"none" }}
+                      />
+                    </div>
+                    <button
+                      onClick={handleCommentSubmit}
+                      disabled={commentSubmitting || !commentText.trim()}
+                      style={{ padding:"10px 18px", background:commentText.trim()?`linear-gradient(135deg,${P},${PINK})`:"rgba(255,255,255,0.1)", border:"none", borderRadius:12, fontSize:13, fontWeight:700, color:"white", cursor:commentText.trim()?"pointer":"default", flexShrink:0 }}
+                    >
+                      {commentSubmitting ? "..." : "등록"}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ textAlign:"center", padding:"16px", background:"rgba(255,255,255,0.06)", borderRadius:12, fontSize:13, color:"rgba(255,255,255,0.5)" }}>
+                    댓글을 작성하려면 <button onClick={signIn} style={{ background:"none", border:"none", color:"#A78BFA", fontWeight:700, cursor:"pointer", fontSize:13 }}>로그인</button>하세요
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}

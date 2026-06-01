@@ -237,9 +237,21 @@ export interface CloudBoardPost {
   pptName?: string;
   bgColor?: string;        // user-selected card background color
   isAnnouncement?: boolean; // admin-pinned announcement
+  commentCount?: number;
   createdAt: number;
   x?: number;
   y?: number;
+}
+
+export interface CloudBoardComment {
+  id: string;
+  postId: string;
+  boardId: string;
+  uid: string;
+  authorName: string;
+  authorPhoto: string;
+  text: string;
+  createdAt: number;
 }
 
 function boardsCol() {
@@ -308,6 +320,36 @@ export async function updateBoardPost(
 export function subscribeToBoardPosts(boardId: string, cb: (posts: CloudBoardPost[]) => void): Unsubscribe {
   const q = query(postsCol(boardId), orderBy("createdAt", "desc"));
   return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudBoardPost)));
+}
+
+// ─── Board Comments ───────────────────────────────────────────────────────────
+
+function commentsCol(boardId: string, postId: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "actionBoards", boardId, "posts", postId, "comments");
+}
+function commentDoc(boardId: string, postId: string, commentId: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "actionBoards", boardId, "posts", postId, "comments", commentId);
+}
+
+export async function addBoardComment(boardId: string, postId: string, comment: CloudBoardComment) {
+  await setDoc(commentDoc(boardId, postId, comment.id), comment);
+  setDoc(postDoc(boardId, postId), { commentCount: increment(1) }, { merge: true }).catch(() => {});
+}
+
+export async function deleteBoardComment(boardId: string, postId: string, commentId: string) {
+  await deleteDoc(commentDoc(boardId, postId, commentId));
+  setDoc(postDoc(boardId, postId), { commentCount: increment(-1) }, { merge: true }).catch(() => {});
+}
+
+export function subscribeToBoardComments(
+  boardId: string,
+  postId: string,
+  cb: (comments: CloudBoardComment[]) => void,
+): Unsubscribe {
+  const q = query(commentsCol(boardId, postId), orderBy("createdAt", "asc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudBoardComment)));
 }
 
 // ─── MetaPrompts ─────────────────────────────────────────────────────────────

@@ -3,8 +3,7 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import {
-  getBySlug, createSlugRecord, getAllSlugs, deleteSlugRecord,
-  generateRandomSlug, RESERVED_SLUGS, type UrlRecord,
+  getAllSlugs, deleteSlugRecord, type UrlRecord,
 } from "@/lib/slugRegistry";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SLUG_BASE_URL ?? "https://study.funjeju.com";
@@ -54,37 +53,21 @@ export default function UrlShortener() {
     setCreating(true);
     setResult(null);
     try {
-      let slug = customSlug.trim()
-        ? customSlug.toLowerCase().replace(/[^a-z0-9-_]/g, "").slice(0, 50)
-        : generateRandomSlug(6);
-
-      // 중복 시 suffix
-      if (slug) {
-        let attempt = slug;
-        let available = !RESERVED_SLUGS.has(attempt) && !(await getBySlug(attempt));
-        if (!available) {
-          for (let i = 1; i <= 9 && !available; i++) {
-            attempt = `${slug}-${i}`;
-            available = !RESERVED_SLUGS.has(attempt) && !(await getBySlug(attempt));
-          }
-        }
-        slug = attempt;
-      }
-
-      const record: UrlRecord = {
-        id: `slug_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        slug,
-        target_url: targetUrl.trim(),
-        project_type: "custom",
-        owner_id: user.uid,
-        created_at: Date.now(),
-        click_count: 0,
-        status: "active",
-      };
-
-      await createSlugRecord(record);
-      const short_url = `${BASE_URL}/${slug}`;
-      setResult({ short_url, slug });
+      const res = await fetch("/api/slug/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.NEXT_PUBLIC_SLUG_API_KEY ?? "",
+        },
+        body: JSON.stringify({
+          target_url: targetUrl.trim(),
+          preferred_slug: customSlug.trim() || undefined,
+          owner_id: user?.uid,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "생성 실패");
+      setResult({ short_url: data.short_url, slug: data.slug });
       setTargetUrl(""); setCustomSlug(""); setSlugStatus("idle");
     } catch (e) {
       alert("생성 실패: " + String(e));
@@ -202,7 +185,7 @@ export default function UrlShortener() {
 
               <button
                 onClick={handleCreate}
-                disabled={creating || !targetUrl.trim() || slugStatus === "taken"}
+                disabled={creating || !targetUrl.trim() || slugStatus === "taken" || slugStatus === "checking"}
                 style={{ width:"100%", padding:"14px", background:targetUrl.trim()&&slugStatus!=="taken"?GRAD:"#E5E7EB", border:"none", borderRadius:14, fontSize:15, fontWeight:700, color:targetUrl.trim()&&slugStatus!=="taken"?"white":"#9CA3AF", cursor:targetUrl.trim()&&slugStatus!=="taken"?"pointer":"default", boxShadow:targetUrl.trim()&&slugStatus!=="taken"?"0 4px 16px rgba(5,150,105,0.3)":"none" }}
               >
                 {creating ? "⏳ 생성 중..." : "🔗 URL 단축하기"}
@@ -228,22 +211,6 @@ export default function UrlShortener() {
               </div>
             )}
 
-            {/* API 스펙 */}
-            <div style={{ background:"white", borderRadius:16, padding:24, boxShadow:"0 2px 8px rgba(0,0,0,0.05)", marginTop:20 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:14 }}>🔌 외부 프로젝트 API 연동</div>
-              <div style={{ background:"#0F172A", borderRadius:12, padding:16, fontFamily:"monospace", fontSize:12, color:"#E2E8F0", lineHeight:1.8, overflow:"auto" }}>
-                <div style={{ color:"#94A3B8" }}>// POST /api/slug/create</div>
-                <div>{`fetch("${BASE_URL}/api/slug/create", {`}</div>
-                <div style={{ paddingLeft:16 }}>{`method: "POST",`}</div>
-                <div style={{ paddingLeft:16 }}>{`headers: { "x-api-key": "SLUG_API_KEY" },`}</div>
-                <div style={{ paddingLeft:16 }}>{`body: JSON.stringify({`}</div>
-                <div style={{ paddingLeft:32 }}>{`target_url: "https://your-url.com",`}</div>
-                <div style={{ paddingLeft:32 }}>{`preferred_slug: "my-slug",  // optional`}</div>
-                <div style={{ paddingLeft:16 }}>{`})`}</div>
-                <div>{`})`}</div>
-                <div style={{ marginTop:10, color:"#94A3B8" }}>{"// 응답: { slug, short_url, id }"}</div>
-              </div>
-            </div>
           </div>
         )}
 

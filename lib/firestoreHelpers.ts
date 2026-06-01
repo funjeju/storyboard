@@ -175,6 +175,13 @@ export async function deleteFeedPost(postId: string) {
   await deleteDoc(feedDoc(postId));
 }
 
+export async function updateFeedPost(
+  postId: string,
+  fields: Partial<Pick<CloudFeedPost, "title" | "description" | "youtubeUrl" | "webUrl">>,
+) {
+  await setDoc(feedDoc(postId), { ...fields, updatedAt: Date.now() }, { merge: true });
+}
+
 export async function likeFeedPost(postId: string, delta: 1 | -1) {
   await setDoc(feedDoc(postId), { likes: increment(delta) }, { merge: true });
 }

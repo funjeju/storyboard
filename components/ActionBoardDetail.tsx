@@ -36,7 +36,7 @@ function fmtDate(ts: number) {
 }
 
 function getYoutubeId(url: string) {
-  const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
 }
 
@@ -170,7 +170,12 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMaximize, on
             </div>
           ) : (
             <div style={{ position:"relative", paddingTop:"56.25%", borderRadius:10, overflow:"hidden" }}>
-              <iframe src={`https://www.youtube.com/embed/${getYoutubeId(post.youtubeUrl)}?autoplay=1`} style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allowFullScreen allow="autoplay" />
+              <iframe
+                src={`https://www.youtube.com/embed/${getYoutubeId(post.youtubeUrl) ?? ""}?autoplay=1`}
+                style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }}
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              />
             </div>
           )}
         </div>
@@ -812,8 +817,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
             {maximizedPost.contentType === "youtube" && maximizedPost.youtubeUrl && (
               <div style={{ width:"100%", maxWidth:960 }}>
                 <div style={{ position:"relative", paddingTop:"56.25%", borderRadius:16, overflow:"hidden" }}>
-                  <iframe src={`https://www.youtube.com/embed/${getYoutubeId(maximizedPost.youtubeUrl)}?autoplay=1`}
-                    style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allowFullScreen allow="autoplay" />
+                  <iframe
+                    src={`https://www.youtube.com/embed/${getYoutubeId(maximizedPost.youtubeUrl) ?? ""}?autoplay=1`}
+                    style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }}
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  />
                 </div>
               </div>
             )}

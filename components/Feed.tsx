@@ -7,11 +7,14 @@ import {
   subscribeToFeedPosts,
   createFeedPost,
   deleteFeedPost,
+  updateFeedPost,
   likeFeedPost,
   incrementFeedViews,
   type CloudFeedPost,
   type FeedCategory,
 } from "@/lib/firestoreHelpers";
+
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "";
 import { uploadBoardFile, uploadImageDataUrl } from "@/lib/firebaseStorage";
 
 const P = "#7C3AED";
@@ -40,7 +43,7 @@ const CAT_BG: Record<string, string> = {
 };
 
 function getYoutubeId(url: string) {
-  const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
 }
 
@@ -144,17 +147,39 @@ function FeedCard({ post, onOpen, onLike, likedIds }: {
 }
 
 // ── Post Detail Modal ──────────────────────────────────────────────────────────
-function PostModal({ post, onClose, onLike, liked, isOwner, onDelete }: {
+function PostModal({ post, onClose, onLike, liked, isOwner, isAdmin, onDelete, onEdit }: {
   post: CloudFeedPost;
   onClose: () => void;
   onLike: () => void;
   liked: boolean;
   isOwner: boolean;
+  isAdmin: boolean;
   onDelete: () => void;
+  onEdit: (fields: { title: string; description: string; youtubeUrl?: string; webUrl?: string }) => Promise<void>;
 }) {
   const [showPlayer, setShowPlayer] = useState(false);
+  const [editing, setEditing]       = useState(false);
+  const [editTitle, setEditTitle]   = useState(post.title);
+  const [editDesc, setEditDesc]     = useState(post.description ?? "");
+  const [editYtUrl, setEditYtUrl]   = useState(post.youtubeUrl ?? "");
+  const [editWebUrl, setEditWebUrl] = useState(post.webUrl ?? "");
+  const [editSaving, setEditSaving] = useState(false);
   const catLabel = CATEGORIES.find(c => c.key === post.category);
   const thumb = getThumbnail(post);
+  const canManage = isOwner || isAdmin;
+
+  const handleEditSave = async () => {
+    if (!editTitle.trim()) return;
+    setEditSaving(true);
+    await onEdit({
+      title: editTitle.trim(),
+      description: editDesc.trim(),
+      ...(post.category === "video" && { youtubeUrl: editYtUrl.trim() }),
+      ...(post.category === "web"   && { webUrl: editWebUrl.trim() }),
+    });
+    setEditing(false);
+    setEditSaving(false);
+  };
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
@@ -162,7 +187,7 @@ function PostModal({ post, onClose, onLike, liked, isOwner, onDelete }: {
         style={{ background:"white", borderRadius:24, width:"100%", maxWidth:680, maxHeight:"90vh", overflow:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.3)" }}>
 
         {/* Media */}
-        {post.category === "video" && post.youtubeUrl && (
+        {post.category === "video" && post.youtubeUrl && !editing && (
           <div style={{ position:"relative", paddingTop:"56.25%", background:"#000", borderRadius:"24px 24px 0 0", overflow:"hidden" }}>
             {!showPlayer ? (
               <div onClick={() => setShowPlayer(true)} style={{ position:"absolute", inset:0, cursor:"pointer" }}>
@@ -174,21 +199,25 @@ function PostModal({ post, onClose, onLike, liked, isOwner, onDelete }: {
                 </div>
               </div>
             ) : (
-              <iframe src={`https://www.youtube.com/embed/${getYoutubeId(post.youtubeUrl)}?autoplay=1`}
-                style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }} allowFullScreen allow="autoplay" />
+              <iframe
+                src={`https://www.youtube.com/embed/${getYoutubeId(post.youtubeUrl) ?? ""}?autoplay=1`}
+                style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:"none" }}
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              />
             )}
           </div>
         )}
-        {post.category === "image" && post.imageUrl && (
+        {post.category === "image" && post.imageUrl && !editing && (
           <img src={post.imageUrl} alt="" style={{ width:"100%", borderRadius:"24px 24px 0 0", display:"block", maxHeight:400, objectFit:"contain", background:"#F9FAFB" }} />
         )}
-        {post.category === "music" && post.audioUrl && (
+        {post.category === "music" && post.audioUrl && !editing && (
           <div style={{ background:CAT_BG.music, padding:"48px 40px", borderRadius:"24px 24px 0 0", textAlign:"center" }}>
             <div style={{ fontSize:64, marginBottom:16 }}>🎵</div>
             <audio controls src={post.audioUrl} style={{ width:"100%", maxWidth:360 }} />
           </div>
         )}
-        {post.category === "web" && post.webUrl && (
+        {post.category === "web" && post.webUrl && !editing && (
           <div style={{ background:CAT_BG.web, padding:"40px", borderRadius:"24px 24px 0 0", textAlign:"center" }}>
             <div style={{ fontSize:48, marginBottom:12 }}>💻</div>
             <a href={post.webUrl} target="_blank" rel="noreferrer"
@@ -198,42 +227,87 @@ function PostModal({ post, onClose, onLike, liked, isOwner, onDelete }: {
           </div>
         )}
 
-        {/* Info */}
-        <div style={{ padding:"24px 28px" }}>
-          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, marginBottom:12 }}>
-            <div>
-              <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"3px 10px", background:`${CAT_COLORS[post.category]}18`, borderRadius:100, fontSize:11, fontWeight:700, color:CAT_COLORS[post.category], marginBottom:8 }}>
-                {catLabel?.icon} {catLabel?.label}
-              </div>
-              <div style={{ fontSize:20, fontWeight:800, color:"#111827", lineHeight:1.3 }}>{post.title}</div>
-            </div>
-            {isOwner && (
-              <button onClick={onDelete} style={{ flexShrink:0, padding:"6px 14px", background:"#FEF2F2", border:"1.5px solid #FECACA", borderRadius:8, fontSize:12, fontWeight:600, color:"#DC2626", cursor:"pointer" }}>
-                🗑 삭제
-              </button>
-            )}
-          </div>
-
-          {post.description && (
-            <p style={{ fontSize:14, color:"#6B7280", lineHeight:1.7, marginBottom:16 }}>{post.description}</p>
-          )}
-
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", paddingTop:16, borderTop:"1px solid #F3F4F6" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              {post.authorPhoto && <img src={post.authorPhoto} alt="" style={{ width:32, height:32, borderRadius:"50%" }} />}
+        {/* Edit form */}
+        {editing ? (
+          <div style={{ padding:"28px 28px 24px" }}>
+            <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:20 }}>✏️ 게시물 수정</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
               <div>
-                <div style={{ fontSize:13, fontWeight:700, color:"#1F2937" }}>{post.authorName}</div>
-                <div style={{ fontSize:11, color:"#9CA3AF" }}>{fmtDate(post.createdAt)}</div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>제목 *</label>
+                <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
+                  style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
               </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>설명</label>
+                <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3}
+                  style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", resize:"vertical", outline:"none" }} />
+              </div>
+              {post.category === "video" && (
+                <div>
+                  <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>YouTube URL</label>
+                  <input value={editYtUrl} onChange={e => setEditYtUrl(e.target.value)}
+                    style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
+                </div>
+              )}
+              {post.category === "web" && (
+                <div>
+                  <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>웹/앱 URL</label>
+                  <input value={editWebUrl} onChange={e => setEditWebUrl(e.target.value)}
+                    style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
+                </div>
+              )}
             </div>
-            <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-              <span style={{ fontSize:13, color:"#9CA3AF" }}>👁 {post.views}</span>
-              <button onClick={onLike} style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 18px", background:liked?"#FEF2F2":"#F3F4F6", border:"none", borderRadius:10, fontSize:14, fontWeight:700, color:liked?"#EF4444":"#6B7280", cursor:"pointer" }}>
-                {liked ? "❤️" : "🤍"} {post.likes}
+            <div style={{ display:"flex", gap:10, marginTop:20 }}>
+              <button onClick={() => setEditing(false)} style={{ flex:1, padding:"12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>취소</button>
+              <button onClick={handleEditSave} disabled={editSaving || !editTitle.trim()}
+                style={{ flex:2, padding:"12px", background:editTitle.trim()?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:editTitle.trim()?"white":"#9CA3AF", cursor:editTitle.trim()?"pointer":"default", boxShadow:editTitle.trim()?`0 4px 16px rgba(124,58,237,0.3)`:"none" }}>
+                {editSaving ? "저장 중..." : "✏️ 수정 완료"}
               </button>
             </div>
           </div>
-        </div>
+        ) : (
+          /* Info */
+          <div style={{ padding:"24px 28px" }}>
+            <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, marginBottom:12 }}>
+              <div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"3px 10px", background:`${CAT_COLORS[post.category]}18`, borderRadius:100, fontSize:11, fontWeight:700, color:CAT_COLORS[post.category], marginBottom:8 }}>
+                  {catLabel?.icon} {catLabel?.label}
+                </div>
+                <div style={{ fontSize:20, fontWeight:800, color:"#111827", lineHeight:1.3 }}>{post.title}</div>
+              </div>
+              {canManage && (
+                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                  <button onClick={() => setEditing(true)} style={{ padding:"6px 14px", background:"#F3F4F6", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:12, fontWeight:600, color:"#374151", cursor:"pointer" }}>
+                    ✏️ 수정
+                  </button>
+                  <button onClick={onDelete} style={{ padding:"6px 14px", background:"#FEF2F2", border:"1.5px solid #FECACA", borderRadius:8, fontSize:12, fontWeight:600, color:"#DC2626", cursor:"pointer" }}>
+                    🗑 삭제
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {post.description && (
+              <p style={{ fontSize:14, color:"#6B7280", lineHeight:1.7, marginBottom:16 }}>{post.description}</p>
+            )}
+
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", paddingTop:16, borderTop:"1px solid #F3F4F6" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                {post.authorPhoto && <img src={post.authorPhoto} alt="" style={{ width:32, height:32, borderRadius:"50%" }} />}
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:"#1F2937" }}>{post.authorName}</div>
+                  <div style={{ fontSize:11, color:"#9CA3AF" }}>{fmtDate(post.createdAt)}</div>
+                </div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                <span style={{ fontSize:13, color:"#9CA3AF" }}>👁 {post.views}</span>
+                <button onClick={onLike} style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 18px", background:liked?"#FEF2F2":"#F3F4F6", border:"none", borderRadius:10, fontSize:14, fontWeight:700, color:liked?"#EF4444":"#6B7280", cursor:"pointer" }}>
+                  {liked ? "❤️" : "🤍"} {post.likes}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -469,10 +543,18 @@ export default function Feed() {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + (liked?-1:1) } : p));
   };
 
+  const isAdmin = !!user && !!ADMIN_EMAIL && user.email === ADMIN_EMAIL;
+
   const handleDelete = async (postId: string) => {
     if (!confirm("게시물을 삭제할까요?")) return;
     await deleteFeedPost(postId);
     setOpenPost(null);
+  };
+
+  const handleEdit = async (postId: string, fields: { title: string; description: string; youtubeUrl?: string; webUrl?: string }) => {
+    await updateFeedPost(postId, fields);
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...fields } : p));
+    setOpenPost(prev => prev?.id === postId ? { ...prev, ...fields } : prev);
   };
 
   const SORT_LABELS = { latest:"최신순", likes:"인기순", views:"조회수순" };
@@ -579,7 +661,9 @@ export default function Feed() {
           onLike={() => handleLike(openPost.id)}
           liked={likedIds.has(openPost.id)}
           isOwner={user?.uid === openPost.uid}
+          isAdmin={isAdmin}
           onDelete={() => handleDelete(openPost.id)}
+          onEdit={fields => handleEdit(openPost.id, fields)}
         />
       )}
     </div>

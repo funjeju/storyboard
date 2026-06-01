@@ -26,6 +26,7 @@ type ModuleType =
   | "hero_hook" | "strong_copy" | "problem_statement" | "pain_point"
   | "customer_reviews" | "expert_cert" | "clinical_results" | "origin" | "manufacturing" | "brand_story" | "before_after"
   | "feature_desc" | "ingredient_desc" | "comparison_table" | "usage_guide" | "option_desc" | "faq"
+  | "product_detail" | "purchase_checklist"
   | "lifestyle_image" | "emotional_copy" | "usage_scenario" | "brand_philosophy"
   | "discount_benefit" | "limited_quantity" | "recommended_bundle" | "cta";
 
@@ -65,6 +66,7 @@ interface ProductInfo {
   targetAudience: string;
   keyFeatures: string;
   brandVoice: string;
+  productUrl?: string;
 }
 
 interface ProjectState {
@@ -73,6 +75,7 @@ interface ProjectState {
   tone: Tone;
   platform: Platform;
   refImages: string[];
+  productImages: string[];
   styleDNA: StyleDNA | null;
   overallResearch: Record<string, unknown> | null;
   thumbnail: Thumbnail;
@@ -101,6 +104,8 @@ const MODULE_LIBRARY: { type: ModuleType; label: string; icon: string; category:
   { type: "usage_guide",        label: "사용법",         icon: "📝", category: "product" },
   { type: "option_desc",        label: "옵션 설명",      icon: "🎁", category: "product" },
   { type: "faq",                label: "FAQ",            icon: "❓", category: "product" },
+  { type: "product_detail",     label: "상품 상세표",    icon: "📋", category: "product" },
+  { type: "purchase_checklist", label: "구매 전 체크",   icon: "✅", category: "product" },
   { type: "lifestyle_image",    label: "라이프스타일",   icon: "🌟", category: "emotional" },
   { type: "emotional_copy",     label: "감성 카피",      icon: "💫", category: "emotional" },
   { type: "usage_scenario",     label: "사용 시나리오",  icon: "🎬", category: "emotional" },
@@ -141,6 +146,83 @@ const STEP_LABELS = ["제품 정보", "스타일 DNA", "AI 모듈 전략", "콘�
 
 const PROJECTS_KEY = "dpm_projects_v2";
 const CURRENT_KEY  = "dpm_current_project_v2";
+
+// ── Platform constraint ───────────────────────────────────────────────────────
+
+const PLATFORM_CONSTRAINTS: Record<Platform, {
+  maxModules: number;
+  removeTypes: ModuleType[];
+  categoryOrder: ModuleCategory[];
+}> = {
+  smartstore: {
+    maxModules: 12,
+    removeTypes: [],
+    categoryOrder: ["hook", "trust", "product", "emotional", "conversion"],
+  },
+  coupang: {
+    maxModules: 8,
+    removeTypes: ["brand_philosophy", "brand_story", "usage_scenario", "emotional_copy", "clinical_results"],
+    categoryOrder: ["hook", "product", "trust", "conversion"],
+  },
+  wadiz: {
+    maxModules: 12,
+    removeTypes: [],
+    categoryOrder: ["hook", "emotional", "trust", "product", "conversion"],
+  },
+  instagram: {
+    maxModules: 5,
+    removeTypes: ["comparison_table", "faq", "usage_guide", "ingredient_desc", "clinical_results",
+                  "origin", "manufacturing", "product_detail", "purchase_checklist", "option_desc"],
+    categoryOrder: ["hook", "emotional", "conversion"],
+  },
+  shopify: {
+    maxModules: 9,
+    removeTypes: ["origin", "manufacturing", "purchase_checklist"],
+    categoryOrder: ["hook", "product", "trust", "emotional", "conversion"],
+  },
+  cafe24: {
+    maxModules: 12,
+    removeTypes: [],
+    categoryOrder: ["hook", "trust", "product", "emotional", "conversion"],
+  },
+};
+
+function applyPlatformConstraint(modules: Module[], platform: Platform): Module[] {
+  const rule = PLATFORM_CONSTRAINTS[platform];
+  if (!rule) return modules;
+
+  // 1. Remove platform-incompatible module types
+  let result = modules.filter(m => !rule.removeTypes.includes(m.moduleType));
+
+  // 2. Always preserve at least one hook and the CTA
+  const hooks = result.filter(m => m.category === "hook");
+  const ctas  = result.filter(m => m.moduleType === "cta");
+  const rest  = result.filter(m => m.category !== "hook" && m.moduleType !== "cta");
+
+  // 3. Apply max module count (excluding mandatory hook + cta)
+  const maxRest = Math.max(0, rule.maxModules - hooks.length - ctas.length);
+  const trimmed = [...hooks, ...rest.slice(0, maxRest), ...ctas];
+
+  // 4. Re-sort by platform category order, preserving relative order within each category
+  const catOrder = rule.categoryOrder;
+  result = trimmed.sort((a, b) => {
+    const ai = catOrder.indexOf(a.category);
+    const bi = catOrder.indexOf(b.category);
+    const aIdx = ai >= 0 ? ai : catOrder.length;
+    const bIdx = bi >= 0 ? bi : catOrder.length;
+    if (aIdx !== bIdx) return aIdx - bIdx;
+    return a.order - b.order;
+  });
+
+  // 5. CTA always last
+  const ctaIdx = result.findIndex(m => m.moduleType === "cta");
+  if (ctaIdx >= 0 && ctaIdx < result.length - 1) {
+    const [cta] = result.splice(ctaIdx, 1);
+    result.push(cta);
+  }
+
+  return result.map((m, i) => ({ ...m, order: i }));
+}
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 
@@ -189,10 +271,11 @@ function resetLoadingFlags(state: ProjectState): ProjectState {
 function newProjectState(): ProjectState {
   return {
     id: `proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    productInfo: { name: "", category: "", price: "", targetAudience: "", keyFeatures: "", brandVoice: "" },
+    productInfo: { name: "", category: "", price: "", targetAudience: "", keyFeatures: "", brandVoice: "", productUrl: "" },
     tone: "friendly",
     platform: "smartstore",
     refImages: [],
+    productImages: [],
     styleDNA: null,
     overallResearch: null,
     thumbnail: { imagePrompt: "", imageUrl: "", promptLoading: false, imageLoading: false },
@@ -261,6 +344,7 @@ export default function DetailPageMaker() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const productImgRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const abortCtrls = useRef<Set<AbortController>>(new Set());
 
@@ -297,7 +381,8 @@ export default function DetailPageMaker() {
       getDetailProject(user.uid, loadId).then(cloud => {
         if (cloud) {
           try {
-            const parsed: ProjectState = resetLoadingFlags(JSON.parse(cloud.projectData));
+            const raw = JSON.parse(cloud.projectData);
+            const parsed: ProjectState = resetLoadingFlags({ ...raw, productImages: raw.productImages ?? [] });
             setProject(parsed);
             const s = parsed.modules?.length ? 3 : parsed.styleDNA ? 2 : parsed.productInfo.name ? 1 : 0;
             setStep(s);
@@ -366,7 +451,7 @@ export default function DetailPageMaker() {
   const openProject = (id: string) => {
     const loaded = loadProject(id);
     if (loaded) {
-      setProject(resetLoadingFlags(loaded));
+      setProject(resetLoadingFlags({ ...loaded, productImages: loaded.productImages ?? [] }));
       setStep(loaded.modules?.length ? 3 : loaded.styleDNA ? 2 : loaded.productInfo.name ? 1 : 0);
     }
   };
@@ -407,13 +492,27 @@ export default function DetailPageMaker() {
     setPlanLoading(true);
     const ctrl = makeCtrl();
     try {
+      // Step 1: ensure research is available
+      let research = project.overallResearch;
+      if (!research) {
+        const { research: r } = await callApi<{ research: Record<string, unknown> }>(
+          "/api/research", { productInfo: project.productInfo }, ctrl.signal,
+        );
+        research = r;
+        updateProject({ overallResearch: r });
+      }
+
+      // Step 2: module plan driven by research, not platform
       const data = await callApi<{ strategy: string; modules: { moduleType: ModuleType; score: number; reason: string }[] }>(
         "/api/module-plan",
-        { productInfo: project.productInfo, platform: project.platform, tone: project.tone },
+        { productInfo: project.productInfo, research, tone: project.tone },
         ctrl.signal,
       );
-      const modules = data.modules.map((m, i) => moduleFromLibrary(m.moduleType, i, m.score, m.reason));
-      updateProject({ modules, planStrategy: data.strategy });
+      const rawModules = data.modules.map((m, i) => moduleFromLibrary(m.moduleType, i, m.score, m.reason));
+
+      // Step 3: apply platform constraint after module composition
+      const constrained = applyPlatformConstraint(rawModules, project.platform);
+      updateProject({ modules: constrained, planStrategy: data.strategy });
     } catch (e) { if (!isAbort(e)) alert("모듈 분석 실패: " + String(e)); }
     finally { setPlanLoading(false); freeCtrl(ctrl); }
   };
@@ -480,7 +579,7 @@ export default function DetailPageMaker() {
       const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
         sectionType: mod.moduleType, productInfo: project.productInfo, styleDNA: project.styleDNA,
         copy: copyOverride ?? mod.copy, sectionGuidance: null, lockedSectionPrompts: [],
-        hasRefImage: !!mod.refImageBase64,
+        hasRefImage: !!mod.refImageBase64, platform: project.platform,
       }, ctrl.signal);
       updateModule(mod.id, { imagePrompt: prompt, promptLoading: false });
       return prompt;
@@ -494,7 +593,7 @@ export default function DetailPageMaker() {
     try {
       const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
         sectionType: "thumbnail", productInfo: project.productInfo, styleDNA: project.styleDNA,
-        copy: null, sectionGuidance: null, lockedSectionPrompts: [],
+        copy: null, sectionGuidance: null, lockedSectionPrompts: [], platform: project.platform,
       }, ctrl.signal);
       updateThumbnail({ imagePrompt: prompt, promptLoading: false });
       return prompt;
@@ -578,7 +677,7 @@ export default function DetailPageMaker() {
         setBulkProgress(p => ({ ...p, label: "🖼️ 썸네일 프롬프트..." }));
         const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
           sectionType: "thumbnail", productInfo: project.productInfo, styleDNA: project.styleDNA,
-          copy: null, sectionGuidance: null, lockedSectionPrompts: [],
+          copy: null, sectionGuidance: null, lockedSectionPrompts: [], platform: project.platform,
         }, sig);
         updateThumbnail({ imagePrompt: prompt });
         tick("🖼️ 썸네일 이미지...");
@@ -603,6 +702,7 @@ export default function DetailPageMaker() {
         const { prompt } = await callApi<{ prompt: string }>("/api/img-prompt", {
           sectionType: mod.moduleType, productInfo: project.productInfo, styleDNA: project.styleDNA,
           copy, sectionGuidance: null, lockedSectionPrompts: [], hasRefImage: !!mod.refImageBase64,
+          platform: project.platform,
         }, sig);
         updateModule(mod.id, { imagePrompt: prompt });
         tick(label("이미지"));
@@ -924,6 +1024,70 @@ export default function DetailPageMaker() {
                     />
                   </div>
                 ))}
+              </div>
+
+              {/* ── URL + Product Images ── */}
+              <div style={{ background: "white", borderRadius: 20, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 24 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginBottom: 4 }}>🔗 제품 URL / 참고 이미지</div>
+                <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 16 }}>제품 페이지 URL이나 이미지를 첨부하면 AI가 더 정확한 콘텐츠를 생성합니다</div>
+
+                {/* URL */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 6 }}>제품 URL</label>
+                  <input
+                    value={project.productInfo.productUrl ?? ""}
+                    onChange={e => updateProject({ productInfo: { ...project.productInfo, productUrl: e.target.value } })}
+                    placeholder="https://smartstore.naver.com/..."
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1.5px solid #E5E7EB", fontSize: 13, color: "#111827", outline: "none" }}
+                  />
+                </div>
+
+                {/* Image upload */}
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 8 }}>제품 이미지</label>
+                  <input
+                    ref={productImgRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: "none" }}
+                    onChange={e => {
+                      const files = Array.from(e.target.files ?? []);
+                      if (!files.length) return;
+                      files.forEach(file => {
+                        const reader = new FileReader();
+                        reader.onload = ev => {
+                          const b64 = ev.target?.result as string;
+                          updateProject({ productImages: [...(projectRef.current.productImages ?? []), b64] });
+                        };
+                        reader.readAsDataURL(file);
+                      });
+                      e.target.value = "";
+                    }}
+                  />
+
+                  {/* Thumbnails */}
+                  {(project.productImages ?? []).length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                      {(project.productImages ?? []).map((img, idx) => (
+                        <div key={idx} style={{ position: "relative", width: 72, height: 72 }}>
+                          <img src={img} alt="" style={{ width: 72, height: 72, borderRadius: 10, objectFit: "cover", border: "1.5px solid #E5E7EB" }} />
+                          <button
+                            onClick={() => updateProject({ productImages: (project.productImages ?? []).filter((_, i) => i !== idx) })}
+                            style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: "#EF4444", border: "none", color: "white", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => productImgRef.current?.click()}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", border: "2px dashed #D1D5DB", borderRadius: 12, background: "#F9FAFB", fontSize: 13, fontWeight: 600, color: "#6B7280", cursor: "pointer", width: "100%", justifyContent: "center" }}
+                  >
+                    🖼️ 이미지 선택 (여러 장 가능)
+                  </button>
+                </div>
               </div>
 
               <div style={{ background: "white", borderRadius: 20, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 24 }}>

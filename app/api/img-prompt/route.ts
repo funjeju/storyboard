@@ -178,6 +178,20 @@ const MODULE_VISUAL_BRIEF: Record<string, {
     visualCode: "Premium commercial hero. Stronger lighting drama than the opening hook. Still e-commerce, not art.",
   },
 
+  // ── New modules ───────────────────────────────────────────────────────────
+  product_detail: {
+    purpose: "Purchase-decision finalizer — all product specs in one scannable reference.",
+    composition: "Product centered with clean space beside or below for full spec table. Organized, authoritative.",
+    copySpace: "Reserve RIGHT 55% or BOTTOM 60% for full table layout.",
+    visualCode: "Clinical-clean studio. Flat, even lighting. Table-first layout. White or very light gray background. Catalog precision.",
+  },
+  purchase_checklist: {
+    purpose: "Final doubt eliminator — confirm who should and shouldn't buy this.",
+    composition: "Calm, honest product shot. No overselling. Product rests naturally in clean setting.",
+    copySpace: "Reserve RIGHT 50% or BOTTOM 55% for checklist layout (recommended/not-recommended split).",
+    visualCode: "Honest, approachable commercial. Neutral background. Trust-first aesthetic. Slightly warmer than clinical.",
+  },
+
   // ── Legacy fallbacks ───────────────────────────────────────────────────────
   hook: {
     purpose: "Hero scroll-stopper. Immediate desire.",
@@ -211,11 +225,83 @@ const MODULE_VISUAL_BRIEF: Record<string, {
   },
 };
 
+// ── Platform image specs (width × height) ────────────────────────────────────
+const PLATFORM_IMAGE_SPEC: Record<string, Record<string, string>> = {
+  smartstore: {
+    default:            "860×1800px",
+    hero_hook:          "860×2400px",
+    strong_copy:        "860×1800px",
+    problem_statement:  "860×2000px",
+    pain_point:         "860×1800px",
+    customer_reviews:   "860×2500px",
+    expert_cert:        "860×2000px",
+    clinical_results:   "860×2500px",
+    origin:             "860×2000px",
+    manufacturing:      "860×2200px",
+    brand_story:        "860×2000px",
+    before_after:       "860×2200px",
+    feature_desc:       "860×2000px",
+    ingredient_desc:    "860×2200px",
+    comparison_table:   "860×2500px",
+    usage_guide:        "860×2000px",
+    option_desc:        "860×1800px",
+    faq:                "860×2500px",
+    lifestyle_image:    "860×2000px",
+    emotional_copy:     "860×1800px",
+    usage_scenario:     "860×2000px",
+    brand_philosophy:   "860×1800px",
+    discount_benefit:   "860×1800px",
+    limited_quantity:   "860×1800px",
+    recommended_bundle: "860×2000px",
+    cta:                "860×2000px",
+    product_detail:     "860×3000px",
+    purchase_checklist: "860×1800px",
+  },
+  coupang: {
+    default:            "780×1500px",
+    hero_hook:          "780×1800px",
+    customer_reviews:   "780×2000px",
+    comparison_table:   "780×2000px",
+    product_detail:     "780×2500px",
+    cta:                "780×1500px",
+  },
+  wadiz: {
+    default:            "800×2000px",
+    hero_hook:          "800×2200px",
+    brand_story:        "800×2200px",
+    before_after:       "800×2000px",
+    cta:                "800×1800px",
+    product_detail:     "800×2800px",
+  },
+  instagram: {
+    default: "1080×1080px",
+  },
+  shopify: {
+    default:            "1200×1600px",
+    hero_hook:          "1200×1800px",
+    comparison_table:   "1200×2000px",
+    cta:                "1200×1600px",
+  },
+  cafe24: {
+    default:            "860×2000px",
+    hero_hook:          "860×2400px",
+    comparison_table:   "860×2500px",
+    product_detail:     "860×3000px",
+    faq:                "860×2500px",
+    cta:                "860×2000px",
+  },
+};
+
 export async function POST(req: NextRequest) {
   try {
-    const { sectionType, productInfo, styleDNA, copy, sectionGuidance, lockedSectionPrompts, hasRefImage } = await req.json();
+    const { sectionType, productInfo, styleDNA, copy, sectionGuidance, lockedSectionPrompts, hasRefImage, platform } = await req.json();
 
     const brief = MODULE_VISUAL_BRIEF[sectionType] || MODULE_VISUAL_BRIEF.hero_hook;
+
+    // Resolve platform image spec
+    const platformSpec = platform && PLATFORM_IMAGE_SPEC[platform]
+      ? (PLATFORM_IMAGE_SPEC[platform][sectionType] || PLATFORM_IMAGE_SPEC[platform].default)
+      : null;
 
     const cumulativeRef = lockedSectionPrompts?.length > 0
       ? `\n\nVISUAL CONTINUITY — maintain consistency with these locked sections:\n${lockedSectionPrompts.slice(-3).join("\n")}`
@@ -335,6 +421,17 @@ export async function POST(req: NextRequest) {
                           { field:"ctaText",      role:"cta-btn",     maxChars:10 },
                           { field:"urgency",      role:"subheadline", maxChars:30 },
                           { field:"guarantee",    role:"body",        maxChars:40 }],
+
+      // ── New modules ──────────────────────────────────────────────────────
+      // copy: {title, specs:[{label,value}], highlight, trustAnchor}
+      product_detail:    [{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"specs",        role:"bullet",      maxChars:600 },  // label: value per row
+                          { field:"highlight",    role:"badge",       maxChars:40 }],
+      // copy: {title, recommended:string[], notRecommended:string[], cautions:string[], clarification, trustAnchor}
+      purchase_checklist:[{ field:"title",        role:"headline",    maxChars:20 },
+                          { field:"recommended",  role:"bullet",      maxChars:200 },  // ✓ prefix
+                          { field:"notRecommended",role:"bullet",     maxChars:100 },  // ✗ prefix
+                          { field:"clarification",role:"badge",       maxChars:40 }],
     };
 
     const ROLE_STYLE: Record<TRole, string> = {
@@ -392,6 +489,12 @@ export async function POST(req: NextRequest) {
         return { role: l.role, text, style: ROLE_STYLE[l.role] };
       })
       .filter(Boolean) as { role: TRole; text: string; style: string }[];
+
+    // Always append trustAnchor as a badge layer if present in copy
+    const trustAnchorVal = c?.trustAnchor;
+    if (typeof trustAnchorVal === "string" && trustAnchorVal.trim() && trustAnchorVal.length <= 40) {
+      renderLayers.push({ role: "badge" as TRole, text: trustAnchorVal.trim(), style: ROLE_STYLE["badge"] });
+    }
 
     const copyContext = copy
       ? `\n\nSECTION COPY — drives BOTH visual tone and in-image typography:
@@ -455,7 +558,7 @@ Write a single dense English prompt (80-130 words):
 - Lighting (studio approach: softbox, key+fill, diffusion, color temperature)
 - Emotional tone matching the copy's keywords
 - Material/texture rendering
-- End with: ${brief.aspectRatio || "--ar 4:5"} --style raw --v 6.1
+- End with: ${platformSpec ? `[PLATFORM SPEC: ${platformSpec}, vertical scroll optimized, portrait orientation]` : brief.aspectRatio || "--ar 4:5"} --style raw --v 6.1
 
 Return ONLY the prompt. No explanation, no markdown, no quotes.`;
 

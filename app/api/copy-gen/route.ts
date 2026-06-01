@@ -91,7 +91,14 @@ Format: { "alert": string (≤20자, 한정 알림), "reason": string (≤30자,
 Format: { "title": string (≤20자), "bundles": [{ "name": string, "items": string[], "saving": string (≤20자, 절약 혜택), "tag": string (≤10자, 추천 뱃지) }] (2-3개), "bestPick": string (≤25자) }`,
 
   cta: `Write a high-converting CTA section — the final push to purchase.
-Format: { "headline": string (≤20자, 마지막 한 방), "ctaText": string (≤10자, 버튼 문구), "urgency": string (≤30자, 행동 촉구), "guarantee": string (≤40자, 신뢰 보장) }`,
+Format: { "headline": string (≤20자, 마지막 한 방), "ctaText": string (≤10자, 버튼 문구), "urgency": string (≤30자, 행동 촉구), "guarantee": string (≤40자, 신뢰 보장), "trustAnchor": string (≤40자) }`,
+
+  // ── New modules ────────────────────────────────────────────────────────────
+  product_detail: `Write a PRODUCT DETAIL TABLE section — the complete purchase-decision spec sheet. One image, one complete reference.
+Format: { "title": string (≤20자, 예: "상품 상세 정보"), "specs": [{ "label": string (≤12자), "value": string (≤30자) }] (6-8개, 제품 구성/용량/원재료/사용법/보관법/유통기한/제조방식 포함), "highlight": string (≤40자, 핵심 스펙 한 줄 강조), "trustAnchor": string (≤40자, 인증·원산지·검사 결과 등 신뢰 근거) }`,
+
+  purchase_checklist: `Write a PURCHASE CHECKLIST section — eliminate final doubt, confirm product fit before clicking buy.
+Format: { "title": string (≤20자, 예: "구매 전 확인하세요"), "recommended": string[] (3개, 각 ≤20자, 추천 대상 — 구체적 상황/인물), "notRecommended": string[] (2개, 각 ≤20자, 비추천 대상 — 솔직하게), "cautions": string[] (2-3개, 각 ≤25자, 실질적 주의사항), "clarification": string (≤40자, 가장 흔한 오해 방지 한 줄), "trustAnchor": string (≤40자) }`,
 
   // ── Legacy section types (backward compat) ────────────────────────────────
   hook: `Write the HOOK section copy. Format: { "headline": string (≤15자), "subheadline": string (≤30자), "body": string (2-3 문장) }`,
@@ -112,14 +119,16 @@ export async function POST(req: NextRequest) {
     if (!copyPrompt) return NextResponse.json({ error: "Unknown section type" }, { status: 400 });
 
     const platformNote = platform === "coupang"
-      ? "쿠팡 최적화: 간결하고 직접적인 문구, 혜택 중심."
+      ? "쿠팡 최적화: 간결하고 직접적인 문구, 혜택·가격 중심. 카피는 짧고 임팩트 있게. 텍스트 밀도 낮게."
       : platform === "wadiz"
-      ? "와디즈 최적화: 스토리텔링과 공감 중심, 서포터 관점."
+      ? "와디즈 최적화: 스토리텔링과 공감 중심, 서포터 관점. 감성적 서술 허용."
       : platform === "shopify"
-      ? "Shopify 최적화: 글로벌 감성, 영문 혼용 가능."
+      ? "Shopify 최적화: 글로벌 감성, 영문 혼용 가능. 깔끔하고 명확한 정보 전달."
       : platform === "instagram"
-      ? "인스타그램 최적화: 짧고 강렬, 감성 비주얼 중심."
-      : "스마트스토어 최적화: 네이버 검색 친화적, 상세하고 신뢰감 있는 어조.";
+      ? "인스타그램 최적화: 짧고 강렬, 감성 비주얼 중심. 텍스트 최소화, 임팩트 집중."
+      : platform === "cafe24"
+      ? "카페24 최적화: 종합몰 스타일. 상세 스펙과 신뢰 정보를 풍부하게. 텍스트 밀도 높게."
+      : "스마트스토어 최적화: 네이버 검색 친화적. 텍스트 밀도 높게, 표 구조 강화, 신뢰 구간 길게. 구체적 수치와 근거 필수.";
 
     const specificGuidance = sectionGuidance?.[sectionType];
 
@@ -151,6 +160,14 @@ HOW TO USE THE BRIEF:
 - Anchor concrete claims in supportingFacts — don't invent numbers.
 - Match buyer mindset from targetPersona.
 - Keep text TIGHT — character limits exist for a reason.
+
+══════════════════════════════════════════════
+UNIVERSAL RULE — 한 이미지 = 하나의 설득 완결:
+모든 섹션의 JSON에는 반드시 "trustAnchor" 필드가 포함되어야 합니다.
+trustAnchor: 이 섹션을 뒷받침하는 신뢰/근거 요소 (≤40자)
+예) "국산 원료 100%", "누적 판매 10만개 돌파", "식약처 인증 원료", "농림부 GAP 인증 농가 직송"
+이 필드 없는 응답은 불완전한 설득 구조입니다. 반드시 포함할 것.
+══════════════════════════════════════════════
 
 Return ONLY valid JSON in the format requested.`;
 

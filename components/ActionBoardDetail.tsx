@@ -86,13 +86,12 @@ function ColorPalette({ value, onChange }: { value: string; onChange: (c: string
   );
 }
 
-function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMaximize, onMouseDown, isDragging }: {
+function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, isDragging }: {
   post: CloudBoardPost;
   canDelete: boolean;
   onDelete: () => void;
   onEdit: () => void;
   onOpenPpt: (pptUrl: string, pptName: string) => void;
-  onMaximize: () => void;
   onMouseDown: (e: React.MouseEvent) => void;
   isDragging: boolean;
 }) {
@@ -123,7 +122,6 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMaximize, on
           <span style={{ fontSize:10, color:"#9CA3AF" }}>{fmtDate(post.createdAt)}</span>
         </div>
         <div style={{ display:"flex", gap:2 }}>
-          <button onClick={e => { e.stopPropagation(); onMaximize(); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 5px", borderRadius:4, lineHeight:1 }} title="최대화">⛶</button>
           {canDelete && (
             <>
               <button onClick={e => { e.stopPropagation(); onEdit(); }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 5px", borderRadius:4 }} title="수정">✏️</button>
@@ -218,11 +216,15 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [positions, setPositions] = useState<Record<string, Pos>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [snapLines, setSnapLines]   = useState<SnapLine[]>([]);
-  const dragRef = useRef<{ id: string; mouseX: number; mouseY: number; cardX: number; cardY: number } | null>(null);
+  const dragRef = useRef<{ id: string; mouseX: number; mouseY: number; cardX: number; cardY: number; hasMoved: boolean } | null>(null);
   const posRef  = useRef<Record<string, Pos>>({});
+  const postsRef = useRef<CloudBoardPost[]>([]);
+  // Card maximize overlay — declared here so handleCanvasMouseUp can reference it
+  const [maximizedPost, setMaximizedPost] = useState<CloudBoardPost | null>(null);
 
-  // keep posRef in sync so mouseup closure has latest positions
+  // keep refs in sync so mouseup closures have latest state
   useEffect(() => { posRef.current = positions; }, [positions]);
+  useEffect(() => { postsRef.current = posts; }, [posts]);
 
   // Find first grid slot not occupied by any existing card
   const findEmptySlot = useCallback((existing: Record<string, Pos>): Pos => {
@@ -260,13 +262,17 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     if (tag) return; // don't intercept interactive elements
     e.preventDefault();
     const pos = posRef.current[postId] ?? { x: 0, y: 0 };
-    dragRef.current = { id: postId, mouseX: e.clientX, mouseY: e.clientY, cardX: pos.x, cardY: pos.y };
+    dragRef.current = { id: postId, mouseX: e.clientX, mouseY: e.clientY, cardX: pos.x, cardY: pos.y, hasMoved: false };
     setDraggingId(postId);
   }, []);
 
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragRef.current) return;
     const { id, mouseX, mouseY, cardX, cardY } = dragRef.current;
+    if (!dragRef.current.hasMoved &&
+        (Math.abs(e.clientX - mouseX) > 5 || Math.abs(e.clientY - mouseY) > 5)) {
+      dragRef.current.hasMoved = true;
+    }
     let x = Math.max(0, cardX + e.clientX - mouseX);
     let y = Math.max(0, cardY + e.clientY - mouseY);
 
@@ -297,13 +303,20 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
   const handleCanvasMouseUp = useCallback(async () => {
     if (!dragRef.current) return;
-    const { id } = dragRef.current;
+    const { id, hasMoved } = dragRef.current;
     dragRef.current = null;
     setDraggingId(null);
     setSnapLines([]);
+
+    if (!hasMoved) {
+      const post = postsRef.current.find(p => p.id === id);
+      if (post) setMaximizedPost(post);
+      return;
+    }
+
     const pos = posRef.current[id];
     if (pos) updateBoardPostPosition(boardId, id, pos.x, pos.y).catch(() => {});
-  }, [boardId]);
+  }, [boardId, setMaximizedPost]);
 
   // form
   const [cType, setCType]       = useState<ContentType>("text");
@@ -323,8 +336,6 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
   // PPT full-screen viewer
   const [pptViewer, setPptViewer] = useState<{ url: string; name: string } | null>(null);
-  // Card maximize overlay
-  const [maximizedPost, setMaximizedPost] = useState<CloudBoardPost | null>(null);
 
   // edit post state
   const [editPost, setEditPost]       = useState<CloudBoardPost | null>(null);
@@ -612,7 +623,6 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   onDelete={() => deleteBoardPost(boardId, post.id)}
                   onEdit={() => openEditPost(post)}
                   onOpenPpt={(url, name) => setPptViewer({ url, name })}
-                  onMaximize={() => setMaximizedPost(post)}
                   onMouseDown={e => handleCardMouseDown(e, post.id)}
                   isDragging={isDragging}
                 />

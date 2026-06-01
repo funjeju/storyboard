@@ -5,14 +5,24 @@ const genai = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 export async function POST(req: NextRequest) {
   try {
-    const { productInfo, platform, tone } = await req.json();
+    const { productInfo, research, tone } = await req.json();
 
     const model = genai.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: { responseMimeType: "application/json" },
     });
 
-    const prompt = `당신은 전문 상세페이지 전략가입니다. 제품 정보를 분석하여 최적의 상세페이지 모듈 구성을 추천하세요.
+    const researchContext = research ? `
+전략 리서치 결과:
+- 타겟 페르소나: ${JSON.stringify(research.targetPersona)}
+- 핵심 감정 레버: ${JSON.stringify(research.coreEmotion)}
+- 시장 포지션: ${research.marketPosition}
+- 핵심 가치 제안: ${research.valueProposition}
+- 근거 팩트: ${JSON.stringify(research.supportingFacts)}
+` : "(리서치 없음 — 제품 정보만으로 편성)";
+
+    const prompt = `당신은 전문 상세페이지 전략가입니다. 제품 본질과 전략 리서치를 기반으로 최적의 상세페이지 모듈 구성을 추천하세요.
+플랫폼 최적화는 이후 별도 단계에서 적용됩니다. 여기서는 순수하게 이 제품이 설득에 필요한 모듈만 선정하세요.
 
 제품 정보:
 - 제품명: ${productInfo.name}
@@ -21,28 +31,27 @@ export async function POST(req: NextRequest) {
 - 타겟 고객: ${productInfo.targetAudience}
 - 핵심 특징: ${productInfo.keyFeatures}
 - 브랜드 보이스: ${productInfo.brandVoice}
-- 판매 플랫폼: ${platform}
+${productInfo.productUrl ? `- 제품 URL: ${productInfo.productUrl}` : ""}
 - 카피 톤: ${tone}
+
+${researchContext}
 
 사용 가능한 모듈 목록:
 [Hook] hero_hook, strong_copy, problem_statement, pain_point
 [신뢰] customer_reviews, expert_cert, clinical_results, origin, manufacturing, brand_story, before_after
-[제품설명] feature_desc, ingredient_desc, comparison_table, usage_guide, option_desc, faq
+[제품설명] feature_desc, ingredient_desc, comparison_table, usage_guide, option_desc, faq, product_detail, purchase_checklist
 [감성] lifestyle_image, emotional_copy, usage_scenario, brand_philosophy
 [전환] discount_benefit, limited_quantity, recommended_bundle, cta
 
-플랫폼 특성:
-- smartstore: 정보+신뢰 중심
-- coupang: 빠른 설득, 가격/배송 강조
-- wadiz: 스토리텔링, 크라우드펀딩 스타일
-- instagram: 감성 비주얼, 짧고 강렬
-- shopify: 글로벌, 깔끔한 정보
-- cafe24: 종합몰, 상세 정보
+모듈 설명:
+- product_detail: 구성/용량/원재료/사용법/보관/유통기한/제조방식을 통합 테이블로. 식품·건강·화장품 카테고리에서 필수.
+- purchase_checklist: 추천 대상/비추천 대상/주의사항/오해 방지. 구매 전 마지막 의심 제거.
 
-규칙:
-- 반드시 7~9개 모듈 추천
+편성 원칙:
+- 반드시 7~12개 모듈 추천 (제품 복잡도에 따라 조정)
 - 첫 번째는 반드시 hook 카테고리
 - 마지막은 반드시 cta
+- 리서치의 핵심 감정 레버와 구매 저항선을 반드시 반영
 - 각 모듈에 점수(0~100)와 추천 이유(15자 이내) 제공
 
 JSON만 반환:

@@ -43,12 +43,23 @@ service cloud.firestore {
         allow update: if request.auth != null && (
           request.auth.uid == resource.data.uid ||
           request.auth.uid == get(/databases/$(database)/documents/actionBoards/$(boardId)).data.uid ||
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['x','y'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['x','y']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount'])
         );
         allow delete: if request.auth != null && (
           request.auth.uid == resource.data.uid ||
           request.auth.uid == get(/databases/$(database)/documents/actionBoards/$(boardId)).data.uid
         );
+
+        // 댓글 — 누구나 읽기, 로그인 사용자만 등록, 본인·보드 개설자만 삭제
+        match /comments/{commentId} {
+          allow read: if true;
+          allow create: if request.auth != null;
+          allow delete: if request.auth != null && (
+            request.auth.uid == resource.data.uid ||
+            request.auth.uid == get(/databases/$(database)/documents/actionBoards/$(boardId)).data.uid
+          );
+        }
       }
     }
   }

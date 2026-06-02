@@ -239,6 +239,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [commentText, setCommentText] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
+  const [copied, setCopied] = useState(false);
 
   // keep refs in sync so mouseup closures have latest state
   useEffect(() => { posRef.current = positions; }, [positions]);
@@ -404,8 +405,22 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       };
       await addBoardComment(boardId, maximizedPost.id, comment);
       setCommentText("");
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      alert("댓글 등록에 실패했습니다. 다시 시도해주세요.");
+    }
     setCommentSubmitting(false);
+  };
+
+  const handleCopyLink = async () => {
+    const url = `${window.location.origin}/actionboard/${boardId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      prompt("아래 링크를 복사하세요:", url);
+    }
   };
 
   const fileRef     = useRef<HTMLInputElement>(null);
@@ -570,6 +585,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
           </span>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button
+            onClick={handleCopyLink}
+            style={{ padding:"7px 14px", background:copied?"#059669":"white", border:`1.5px solid ${copied?"#059669":"#E5E7EB"}`, borderRadius:10, fontSize:12, fontWeight:700, color:copied?"white":"#374151", cursor:"pointer", transition:"all 0.2s", display:"flex", alignItems:"center", gap:5 }}
+          >
+            {copied ? "✓ 복사됨!" : "🔗 퍼가기"}
+          </button>
           <span style={{ fontSize:12, color:"#9CA3AF" }}>마감: {fmtDate(board.endAt)}</span>
           {status === "open" && (
             user

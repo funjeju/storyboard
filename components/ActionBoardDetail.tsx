@@ -788,9 +788,9 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
             <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:20 }}>✍️ 게시물 작성</div>
 
             {/* Content type tabs */}
-            <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:6, marginBottom:16 }}>
               {([["text","📝 텍스트"],["image","🖼️ 이미지"],["audio","🎵 MP3"],["youtube","▶ 유튜브"],["ppt","📊 PPT"],["pdf","📄 PDF"]] as [ContentType,string][]).map(([t,label]) => (
-                <button key={t} onClick={() => setCType(t)} className="type-btn" style={{ flex:1, minWidth:80, padding:"8px 0", borderRadius:10, border:`2px solid ${cType===t?P:"#E5E7EB"}`, background:cType===t?`rgba(124,58,237,0.07)`:"white", fontSize:12, fontWeight:700, color:cType===t?P:"#6B7280" }}>
+                <button key={t} onClick={() => setCType(t)} className="type-btn" style={{ padding:"8px 0", borderRadius:10, border:`2px solid ${cType===t?P:"#E5E7EB"}`, background:cType===t?`rgba(124,58,237,0.07)`:"white", fontSize:12, fontWeight:700, color:cType===t?P:"#6B7280" }}>
                   {label}
                 </button>
               ))}

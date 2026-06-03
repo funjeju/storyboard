@@ -227,7 +227,7 @@ export interface CloudBoardPost {
   uid: string;
   authorName: string;
   authorPhoto: string;
-  contentType: "text" | "image" | "audio" | "youtube" | "ppt";
+  contentType: "text" | "image" | "audio" | "youtube" | "ppt" | "pdf";
   text?: string;
   imageUrl?: string;
   audioUrl?: string;
@@ -235,6 +235,8 @@ export interface CloudBoardPost {
   youtubeUrl?: string;
   pptUrl?: string;
   pptName?: string;
+  pdfUrl?: string;
+  pdfName?: string;
   bgColor?: string;        // user-selected card background color
   isAnnouncement?: boolean; // admin-pinned announcement
   commentCount?: number;
@@ -312,7 +314,7 @@ export async function updateBoardPostPosition(boardId: string, postId: string, x
 export async function updateBoardPost(
   boardId: string,
   postId: string,
-  fields: Partial<Pick<CloudBoardPost, "text" | "audioName" | "youtubeUrl" | "pptName" | "bgColor">>,
+  fields: Partial<Pick<CloudBoardPost, "text" | "audioName" | "youtubeUrl" | "pptName" | "pdfName" | "bgColor">>,
 ) {
   await setDoc(postDoc(boardId, postId), fields, { merge: true });
 }

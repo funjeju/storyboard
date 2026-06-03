@@ -25,7 +25,7 @@ import { uploadImageDataUrl, uploadBoardFile } from "@/lib/firebaseStorage";
 const P = "#7C3AED";
 const PINK = "#EC4899";
 
-type ContentType = "text" | "image" | "audio" | "youtube" | "ppt";
+type ContentType = "text" | "image" | "audio" | "youtube" | "ppt" | "pdf";
 
 function getBoardStatus(board: CloudActionBoard) {
   const now = Date.now();
@@ -132,7 +132,7 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, i
   const [isOverflow, setIsOverflow] = useState(false);
   const color = post.bgColor ?? NOTE_COLORS[Math.abs([...post.id].reduce((a, c) => a + c.charCodeAt(0), 0)) % NOTE_COLORS.length];
 
-  const MAX_TEXT_HEIGHT = 25 * 14 * 1.65; // 25 lines × font-size × line-height
+  const MAX_TEXT_HEIGHT = 12 * 14 * 1.65; // 12 lines × font-size × line-height
 
   useEffect(() => {
     if (!textRef.current) return;
@@ -245,6 +245,23 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, i
               🔍 보기
             </button>
             <a href={post.pptUrl} download target="_blank" rel="noreferrer"
+              style={{ padding:"5px 12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:11, fontWeight:700, color:"#374151", textDecoration:"none" }}>
+              ⬇️ 다운로드
+            </a>
+          </div>
+        </div>
+      )}
+
+      {post.contentType === "pdf" && post.pdfUrl && (
+        <div style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"16px 14px", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+          <div style={{ fontSize:32 }}>📄</div>
+          <div style={{ fontSize:12, fontWeight:600, color:"#374151", wordBreak:"break-all", lineHeight:1.4 }}>{post.pdfName || "PDF 문서"}</div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
+            <button onClick={() => onOpenPpt(post.pdfUrl!, post.pdfName || "PDF 문서")}
+              style={{ padding:"5px 12px", background:"#DC2626", border:"none", borderRadius:8, fontSize:11, fontWeight:700, color:"white", cursor:"pointer" }}>
+              🔍 보기
+            </button>
+            <a href={post.pdfUrl} download target="_blank" rel="noreferrer"
               style={{ padding:"5px 12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:11, fontWeight:700, color:"#374151", textDecoration:"none" }}>
               ⬇️ 다운로드
             </a>
@@ -399,6 +416,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [ytUrl, setYtUrl]       = useState("");
   const [pptFile, setPptFile]   = useState<File | null>(null);
   const [pptName, setPptName]   = useState("");
+  const [pdfFile, setPdfFile]   = useState<File | null>(null);
+  const [pdfName, setPdfName]   = useState("");
   const [cardColor, setCardColor] = useState(PALETTE[0]);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
   const [shareToFeed, setShareToFeed] = useState(false);
@@ -421,7 +440,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     setEditField(
       post.contentType === "audio"   ? (post.audioName   ?? "") :
       post.contentType === "youtube" ? (post.youtubeUrl  ?? "") :
-      post.contentType === "ppt"     ? (post.pptName     ?? "") : ""
+      post.contentType === "ppt"     ? (post.pptName     ?? "") :
+      post.contentType === "pdf"     ? (post.pdfName     ?? "") : ""
     );
     setEditColor(post.bgColor ?? PALETTE[0]);
   };
@@ -435,6 +455,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       if (editPost.contentType === "audio")   fields.audioName  = editField;
       if (editPost.contentType === "youtube") fields.youtubeUrl = editField;
       if (editPost.contentType === "ppt")     fields.pptName    = editField;
+      if (editPost.contentType === "pdf")     fields.pdfName    = editField;
       await updateBoardPost(boardId, editPost.id, fields);
       setEditPost(null);
     } catch (e) { console.error(e); }
@@ -478,6 +499,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const fileRef     = useRef<HTMLInputElement>(null);
   const audioRef2   = useRef<HTMLInputElement>(null);
   const pptFileRef  = useRef<HTMLInputElement>(null);
+  const pdfFileRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getActionBoard(boardId).then(b => { setBoard(b); setLoading(false); });
@@ -510,7 +532,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       (cType === "image"   && imageUrl) ||
       (cType === "audio"   && audioFile) ||
       (cType === "youtube" && ytUrl.trim()) ||
-      (cType === "ppt"     && pptFile);
+      (cType === "ppt"     && pptFile) ||
+      (cType === "pdf"     && pdfFile);
     if (!validContent) return;
 
     setSubmitting(true);
@@ -537,6 +560,13 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         finalPptUrl = url;
       }
 
+      // Upload PDF file → Storage
+      let finalPdfUrl = "";
+      if (cType === "pdf" && pdfFile) {
+        const { url } = await uploadBoardFile(boardId, "pdf", pdfFile, setUploadPct);
+        finalPdfUrl = url;
+      }
+
       const post: CloudBoardPost = {
         id: crypto.randomUUID(),
         boardId,
@@ -552,6 +582,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         ...(cType === "audio"   && { audioUrl: finalAudioUrl, audioName: audioName || audioFile?.name || "오디오" }),
         ...(cType === "youtube" && { youtubeUrl: ytUrl.trim() }),
         ...(cType === "ppt"     && { pptUrl: finalPptUrl, pptName: pptName || pptFile?.name || "프레젠테이션" }),
+        ...(cType === "pdf"     && { pdfUrl: finalPdfUrl, pdfName: pdfName || pdfFile?.name || "PDF 문서" }),
       };
       await addBoardPost(boardId, post);
 
@@ -581,7 +612,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       }
 
       setText(""); setImageUrl(""); setAudioUrl(""); setAudioName(""); setAudioFile(null);
-      setYtUrl(""); setPptFile(null); setPptName(""); setIsAnnouncement(false);
+      setYtUrl(""); setPptFile(null); setPptName(""); setPdfFile(null); setPdfName(""); setIsAnnouncement(false);
       setShareToFeed(false); setFeedTitle("");
       setCardColor(PALETTE[0]);
       setShowForm(false);
@@ -758,7 +789,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
             {/* Content type tabs */}
             <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
-              {([["text","📝 텍스트"],["image","🖼️ 이미지"],["audio","🎵 MP3"],["youtube","▶ 유튜브"],["ppt","📊 PPT"]] as [ContentType,string][]).map(([t,label]) => (
+              {([["text","📝 텍스트"],["image","🖼️ 이미지"],["audio","🎵 MP3"],["youtube","▶ 유튜브"],["ppt","📊 PPT"],["pdf","📄 PDF"]] as [ContentType,string][]).map(([t,label]) => (
                 <button key={t} onClick={() => setCType(t)} className="type-btn" style={{ flex:1, minWidth:80, padding:"8px 0", borderRadius:10, border:`2px solid ${cType===t?P:"#E5E7EB"}`, background:cType===t?`rgba(124,58,237,0.07)`:"white", fontSize:12, fontWeight:700, color:cType===t?P:"#6B7280" }}>
                   {label}
                 </button>
@@ -829,6 +860,26 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   </div>
                 )}
                 <input value={pptName} onChange={e => setPptName(e.target.value)} placeholder="발표 제목 (선택)" style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
+              </div>
+            )}
+
+            {cType === "pdf" && (
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <input ref={pdfFileRef} type="file" accept=".pdf,application/pdf" style={{ display:"none" }} onChange={e => { const f = e.target.files?.[0]; if(f){ setPdfFile(f); setPdfName(f.name); } }} />
+                {pdfFile ? (
+                  <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", background:"#FEF2F2", borderRadius:10, border:"1.5px solid #FECACA" }}>
+                    <span style={{ fontSize:24 }}>📄</span>
+                    <span style={{ fontSize:13, fontWeight:600, color:"#DC2626", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pdfFile.name}</span>
+                    <button onClick={() => { setPdfFile(null); setPdfName(""); }} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:16 }}>×</button>
+                  </div>
+                ) : (
+                  <div onClick={() => pdfFileRef.current?.click()} style={{ border:"2px dashed #E5E7EB", borderRadius:12, padding:"28px", textAlign:"center", cursor:"pointer", color:"#9CA3AF" }}>
+                    <div style={{ fontSize:28, marginBottom:6 }}>📄</div>
+                    <div style={{ fontSize:13 }}>클릭하여 PDF 파일 선택</div>
+                    <div style={{ fontSize:11, marginTop:4, color:"#FCA5A5" }}>브라우저 내장 PDF 뷰어로 바로 열람 가능</div>
+                  </div>
+                )}
+                <input value={pdfName} onChange={e => setPdfName(e.target.value)} placeholder="문서 제목 (선택)" style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
               </div>
             )}
 
@@ -970,6 +1021,26 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 </div>
               )}
 
+              {maximizedPost.contentType === "pdf" && maximizedPost.pdfUrl && (
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
+                    <a href={maximizedPost.pdfUrl} target="_blank" rel="noreferrer"
+                      style={{ padding:"8px 20px", background:"rgba(220,38,38,0.7)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                      🔗 새 탭에서 열기
+                    </a>
+                    <a href={maximizedPost.pdfUrl} download target="_blank" rel="noreferrer"
+                      style={{ padding:"8px 20px", background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                      ⬇️ PDF 다운로드
+                    </a>
+                  </div>
+                  <iframe
+                    src={maximizedPost.pdfUrl}
+                    style={{ border:"none", width:"100%", height:600, borderRadius:12, background:"white" }}
+                    title={maximizedPost.pdfName || "PDF 문서"}
+                  />
+                </div>
+              )}
+
               {/* ── Comments section ── */}
               <div style={{ marginTop:40, marginBottom:40 }}>
                 <div style={{ fontSize:14, fontWeight:700, color:"rgba(255,255,255,0.85)", marginBottom:16 }}>
@@ -1077,6 +1148,14 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 <input value={editField} onChange={e => setEditField(e.target.value)}
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
                 <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>PPT 파일 교체는 지원하지 않습니다.</div>
+              </div>
+            )}
+            {editPost.contentType === "pdf" && (
+              <div style={{ marginBottom:16 }}>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>문서 제목</label>
+                <input value={editField} onChange={e => setEditField(e.target.value)}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>PDF 파일 교체는 지원하지 않습니다.</div>
               </div>
             )}
             {editPost.contentType === "image" && editPost.imageUrl && (

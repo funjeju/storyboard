@@ -59,6 +59,31 @@ function linkify(text: string): React.ReactNode[] {
   );
 }
 
+// ── Copy bar (used inside text maximize overlay) ──────────────────────────────
+function CopyBar({ text, position }: { text: string; position: "top" | "bottom" }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div style={{
+      display:"flex", justifyContent:"flex-end", padding:"10px 20px",
+      borderBottom: position === "top" ? "1px solid rgba(0,0,0,0.06)" : "none",
+      borderTop:    position === "bottom" ? "1px solid rgba(0,0,0,0.06)" : "none",
+      background:"rgba(0,0,0,0.03)",
+    }}>
+      <button
+        onClick={handleCopy}
+        style={{ padding:"5px 14px", background:copied?"#059669":"white", border:`1.5px solid ${copied?"#059669":"#D1D5DB"}`, borderRadius:8, fontSize:12, fontWeight:700, color:copied?"white":"#374151", cursor:"pointer", transition:"all 0.2s", display:"flex", alignItems:"center", gap:5 }}
+      >
+        {copied ? "✓ 복사됨" : "📋 전체 복사"}
+      </button>
+    </div>
+  );
+}
+
 // ── Sticky note card ──────────────────────────────────────────────────────────
 const NOTE_COLORS = ["#FFF9C4","#FFE0B2","#F8BBD0","#C8E6C9","#B3E5FC","#E1BEE7","#FFFFFF"];
 const PALETTE = [
@@ -90,7 +115,7 @@ function ColorPalette({ value, onChange }: { value: string; onChange: (c: string
   );
 }
 
-function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, isDragging }: {
+function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, isDragging, onOpen }: {
   post: CloudBoardPost;
   canDelete: boolean;
   onDelete: () => void;
@@ -98,11 +123,21 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, i
   onOpenPpt: (pptUrl: string, pptName: string) => void;
   onMouseDown: (e: React.MouseEvent) => void;
   isDragging: boolean;
+  onOpen: () => void;
 }) {
   const [playing, setPlaying]       = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const textRef  = useRef<HTMLParagraphElement>(null);
+  const [isOverflow, setIsOverflow] = useState(false);
   const color = post.bgColor ?? NOTE_COLORS[Math.abs([...post.id].reduce((a, c) => a + c.charCodeAt(0), 0)) % NOTE_COLORS.length];
+
+  const MAX_TEXT_HEIGHT = 25 * 14 * 1.65; // 25 lines × font-size × line-height
+
+  useEffect(() => {
+    if (!textRef.current) return;
+    setIsOverflow(textRef.current.scrollHeight > textRef.current.clientHeight + 2);
+  }, [post.text]);
 
   const toggleAudio = () => {
     if (!audioRef.current) return;
@@ -137,7 +172,24 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, i
 
       {/* Content */}
       {post.contentType === "text" && (
-        <p style={{ fontSize:14, color:"#1F2937", lineHeight:1.65, whiteSpace:"pre-wrap", flex:1 }}>{post.text}</p>
+        <div style={{ flex:1, position:"relative" }}>
+          <p
+            ref={textRef}
+            style={{ fontSize:14, color:"#1F2937", lineHeight:1.65, whiteSpace:"pre-wrap", maxHeight:`${MAX_TEXT_HEIGHT}px`, overflow:"hidden" }}
+          >{post.text}</p>
+          {isOverflow && (
+            <>
+              <div style={{ position:"absolute", bottom:32, left:0, right:0, height:52, background:`linear-gradient(transparent, ${color})`, pointerEvents:"none" }} />
+              <button
+                onClick={e => { e.stopPropagation(); onOpen(); }}
+                onMouseDown={e => e.stopPropagation()}
+                style={{ display:"block", width:"100%", marginTop:4, padding:"6px 0", background:"rgba(0,0,0,0.07)", border:"none", borderRadius:8, fontSize:12, fontWeight:700, color:"#374151", cursor:"pointer" }}
+              >
+                더보기 ↓
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       {post.contentType === "image" && post.imageUrl && (
@@ -690,6 +742,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   onOpenPpt={(url, name) => setPptViewer({ url, name })}
                   onMouseDown={e => handleCardMouseDown(e, post.id)}
                   isDragging={isDragging}
+                  onOpen={() => setMaximizedPost(post)}
                 />
               </div>
             );
@@ -876,8 +929,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
           <div style={{ flex:1, overflow:"auto", display:"flex", flexDirection:"column", alignItems:"center", padding:"40px 40px 0" }}>
             <div style={{ width:"100%", maxWidth:960 }}>
               {maximizedPost.contentType === "text" && (
-                <div style={{ background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, padding:"48px 56px", fontSize:20, lineHeight:1.8, color:"#1F2937", whiteSpace:"pre-wrap" }}>
-                  {linkify(maximizedPost.text ?? "")}
+                <div style={{ background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, overflow:"hidden" }}>
+                  <CopyBar text={maximizedPost.text ?? ""} position="top" />
+                  <div style={{ padding:"32px 48px", fontSize:18, lineHeight:1.8, color:"#1F2937", whiteSpace:"pre-wrap" }}>
+                    {linkify(maximizedPost.text ?? "")}
+                  </div>
+                  <CopyBar text={maximizedPost.text ?? ""} position="bottom" />
                 </div>
               )}
               {maximizedPost.contentType === "image" && maximizedPost.imageUrl && (

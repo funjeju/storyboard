@@ -707,17 +707,52 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
           <div style={{ fontSize:11, fontWeight:700, color:"#7C3AED", letterSpacing:1, marginBottom:10 }}>📢 공지</div>
           <div style={{ display:"flex", gap:12, overflowX:"auto", paddingBottom:4 }}>
             {announcements.map(post => (
-              <div key={post.id} style={{ flexShrink:0, width:260, background:post.bgColor ?? "#FFF9C4", borderRadius:14, padding:"14px 16px", boxShadow:"0 2px 8px rgba(0,0,0,0.08)", position:"relative" }}>
+              <div
+                key={post.id}
+                onClick={() => setMaximizedPost(post)}
+                style={{ flexShrink:0, width:260, background:post.bgColor ?? "#FFF9C4", borderRadius:14, padding:"14px 16px", boxShadow:"0 2px 8px rgba(0,0,0,0.08)", position:"relative", cursor:"pointer" }}
+              >
                 <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
                   {post.authorPhoto && <img src={post.authorPhoto} alt="" style={{ width:18, height:18, borderRadius:"50%" }} />}
                   <span style={{ fontSize:11, fontWeight:600, color:"#374151" }}>{post.authorName}</span>
                   <span style={{ fontSize:10, color:"#9CA3AF" }}>{fmtDate(post.createdAt)}</span>
+                  <div style={{ marginLeft:"auto", display:"flex", gap:2 }}>
+                    {user && (user.uid === post.uid || user.uid === board.uid) && (
+                      <button
+                        onClick={e => { e.stopPropagation(); openEditPost(post); }}
+                        style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 4px" }}
+                        title="수정"
+                      >✏️</button>
+                    )}
+                    {user && (user.uid === post.uid || user.uid === board.uid) && (
+                      <button
+                        onClick={e => { e.stopPropagation(); deleteBoardPost(boardId, post.id); }}
+                        style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 4px" }}
+                        title="삭제"
+                      >×</button>
+                    )}
+                  </div>
                 </div>
                 {post.contentType === "text"  && <p style={{ fontSize:13, color:"#1F2937", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{linkify(post.text ?? "")}</p>}
                 {post.contentType === "image" && post.imageUrl && <img src={post.imageUrl} alt="" style={{ width:"100%", borderRadius:8 }} />}
                 {post.contentType === "youtube" && post.youtubeUrl && getYoutubeId(post.youtubeUrl) && <img src={`https://img.youtube.com/vi/${getYoutubeId(post.youtubeUrl)}/mqdefault.jpg`} alt="" style={{ width:"100%", borderRadius:8 }} />}
-                {isAdmin && (
-                  <button onClick={() => deleteBoardPost(boardId, post.id)} style={{ position:"absolute", top:8, right:8, background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF" }}>×</button>
+                {post.contentType === "ppt" && post.pptUrl && (
+                  <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:"rgba(0,0,0,0.05)", borderRadius:8 }}>
+                    <span style={{ fontSize:20 }}>📊</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:"#374151" }}>{post.pptName || "프레젠테이션"}</span>
+                  </div>
+                )}
+                {post.contentType === "pdf" && post.pdfUrl && (
+                  <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:"rgba(0,0,0,0.05)", borderRadius:8 }}>
+                    <span style={{ fontSize:20 }}>📄</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:"#374151" }}>{post.pdfName || "PDF 문서"}</span>
+                  </div>
+                )}
+                {post.contentType === "audio" && post.audioUrl && (
+                  <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:"rgba(0,0,0,0.05)", borderRadius:8 }}>
+                    <span style={{ fontSize:20 }}>🎵</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:"#374151" }}>{post.audioName || "오디오"}</span>
+                  </div>
                 )}
               </div>
             ))}

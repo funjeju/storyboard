@@ -152,6 +152,27 @@ const TOOLS = [
     badge: "NEW",
     ctaText: "🔗 URL 단축하기",
   },
+  {
+    id: "thumbnail",
+    icon: "🖼️",
+    name: "YouTube Thumbnail Maker",
+    nameKo: "유튜브 썸네일 메이커",
+    desc: "CTR을 높이는 AI 음악·범용 썸네일 프롬프트 자동 생성",
+    features: [
+      "수노 스타일 프롬프트 + 가사 감성 분석",
+      "유튜브 CTR 강화 요소 자동 적용",
+      "Midjourney · Flux · Ideogram · GPT Image 지원",
+      "플레이리스트 브랜딩 + 텍스트 오버레이 제안",
+    ],
+    gradient: "linear-gradient(135deg, #7C2D12 0%, #9A3412 50%, #C2410C 100%)",
+    accentGrad: "linear-gradient(135deg, #C2410C, #F97316)",
+    accent: "#C2410C",
+    accentRgb: "194,65,12",
+    border: "rgba(194,65,12,0.25)",
+    href: "/thumbnail",
+    badge: "NEW",
+    ctaText: "🖼️ 썸네일 만들기",
+  },
 ];
 
 export default function MainHub() {
@@ -248,7 +269,7 @@ export default function MainHub() {
               width: 8, height: 8, borderRadius: "50%", background: "#10B981",
               boxShadow: "0 0 0 3px rgba(16,185,129,0.2)",
             }} />
-            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>6 tools active</span>
+            <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>7 tools active</span>
           </div>
           <AuthButton />
         </div>

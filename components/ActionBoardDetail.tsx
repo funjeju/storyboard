@@ -434,6 +434,53 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [editColor, setEditColor]     = useState(PALETTE[0]);
   const [editSaving, setEditSaving]   = useState(false);
 
+  // ── Question form state ─────────────────────────────────────────────────────
+  const [showQuestionForm, setShowQuestionForm] = useState(false);
+  const [qText, setQText]           = useState("");
+  const [qRefType, setQRefType]     = useState<"none" | "url" | "image" | "text">("none");
+  const [qRefUrl, setQRefUrl]       = useState("");
+  const [qRefImage, setQRefImage]   = useState("");
+  const [qRefText, setQRefText]     = useState("");
+  const [qSubmitting, setQSubmitting] = useState(false);
+  const qImageRef = useRef<HTMLInputElement>(null);
+
+  const handleQuestionImage = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = e => setQRefImage(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleQuestionSubmit = async () => {
+    if (!user || !board || !qText.trim()) return;
+    setQSubmitting(true);
+    try {
+      let finalImageUrl = qRefImage;
+      if (qRefType === "image" && qRefImage.startsWith("data:")) {
+        const { url } = await uploadImageDataUrl(user.uid, `actionboards/${boardId}`, `qimg_${Date.now()}.png`, qRefImage);
+        finalImageUrl = url;
+      }
+      const post: CloudBoardPost = {
+        id: crypto.randomUUID(),
+        boardId,
+        uid: user.uid,
+        authorName: user.displayName ?? "익명",
+        authorPhoto: user.photoURL ?? "",
+        contentType: "text",
+        text: qText.trim(),
+        isQuestion: true,
+        bgColor: "#FFFBEB",
+        createdAt: Date.now(),
+        ...(qRefType === "url"   && qRefUrl.trim()  && { refUrl: qRefUrl.trim() }),
+        ...(qRefType === "image" && finalImageUrl    && { imageUrl: finalImageUrl }),
+        ...(qRefType === "text"  && qRefText.trim()  && { refText: qRefText.trim() }),
+      };
+      await addBoardPost(boardId, post);
+      setQText(""); setQRefUrl(""); setQRefImage(""); setQRefText(""); setQRefType("none");
+      setShowQuestionForm(false);
+    } catch (e) { console.error(e); }
+    setQSubmitting(false);
+  };
+
   const openEditPost = (post: CloudBoardPost) => {
     setEditPost(post);
     setEditText(post.text ?? "");
@@ -517,7 +564,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const canPost = status === "open" && !!user;
   const isAdmin = !!user && !!board && user.uid === board.uid;
   const announcements = posts.filter(p => p.isAnnouncement);
-  const normalPosts   = posts.filter(p => !p.isAnnouncement);
+  const questions     = posts.filter(p => p.isQuestion);
+  const normalPosts   = posts.filter(p => !p.isAnnouncement && !p.isQuestion);
 
   const handleImageFile = (file: File) => {
     const reader = new FileReader();
@@ -676,9 +724,17 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
           </button>
           <span style={{ fontSize:12, color:"#9CA3AF" }}>마감: {fmtDate(board.endAt)}</span>
           {status === "open" && (
-            user
-              ? <button onClick={() => setShowForm(true)} style={{ padding:"8px 18px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:10, fontSize:13, fontWeight:700, color:"white", cursor:"pointer" }}>+ 게시물 추가</button>
-              : <button onClick={signIn} style={{ padding:"8px 18px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:10, fontSize:13, fontWeight:700, color:"white", cursor:"pointer" }}>로그인 후 참여</button>
+            user ? (
+              <div style={{ display:"flex", gap:8 }}>
+                <button
+                  onClick={() => setShowQuestionForm(true)}
+                  style={{ padding:"8px 18px", background:"white", border:"2px solid #F59E0B", borderRadius:10, fontSize:13, fontWeight:700, color:"#D97706", cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}
+                >❓ 질문하기</button>
+                <button onClick={() => setShowForm(true)} style={{ padding:"8px 18px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:10, fontSize:13, fontWeight:700, color:"white", cursor:"pointer" }}>+ 게시물 추가</button>
+              </div>
+            ) : (
+              <button onClick={signIn} style={{ padding:"8px 18px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:10, fontSize:13, fontWeight:700, color:"white", cursor:"pointer" }}>로그인 후 참여</button>
+            )
           )}
         </div>
       </nav>
@@ -754,6 +810,72 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                     <span style={{ fontSize:12, fontWeight:600, color:"#374151" }}>{post.audioName || "오디오"}</span>
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Question section ── */}
+      {questions.length > 0 && (
+        <div style={{ background:"linear-gradient(135deg,rgba(245,158,11,0.07),rgba(239,68,68,0.03))", borderBottom:"1px solid rgba(245,158,11,0.18)", padding:"12px 24px" }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"#D97706", letterSpacing:1, marginBottom:10 }}>❓ 질문</div>
+          <div style={{ display:"flex", gap:14, overflowX:"auto", paddingBottom:4 }}>
+            {questions.map(post => (
+              <div
+                key={post.id}
+                onClick={() => setMaximizedPost(post)}
+                style={{ flexShrink:0, width:280, borderRadius:16, overflow:"hidden", boxShadow:"0 4px 16px rgba(245,158,11,0.15)", cursor:"pointer", border:"2px solid rgba(245,158,11,0.35)", background:"white" }}
+              >
+                {/* Question card header strip */}
+                <div style={{ background:"linear-gradient(135deg,#F59E0B,#EF4444)", padding:"10px 14px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:16 }}>❓</span>
+                    <span style={{ fontSize:11, fontWeight:800, color:"white", letterSpacing:1 }}>QUESTION</span>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                    {post.authorPhoto && <img src={post.authorPhoto} alt="" style={{ width:18, height:18, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.6)" }} />}
+                    <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.9)" }}>{post.authorName}</span>
+                    <span style={{ fontSize:10, color:"rgba(255,255,255,0.65)" }}>{fmtDate(post.createdAt)}</span>
+                  </div>
+                </div>
+                {/* Body */}
+                <div style={{ padding:"14px 16px", background:"#FFFBEB" }}>
+                  <p style={{ fontSize:14, fontWeight:700, color:"#1F2937", lineHeight:1.6, whiteSpace:"pre-wrap", marginBottom: (post.refUrl || post.refText || post.imageUrl) ? 10 : 0 }}>
+                    {post.text}
+                  </p>
+                  {post.refUrl && (
+                    <a href={post.refUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                      style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#2563EB", background:"rgba(37,99,235,0.06)", padding:"6px 10px", borderRadius:8, textDecoration:"none", border:"1px solid rgba(37,99,235,0.15)", wordBreak:"break-all", lineHeight:1.4 }}>
+                      <span>🔗</span><span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{post.refUrl}</span>
+                    </a>
+                  )}
+                  {post.imageUrl && (
+                    <img src={post.imageUrl} alt="참조 이미지" style={{ width:"100%", borderRadius:8, marginTop:4, maxHeight:120, objectFit:"cover" }} />
+                  )}
+                  {post.refText && (
+                    <div style={{ fontSize:11, color:"#6B7280", background:"rgba(0,0,0,0.04)", padding:"8px 10px", borderRadius:8, borderLeft:"3px solid #F59E0B", fontStyle:"italic", lineHeight:1.5, maxHeight:72, overflow:"hidden", whiteSpace:"pre-wrap" }}>
+                      {post.refText}
+                    </div>
+                  )}
+                </div>
+                {/* Footer */}
+                <div style={{ padding:"8px 16px 10px", background:"#FFF7ED", display:"flex", alignItems:"center", justifyContent:"space-between", borderTop:"1px solid rgba(245,158,11,0.15)" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#9CA3AF" }}>
+                    {(post.commentCount ?? 0) > 0 && <><span>💬</span><span>{post.commentCount}개 댓글</span></>}
+                  </div>
+                  <div style={{ display:"flex", gap:4 }}>
+                    {user && (user.uid === post.uid || user.uid === board.uid) && (
+                      <>
+                        <button onClick={e => { e.stopPropagation(); openEditPost(post); }}
+                          style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 5px" }} title="수정">✏️</button>
+                        <button onClick={e => { e.stopPropagation(); deleteBoardPost(boardId, post.id); }}
+                          style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, color:"#9CA3AF", padding:"2px 5px" }} title="삭제">×</button>
+                      </>
+                    )}
+                    <span style={{ fontSize:11, color:"#D97706", fontWeight:700 }}>답변 보기 →</span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -1141,6 +1263,104 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                     댓글을 작성하려면 <button onClick={signIn} style={{ background:"none", border:"none", color:"#A78BFA", fontWeight:700, cursor:"pointer", fontSize:13 }}>로그인</button>하세요
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Question form modal ── */}
+      {showQuestionForm && (
+        <div onClick={() => setShowQuestionForm(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:"24px 24px 0 0", width:"100%", maxWidth:560, boxShadow:"0 -12px 40px rgba(0,0,0,0.15)", animation:"fadeUp 0.25s ease both", overflow:"hidden" }}>
+            {/* Modal header strip */}
+            <div style={{ background:"linear-gradient(135deg,#F59E0B,#EF4444)", padding:"18px 28px", display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:22 }}>❓</span>
+              <div>
+                <div style={{ fontSize:16, fontWeight:800, color:"white" }}>질문하기</div>
+                <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)" }}>질문 카드로 보드에 고정됩니다</div>
+              </div>
+            </div>
+
+            <div style={{ padding:"24px 28px", display:"flex", flexDirection:"column", gap:16 }}>
+              {/* Question text */}
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>질문 내용 *</label>
+                <textarea
+                  value={qText}
+                  onChange={e => setQText(e.target.value)}
+                  placeholder="궁금한 점을 자유롭게 입력하세요..."
+                  rows={4}
+                  autoFocus
+                  style={{ width:"100%", padding:"12px 14px", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontFamily:"inherit", resize:"vertical", outline:"none" }}
+                  onFocus={e => { e.target.style.borderColor="#F59E0B"; }}
+                  onBlur={e => { e.target.style.borderColor="#E5E7EB"; }}
+                />
+              </div>
+
+              {/* Reference type selector */}
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>참조 자료 <span style={{ fontWeight:400, color:"#9CA3AF" }}>(선택)</span></label>
+                <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+                  {([["none","없음"],["url","🔗 URL"],["image","🖼️ 이미지"],["text","📋 텍스트"]] as ["none"|"url"|"image"|"text", string][]).map(([t, label]) => (
+                    <button key={t} onClick={() => setQRefType(t)}
+                      style={{ padding:"6px 14px", borderRadius:100, border:`1.5px solid ${qRefType===t?"#F59E0B":"#E5E7EB"}`, background:qRefType===t?"rgba(245,158,11,0.08)":"white", fontSize:12, fontWeight:700, color:qRefType===t?"#D97706":"#6B7280", cursor:"pointer", transition:"all 0.15s" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {qRefType === "url" && (
+                  <input
+                    value={qRefUrl}
+                    onChange={e => setQRefUrl(e.target.value)}
+                    placeholder="https://..."
+                    style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:13, fontFamily:"inherit", outline:"none" }}
+                    onFocus={e => { e.target.style.borderColor="#F59E0B"; }}
+                    onBlur={e => { e.target.style.borderColor="#E5E7EB"; }}
+                  />
+                )}
+
+                {qRefType === "image" && (
+                  <div>
+                    <input ref={qImageRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e => { if (e.target.files?.[0]) handleQuestionImage(e.target.files[0]); }} />
+                    {qRefImage ? (
+                      <div style={{ position:"relative" }}>
+                        <img src={qRefImage} alt="" style={{ width:"100%", borderRadius:10, maxHeight:180, objectFit:"cover" }} />
+                        <button onClick={() => setQRefImage("")} style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,0.6)", border:"none", borderRadius:"50%", width:26, height:26, color:"white", cursor:"pointer", fontSize:14 }}>×</button>
+                      </div>
+                    ) : (
+                      <div onClick={() => qImageRef.current?.click()} style={{ border:"2px dashed #FCD34D", borderRadius:12, padding:"32px", textAlign:"center", cursor:"pointer", background:"rgba(245,158,11,0.03)", color:"#D97706" }}>
+                        <div style={{ fontSize:28, marginBottom:6 }}>🖼️</div>
+                        <div style={{ fontSize:13, fontWeight:600 }}>클릭하여 이미지 선택</div>
+                        <div style={{ fontSize:11, color:"#9CA3AF", marginTop:3 }}>스크린샷, 오류 화면 등 첨부</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {qRefType === "text" && (
+                  <textarea
+                    value={qRefText}
+                    onChange={e => setQRefText(e.target.value)}
+                    placeholder="참조할 텍스트를 붙여넣으세요 (코드, 오류 메시지, 문단 등)..."
+                    rows={4}
+                    style={{ width:"100%", padding:"12px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:12, fontFamily:"'Courier New', monospace", resize:"vertical", outline:"none", background:"#FAFAFA" }}
+                    onFocus={e => { e.target.style.borderColor="#F59E0B"; }}
+                    onBlur={e => { e.target.style.borderColor="#E5E7EB"; }}
+                  />
+                )}
+              </div>
+
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={() => setShowQuestionForm(false)} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>취소</button>
+                <button
+                  onClick={handleQuestionSubmit}
+                  disabled={qSubmitting || !qText.trim()}
+                  style={{ flex:2, padding:"13px", background:qText.trim()?"linear-gradient(135deg,#F59E0B,#EF4444)":"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:qText.trim()?"white":"#9CA3AF", cursor:qText.trim()?"pointer":"default", boxShadow:qText.trim()?"0 4px 16px rgba(245,158,11,0.35)":"none" }}
+                >
+                  {qSubmitting ? "등록 중..." : "❓ 질문 등록"}
+                </button>
               </div>
             </div>
           </div>

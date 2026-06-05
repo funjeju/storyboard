@@ -237,8 +237,11 @@ export interface CloudBoardPost {
   pptName?: string;
   pdfUrl?: string;
   pdfName?: string;
-  bgColor?: string;        // user-selected card background color
-  isAnnouncement?: boolean; // admin-pinned announcement
+  bgColor?: string;
+  isAnnouncement?: boolean;
+  isQuestion?: boolean;
+  refUrl?: string;
+  refText?: string;
   commentCount?: number;
   createdAt: number;
   x?: number;

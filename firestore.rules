@@ -24,18 +24,18 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
-    // 즐겨찾기 — 누구나 읽기, 로그인 사용자만 생성, 본인만 삭제
+    // 즐겨찾기 — 누구나 읽기, 로그인 사용자만 생성, 본인만 수정·삭제
     match /favorites/{favId} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
-    // 포스터(공모전/프로젝트) — 누구나 읽기, 로그인 사용자만 생성, 본인만 삭제
+    // 포스터(공모전/프로젝트) — 누구나 읽기, 로그인 사용자만 생성, 본인만 수정·삭제
     match /posters/{posterId} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
     // 액션보드 — 누구나 읽기, 로그인 사용자만 생성

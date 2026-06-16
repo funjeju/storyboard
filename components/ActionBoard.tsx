@@ -10,14 +10,17 @@ import {
   deleteActionBoard,
   subscribeToFavorites,
   createFavorite,
+  updateFavorite,
   deleteFavorite,
   subscribeToPosters,
   createPoster,
+  updatePoster,
   deletePoster,
   posterImages,
   type CloudActionBoard,
   type CloudFavorite,
   type CloudPoster,
+  type PosterImage,
 } from "@/lib/firestoreHelpers";
 import { uploadPosterImage, deleteStorageFile } from "@/lib/firebaseStorage";
 
@@ -141,6 +144,10 @@ export default function ActionBoard() {
   const [favName, setFavName]       = useState("");
   const [favUrl, setFavUrl]         = useState("");
   const [favSaving, setFavSaving]   = useState(false);
+  const [editFav, setEditFav]       = useState<CloudFavorite | null>(null);
+  const [editFavName, setEditFavName] = useState("");
+  const [editFavUrl, setEditFavUrl]   = useState("");
+  const [editFavSaving, setEditFavSaving] = useState(false);
 
   // posters (공모전 / 프로젝트 포스터)
   const [posters, setPosters]         = useState<CloudPoster[]>([]);
@@ -154,6 +161,17 @@ export default function ActionBoard() {
   const [viewPoster, setViewPoster]   = useState<CloudPoster | null>(null);
   const [viewIdx, setViewIdx]         = useState(0);
   const swipeStartX = useRef<number | null>(null);
+
+  // poster edit
+  const [editPoster, setEditPoster]   = useState<CloudPoster | null>(null);
+  const [editPosterTitle, setEditPosterTitle] = useState("");
+  const [editPosterLink, setEditPosterLink]   = useState("");
+  const [editKeepImages, setEditKeepImages]   = useState<PosterImage[]>([]);
+  const [editNewFiles, setEditNewFiles]       = useState<File[]>([]);
+  const [editNewPreviews, setEditNewPreviews] = useState<string[]>([]);
+  const [editRemovedPaths, setEditRemovedPaths] = useState<string[]>([]);
+  const [editPosterSaving, setEditPosterSaving] = useState(false);
+  const [editPosterProgress, setEditPosterProgress] = useState(0);
 
   const normUrl = (u: string) => /^https?:\/\//i.test(u) ? u : `https://${u}`;
 
@@ -174,6 +192,26 @@ export default function ActionBoard() {
       setFavName(""); setFavUrl("");
     } catch { /* silent */ }
     setFavSaving(false);
+  };
+
+  const openEditFav = (fav: CloudFavorite, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setEditFav(fav);
+    setEditFavName(fav.name);
+    setEditFavUrl(fav.url);
+  };
+
+  const handleEditFavorite = async () => {
+    if (!editFav || !editFavName.trim() || !editFavUrl.trim()) return;
+    setEditFavSaving(true);
+    try {
+      await updateFavorite(editFav.id, {
+        name: editFavName.trim(),
+        url: normUrl(editFavUrl.trim()),
+      });
+      setEditFav(null);
+    } catch { /* silent */ }
+    setEditFavSaving(false);
   };
 
   const resetPosterForm = () => {
@@ -236,6 +274,67 @@ export default function ActionBoard() {
   };
 
   const openPoster = (p: CloudPoster) => { setViewPoster(p); setViewIdx(0); };
+
+  const openEditPoster = (p: CloudPoster, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setEditPoster(p);
+    setEditPosterTitle(p.title);
+    setEditPosterLink(p.linkUrl ?? "");
+    setEditKeepImages(posterImages(p));
+    setEditNewFiles([]); setEditNewPreviews([]); setEditRemovedPaths([]);
+    setEditPosterProgress(0);
+  };
+
+  const removeKeepImage = (idx: number) => {
+    setEditKeepImages(prev => {
+      const img = prev[idx];
+      if (img?.path) setEditRemovedPaths(r => [...r, img.path]);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
+
+  const addEditFiles = (files: FileList | null) => {
+    if (!files || !files.length) return;
+    const list = Array.from(files).filter(f => f.type.startsWith("image/"));
+    setEditNewFiles(prev => [...prev, ...list]);
+    list.forEach(f => {
+      const reader = new FileReader();
+      reader.onload = () => setEditNewPreviews(prev => [...prev, reader.result as string]);
+      reader.readAsDataURL(f);
+    });
+  };
+
+  const removeEditNewFile = (idx: number) => {
+    setEditNewFiles(prev => prev.filter((_, i) => i !== idx));
+    setEditNewPreviews(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleEditPoster = async () => {
+    if (!editPoster) return;
+    if (editKeepImages.length + editNewFiles.length === 0) return; // 최소 1장
+    setEditPosterSaving(true);
+    setEditPosterProgress(0);
+    try {
+      const uploaded: PosterImage[] = [];
+      for (let i = 0; i < editNewFiles.length; i++) {
+        const { path, url } = await uploadPosterImage(editPoster.id, editNewFiles[i], undefined, Date.now() % 100000 + i);
+        uploaded.push({ url, path });
+        setEditPosterProgress(Math.round(((i + 1) / editNewFiles.length) * 100));
+      }
+      const images = [...editKeepImages, ...uploaded];
+      await updatePoster(editPoster.id, {
+        title: editPosterTitle.trim() || images[0].url.split("/").pop() || "포스터",
+        linkUrl: editPosterLink.trim() ? normUrl(editPosterLink.trim()) : "",
+        images,
+        imageUrl: images[0].url,
+        imagePath: images[0].path,
+      });
+      // 제거된 이미지 스토리지 정리
+      editRemovedPaths.forEach(p => { if (p) deleteStorageFile(p); });
+      setEditPoster(null);
+    } catch { /* silent */ }
+    setEditPosterSaving(false);
+  };
 
   const openEdit = (b: CloudActionBoard, e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -391,11 +490,18 @@ export default function ActionBoard() {
                 <span style={{ fontSize:14 }}>🔗</span>
                 <span style={{ maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{fav.name}</span>
                 {user?.uid === fav.uid && (
-                  <span
-                    onClick={e => { e.preventDefault(); e.stopPropagation(); deleteFavorite(fav.id).catch(()=>{}); }}
-                    style={{ marginLeft:2, width:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"#F3F4F6", color:"#9CA3AF", fontSize:11, fontWeight:700, cursor:"pointer" }}
-                    title="삭제"
-                  >×</span>
+                  <>
+                    <span
+                      onClick={e => openEditFav(fav, e)}
+                      style={{ marginLeft:2, width:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"#F3F4F6", fontSize:10, cursor:"pointer" }}
+                      title="수정"
+                    >✏️</span>
+                    <span
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); deleteFavorite(fav.id).catch(()=>{}); }}
+                      style={{ width:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"#F3F4F6", color:"#9CA3AF", fontSize:11, fontWeight:700, cursor:"pointer" }}
+                      title="삭제"
+                    >×</span>
+                  </>
                 )}
               </a>
             ))}
@@ -452,11 +558,18 @@ export default function ActionBoard() {
                     <div style={{ fontSize:11, color:"#9CA3AF", marginTop:2 }}>{p.creatorName}</div>
                   </div>
                   {user?.uid === p.uid && (
-                    <button
-                      onClick={e => handleDeletePoster(p, e)}
-                      style={{ position:"absolute", top:8, right:8, width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", color:"white", fontSize:13, cursor:"pointer", backdropFilter:"blur(4px)" }}
-                      title="삭제"
-                    >🗑</button>
+                    <div style={{ position:"absolute", top:8, right:8, display:"flex", gap:6 }}>
+                      <button
+                        onClick={e => openEditPoster(p, e)}
+                        style={{ width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", color:"white", fontSize:12, cursor:"pointer", backdropFilter:"blur(4px)" }}
+                        title="수정"
+                      >✏️</button>
+                      <button
+                        onClick={e => handleDeletePoster(p, e)}
+                        style={{ width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", color:"white", fontSize:13, cursor:"pointer", backdropFilter:"blur(4px)" }}
+                        title="삭제"
+                      >🗑</button>
+                    </div>
                   )}
                   {p.linkUrl && (
                     <div style={{ position:"absolute", top:8, left:8, padding:"3px 8px", borderRadius:8, background:"rgba(0,0,0,0.55)", color:"white", fontSize:10, fontWeight:700, backdropFilter:"blur(4px)" }}>🔗 링크</div>
@@ -746,6 +859,44 @@ export default function ActionBoard() {
         </div>
       )}
 
+      {/* ── 즐겨찾기 수정 모달 ── */}
+      {editFav && (
+        <div onClick={() => setEditFav(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"36px", width:"100%", maxWidth:420, boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
+            <div style={{ fontSize:22, fontWeight:800, color:"#111827", marginBottom:6 }}>✏️ 즐겨찾기 수정</div>
+            <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>이름과 주소를 변경하세요</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>이름 *</label>
+                <input
+                  value={editFavName}
+                  onChange={e => setEditFavName(e.target.value)}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>주소 (URL) *</label>
+                <input
+                  value={editFavUrl}
+                  onChange={e => setEditFavUrl(e.target.value)}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:26 }}>
+              <button onClick={() => setEditFav(null)} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>취소</button>
+              <button
+                onClick={handleEditFavorite}
+                disabled={editFavSaving || !editFavName.trim() || !editFavUrl.trim()}
+                style={{ flex:2, padding:"13px", background:(editFavName.trim()&&editFavUrl.trim())?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:(editFavName.trim()&&editFavUrl.trim())?"white":"#9CA3AF", cursor:(editFavName.trim()&&editFavUrl.trim())?"pointer":"default" }}
+              >
+                {editFavSaving ? "저장 중..." : "✏️ 수정 완료"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 포스터 업로드 모달 ── */}
       {showPosterAdd && (
         <div onClick={() => { if(!posterSaving){ setShowPosterAdd(false); } }} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
@@ -807,6 +958,82 @@ export default function ActionBoard() {
                 style={{ flex:2, padding:"13px", background:posterFiles.length?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:posterFiles.length?"white":"#9CA3AF", cursor:posterFiles.length?"pointer":"default" }}
               >
                 {posterSaving ? `업로드 중... ${posterProgress}%` : `🖼️ 업로드${posterFiles.length>1?` (${posterFiles.length}장)`:""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 포스터 수정 모달 ── */}
+      {editPoster && (
+        <div onClick={() => { if(!editPosterSaving){ setEditPoster(null); } }} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"36px", width:"100%", maxWidth:480, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
+            <div style={{ fontSize:22, fontWeight:800, color:"#111827", marginBottom:6 }}>✏️ 포스터 수정</div>
+            <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>이미지를 추가·삭제하거나 정보를 변경하세요 (첫 장이 표지)</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              {/* 이미지 그리드: 기존 + 새 추가 */}
+              {(editKeepImages.length + editNewPreviews.length) > 0 && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8 }}>
+                  {editKeepImages.map((img, idx) => (
+                    <div key={`k${idx}`} style={{ position:"relative", aspectRatio:"3 / 4", borderRadius:10, overflow:"hidden", border:idx===0?`2px solid ${P}`:"1.5px solid #E5E7EB", background:"#F3F4F6" }}>
+                      <img src={img.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                      {idx === 0 && <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"3px 0", textAlign:"center", background:P, color:"white", fontSize:10, fontWeight:700 }}>표지</div>}
+                      {!editPosterSaving && (
+                        <button onClick={() => removeKeepImage(idx)} style={{ position:"absolute", top:4, right:4, width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"rgba(0,0,0,0.6)", border:"none", color:"white", fontSize:12, cursor:"pointer" }}>×</button>
+                      )}
+                    </div>
+                  ))}
+                  {editNewPreviews.map((src, idx) => {
+                    const coverIdx = editKeepImages.length === 0 && idx === 0;
+                    return (
+                    <div key={`n${idx}`} style={{ position:"relative", aspectRatio:"3 / 4", borderRadius:10, overflow:"hidden", border:coverIdx?`2px solid ${P}`:"1.5px solid #E5E7EB", background:"#F3F4F6" }}>
+                      <img src={src} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                      <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"3px 0", textAlign:"center", background:coverIdx?P:"rgba(16,185,129,0.9)", color:"white", fontSize:10, fontWeight:700 }}>{coverIdx ? "표지" : "새 이미지"}</div>
+                      {!editPosterSaving && (
+                        <button onClick={() => removeEditNewFile(idx)} style={{ position:"absolute", top:4, right:4, width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"rgba(0,0,0,0.6)", border:"none", color:"white", fontSize:12, cursor:"pointer" }}>×</button>
+                      )}
+                    </div>
+                    );
+                  })}
+                </div>
+              )}
+              {(editKeepImages.length + editNewPreviews.length) === 0 && (
+                <div style={{ padding:"10px 14px", borderRadius:10, background:"#FEF2F2", color:"#DC2626", fontSize:12, fontWeight:600 }}>⚠️ 최소 1장의 이미지가 필요합니다</div>
+              )}
+              <label style={{ display:"block", cursor:"pointer" }}>
+                <input type="file" accept="image/*" multiple onChange={e => { addEditFiles(e.target.files); e.target.value=""; }} style={{ display:"none" }} />
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6, padding:"20px 0", border:"2px dashed #E5E7EB", borderRadius:12, color:"#9CA3AF" }}>
+                  <div style={{ fontSize:22 }}>📤</div>
+                  <div style={{ fontSize:13, fontWeight:600 }}>이미지 더 추가</div>
+                </div>
+              </label>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>제목 (선택)</label>
+                <input
+                  value={editPosterTitle}
+                  onChange={e => setEditPosterTitle(e.target.value)}
+                  placeholder="예: 2026 AI 해커톤"
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>링크 (선택)</label>
+                <input
+                  value={editPosterLink}
+                  onChange={e => setEditPosterLink(e.target.value)}
+                  placeholder="클릭 시 이동할 주소 (선택)"
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:26 }}>
+              <button onClick={() => { if(!editPosterSaving){ setEditPoster(null); } }} disabled={editPosterSaving} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:editPosterSaving?"default":"pointer" }}>취소</button>
+              <button
+                onClick={handleEditPoster}
+                disabled={editPosterSaving || (editKeepImages.length + editNewFiles.length === 0)}
+                style={{ flex:2, padding:"13px", background:(editKeepImages.length + editNewFiles.length)?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:(editKeepImages.length + editNewFiles.length)?"white":"#9CA3AF", cursor:(editKeepImages.length + editNewFiles.length)?"pointer":"default" }}
+              >
+                {editPosterSaving ? (editNewFiles.length ? `저장 중... ${editPosterProgress}%` : "저장 중...") : "✏️ 수정 완료"}
               </button>
             </div>
           </div>

@@ -381,6 +381,10 @@ export async function createFavorite(fav: CloudFavorite) {
   await setDoc(favoriteDoc(fav.id), fav);
 }
 
+export async function updateFavorite(id: string, fields: Partial<Pick<CloudFavorite, "name" | "url">>) {
+  await setDoc(favoriteDoc(id), fields, { merge: true });
+}
+
 export async function deleteFavorite(id: string) {
   await deleteDoc(favoriteDoc(id));
 }
@@ -427,6 +431,13 @@ function posterDoc(id: string) {
 
 export async function createPoster(poster: CloudPoster) {
   await setDoc(posterDoc(poster.id), poster);
+}
+
+export async function updatePoster(
+  id: string,
+  fields: Partial<Pick<CloudPoster, "title" | "linkUrl" | "images" | "imageUrl" | "imagePath">>,
+) {
+  await setDoc(posterDoc(id), fields, { merge: true });
 }
 
 export async function deletePoster(id: string) {

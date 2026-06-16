@@ -941,11 +941,11 @@ export default function ActionBoard() {
                 />
               </div>
               <div>
-                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>링크 (선택)</label>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>바로가기 링크 (선택)</label>
                 <input
                   value={posterLink}
                   onChange={e => setPosterLink(e.target.value)}
-                  placeholder="클릭 시 이동할 주소 (선택)"
+                  placeholder="입력하면 포스터 뷰어에 바로가기 버튼이 생겨요 (선택)"
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
                 />
               </div>
@@ -1017,11 +1017,11 @@ export default function ActionBoard() {
                 />
               </div>
               <div>
-                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>링크 (선택)</label>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>바로가기 링크 (선택)</label>
                 <input
                   value={editPosterLink}
                   onChange={e => setEditPosterLink(e.target.value)}
-                  placeholder="클릭 시 이동할 주소 (선택)"
+                  placeholder="입력하면 포스터 뷰어에 바로가기 버튼이 생겨요 (선택)"
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
                 />
               </div>
@@ -1070,6 +1070,19 @@ export default function ActionBoard() {
             )}
           </div>
 
+          {/* 이미지 바로 아래: 바로가기 버튼 */}
+          {viewPoster.linkUrl && (
+            <a
+              onClick={e => e.stopPropagation()}
+              href={viewPoster.linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"12px 28px", background:`linear-gradient(135deg,${P},${PINK})`, borderRadius:12, fontSize:15, fontWeight:800, color:"white", textDecoration:"none", boxShadow:"0 8px 24px rgba(124,58,237,0.4)" }}
+            >
+              🔗 바로가기
+            </a>
+          )}
+
           {/* 페이지 인디케이터 (점) */}
           {imgs.length > 1 && (
             <div onClick={e => e.stopPropagation()} style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -1080,12 +1093,7 @@ export default function ActionBoard() {
             </div>
           )}
 
-          <div onClick={e => e.stopPropagation()} style={{ display:"flex", alignItems:"center", gap:14 }}>
-            <div style={{ color:"white", fontSize:16, fontWeight:700 }}>{viewPoster.title}</div>
-            {viewPoster.linkUrl && (
-              <a href={viewPoster.linkUrl} target="_blank" rel="noopener noreferrer" style={{ padding:"8px 16px", background:`linear-gradient(135deg,${P},${PINK})`, borderRadius:10, fontSize:13, fontWeight:700, color:"white", textDecoration:"none" }}>🔗 링크 열기</a>
-            )}
-          </div>
+          <div onClick={e => e.stopPropagation()} style={{ color:"white", fontSize:16, fontWeight:700 }}>{viewPoster.title}</div>
         </div>
         );
       })()}

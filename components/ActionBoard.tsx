@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -14,6 +14,7 @@ import {
   subscribeToPosters,
   createPoster,
   deletePoster,
+  posterImages,
   type CloudActionBoard,
   type CloudFavorite,
   type CloudPoster,
@@ -146,10 +147,13 @@ export default function ActionBoard() {
   const [showPosterAdd, setShowPosterAdd] = useState(false);
   const [posterTitle, setPosterTitle] = useState("");
   const [posterLink, setPosterLink]   = useState("");
-  const [posterFile, setPosterFile]   = useState<File | null>(null);
-  const [posterPreview, setPosterPreview] = useState("");
+  const [posterFiles, setPosterFiles]     = useState<File[]>([]);
+  const [posterPreviews, setPosterPreviews] = useState<string[]>([]);
   const [posterSaving, setPosterSaving]   = useState(false);
+  const [posterProgress, setPosterProgress] = useState(0);
   const [viewPoster, setViewPoster]   = useState<CloudPoster | null>(null);
+  const [viewIdx, setViewIdx]         = useState(0);
+  const swipeStartX = useRef<number | null>(null);
 
   const normUrl = (u: string) => /^https?:\/\//i.test(u) ? u : `https://${u}`;
 
@@ -172,36 +176,53 @@ export default function ActionBoard() {
     setFavSaving(false);
   };
 
-  const pickPosterFile = (f: File | null) => {
-    setPosterFile(f);
-    if (f) {
+  const resetPosterForm = () => {
+    setPosterTitle(""); setPosterLink("");
+    setPosterFiles([]); setPosterPreviews([]); setPosterProgress(0);
+  };
+
+  const addPosterFiles = (files: FileList | null) => {
+    if (!files || !files.length) return;
+    const list = Array.from(files).filter(f => f.type.startsWith("image/"));
+    setPosterFiles(prev => [...prev, ...list]);
+    list.forEach(f => {
       const reader = new FileReader();
-      reader.onload = () => setPosterPreview(reader.result as string);
+      reader.onload = () => setPosterPreviews(prev => [...prev, reader.result as string]);
       reader.readAsDataURL(f);
-    } else {
-      setPosterPreview("");
-    }
+    });
+  };
+
+  const removePosterFile = (idx: number) => {
+    setPosterFiles(prev => prev.filter((_, i) => i !== idx));
+    setPosterPreviews(prev => prev.filter((_, i) => i !== idx));
   };
 
   const handleAddPoster = async () => {
-    if (!posterFile) return;
+    if (!posterFiles.length) return;
     if (!user) { await signIn(); return; }
     setPosterSaving(true);
+    setPosterProgress(0);
     try {
       const id = crypto.randomUUID();
-      const { path, url } = await uploadPosterImage(id, posterFile);
+      const images: { url: string; path: string }[] = [];
+      for (let i = 0; i < posterFiles.length; i++) {
+        const { path, url } = await uploadPosterImage(id, posterFiles[i], undefined, i);
+        images.push({ url, path });
+        setPosterProgress(Math.round(((i + 1) / posterFiles.length) * 100));
+      }
       await createPoster({
         id,
         uid: user.uid,
         creatorName: user.displayName ?? "익명",
-        title: posterTitle.trim() || posterFile.name,
-        imageUrl: url,
-        imagePath: path,
+        title: posterTitle.trim() || posterFiles[0].name,
+        images,
+        imageUrl: images[0].url,
+        imagePath: images[0].path,
         ...(posterLink.trim() ? { linkUrl: normUrl(posterLink.trim()) } : {}),
         createdAt: Date.now(),
       });
       setShowPosterAdd(false);
-      setPosterTitle(""); setPosterLink(""); pickPosterFile(null);
+      resetPosterForm();
     } catch { /* silent */ }
     setPosterSaving(false);
   };
@@ -210,9 +231,11 @@ export default function ActionBoard() {
     e.preventDefault(); e.stopPropagation();
     try {
       await deletePoster(p.id);
-      if (p.imagePath) deleteStorageFile(p.imagePath);
+      posterImages(p).forEach(img => { if (img.path) deleteStorageFile(img.path); });
     } catch { /* silent */ }
   };
+
+  const openPoster = (p: CloudPoster) => { setViewPoster(p); setViewIdx(0); };
 
   const openEdit = (b: CloudActionBoard, e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -259,6 +282,19 @@ export default function ActionBoard() {
     const unsubPost   = subscribeToPosters(setPosters);
     return () => { unsubBoards(); unsubFavs(); unsubPost(); };
   }, []);
+
+  // 포스터 뷰어 키보드 네비게이션
+  useEffect(() => {
+    if (!viewPoster) return;
+    const imgs = posterImages(viewPoster);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") setViewIdx(i => (i + 1) % imgs.length);
+      else if (e.key === "ArrowLeft") setViewIdx(i => (i - 1 + imgs.length) % imgs.length);
+      else if (e.key === "Escape") setViewPoster(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewPoster]);
 
   const filtered = boards.filter(b => filter === "all" || getBoardStatus(b) === filter);
 
@@ -394,15 +430,22 @@ export default function ActionBoard() {
             </div>
           ) : (
             <div className="hscroll" style={{ display:"flex", gap:16, overflowX:"auto", paddingBottom:10, scrollSnapType:"x proximity" }}>
-              {posters.map((p, i) => (
+              {posters.map((p, i) => {
+                const imgs = posterImages(p);
+                return (
                 <div
                   key={p.id}
-                  onClick={() => setViewPoster(p)}
+                  onClick={() => openPoster(p)}
                   className="poster-card"
                   style={{ flex:"0 0 auto", width:200, scrollSnapAlign:"start", borderRadius:16, overflow:"hidden", background:"white", boxShadow:"0 2px 12px rgba(0,0,0,0.08)", cursor:"pointer", position:"relative", transition:"transform 0.2s ease, box-shadow 0.2s ease", animation:`fadeUp 0.4s ease ${i*0.05}s both` }}
                 >
-                  <div style={{ width:"100%", aspectRatio:"3 / 4", background:"#F3F4F6", overflow:"hidden" }}>
-                    <img src={p.imageUrl} alt={p.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                  <div style={{ width:"100%", aspectRatio:"3 / 4", background:"#F3F4F6", overflow:"hidden", position:"relative" }}>
+                    <img src={imgs[0]?.url} alt={p.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                    {imgs.length > 1 && (
+                      <div style={{ position:"absolute", bottom:8, right:8, display:"flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:100, background:"rgba(0,0,0,0.6)", color:"white", fontSize:11, fontWeight:700, backdropFilter:"blur(4px)" }}>
+                        🖼️ {imgs.length}
+                      </div>
+                    )}
                   </div>
                   <div style={{ padding:"10px 12px" }}>
                     <div style={{ fontSize:13, fontWeight:700, color:"#1F2937", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.title}</div>
@@ -419,7 +462,8 @@ export default function ActionBoard() {
                     <div style={{ position:"absolute", top:8, left:8, padding:"3px 8px", borderRadius:8, background:"rgba(0,0,0,0.55)", color:"white", fontSize:10, fontWeight:700, backdropFilter:"blur(4px)" }}>🔗 링크</div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -704,25 +748,37 @@ export default function ActionBoard() {
 
       {/* ── 포스터 업로드 모달 ── */}
       {showPosterAdd && (
-        <div onClick={() => setShowPosterAdd(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"36px", width:"100%", maxWidth:440, boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
+        <div onClick={() => { if(!posterSaving){ setShowPosterAdd(false); } }} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"36px", width:"100%", maxWidth:480, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
             <div style={{ fontSize:22, fontWeight:800, color:"#111827", marginBottom:6 }}>🖼️ 포스터 업로드</div>
-            <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>공모전·프로젝트 포스터 이미지를 올려보세요</div>
+            <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>여러 장 올리면 첫 장이 표지가 되고, 클릭 시 넘겨볼 수 있어요</div>
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-              {/* 이미지 선택 */}
+              {/* 선택된 이미지 미리보기 그리드 */}
+              {posterPreviews.length > 0 && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8 }}>
+                  {posterPreviews.map((src, idx) => (
+                    <div key={idx} style={{ position:"relative", aspectRatio:"3 / 4", borderRadius:10, overflow:"hidden", border:idx===0?`2px solid ${P}`:"1.5px solid #E5E7EB", background:"#F3F4F6" }}>
+                      <img src={src} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                      {idx === 0 && (
+                        <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"3px 0", textAlign:"center", background:P, color:"white", fontSize:10, fontWeight:700 }}>표지</div>
+                      )}
+                      {!posterSaving && (
+                        <button
+                          onClick={() => removePosterFile(idx)}
+                          style={{ position:"absolute", top:4, right:4, width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"rgba(0,0,0,0.6)", border:"none", color:"white", fontSize:12, cursor:"pointer" }}
+                        >×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* 이미지 선택 (추가) */}
               <label style={{ display:"block", cursor:"pointer" }}>
-                <input type="file" accept="image/*" onChange={e => pickPosterFile(e.target.files?.[0] ?? null)} style={{ display:"none" }} />
-                {posterPreview ? (
-                  <div style={{ position:"relative", borderRadius:12, overflow:"hidden", border:"1.5px solid #E5E7EB" }}>
-                    <img src={posterPreview} alt="" style={{ width:"100%", maxHeight:260, objectFit:"contain", background:"#F3F4F6", display:"block" }} />
-                    <div style={{ position:"absolute", bottom:8, right:8, padding:"4px 10px", borderRadius:8, background:"rgba(0,0,0,0.6)", color:"white", fontSize:12, fontWeight:600 }}>이미지 변경</div>
-                  </div>
-                ) : (
-                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, padding:"40px 0", border:"2px dashed #E5E7EB", borderRadius:12, color:"#9CA3AF" }}>
-                    <div style={{ fontSize:30 }}>📤</div>
-                    <div style={{ fontSize:13, fontWeight:600 }}>클릭해서 이미지 선택</div>
-                  </div>
-                )}
+                <input type="file" accept="image/*" multiple onChange={e => { addPosterFiles(e.target.files); e.target.value=""; }} style={{ display:"none" }} />
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, padding:posterPreviews.length?"22px 0":"40px 0", border:"2px dashed #E5E7EB", borderRadius:12, color:"#9CA3AF" }}>
+                  <div style={{ fontSize:posterPreviews.length?22:30 }}>📤</div>
+                  <div style={{ fontSize:13, fontWeight:600 }}>{posterPreviews.length ? "이미지 더 추가" : "클릭해서 이미지 선택 (여러 장 가능)"}</div>
+                </div>
               </label>
               <div>
                 <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>제목 (선택)</label>
@@ -744,23 +800,59 @@ export default function ActionBoard() {
               </div>
             </div>
             <div style={{ display:"flex", gap:10, marginTop:26 }}>
-              <button onClick={() => setShowPosterAdd(false)} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>취소</button>
+              <button onClick={() => { if(!posterSaving){ setShowPosterAdd(false); } }} disabled={posterSaving} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:posterSaving?"default":"pointer" }}>취소</button>
               <button
                 onClick={handleAddPoster}
-                disabled={posterSaving || !posterFile}
-                style={{ flex:2, padding:"13px", background:posterFile?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:posterFile?"white":"#9CA3AF", cursor:posterFile?"pointer":"default" }}
+                disabled={posterSaving || !posterFiles.length}
+                style={{ flex:2, padding:"13px", background:posterFiles.length?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:posterFiles.length?"white":"#9CA3AF", cursor:posterFiles.length?"pointer":"default" }}
               >
-                {posterSaving ? "업로드 중..." : "🖼️ 업로드"}
+                {posterSaving ? `업로드 중... ${posterProgress}%` : `🖼️ 업로드${posterFiles.length>1?` (${posterFiles.length}장)`:""}`}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── 포스터 크게 보기 모달 ── */}
-      {viewPoster && (
-        <div onClick={() => setViewPoster(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:600, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:32, gap:18 }}>
-          <img src={viewPoster.imageUrl} alt={viewPoster.title} onClick={e => e.stopPropagation()} style={{ maxWidth:"90vw", maxHeight:"78vh", objectFit:"contain", borderRadius:14, boxShadow:"0 24px 80px rgba(0,0,0,0.5)" }} />
+      {/* ── 포스터 크게 보기 모달 (캐러셀) ── */}
+      {viewPoster && (() => {
+        const imgs = posterImages(viewPoster);
+        const idx = Math.min(viewIdx, imgs.length - 1);
+        const go = (dir: number) => setViewIdx((idx + dir + imgs.length) % imgs.length);
+        return (
+        <div onClick={() => setViewPoster(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:600, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:32, gap:16 }}>
+          {/* 닫기 */}
+          <button onClick={() => setViewPoster(null)} style={{ position:"absolute", top:20, right:24, width:40, height:40, borderRadius:"50%", background:"rgba(255,255,255,0.12)", border:"none", color:"white", fontSize:20, cursor:"pointer" }}>×</button>
+
+          <div
+            onClick={e => e.stopPropagation()}
+            onTouchStart={e => { swipeStartX.current = e.touches[0].clientX; }}
+            onTouchEnd={e => {
+              if (swipeStartX.current == null || imgs.length < 2) return;
+              const dx = e.changedTouches[0].clientX - swipeStartX.current;
+              if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+              swipeStartX.current = null;
+            }}
+            style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"center", width:"100%", maxWidth:900 }}
+          >
+            {imgs.length > 1 && (
+              <button onClick={() => go(-1)} style={{ position:"absolute", left:0, transform:"translateX(-120%)", width:48, height:48, borderRadius:"50%", background:"rgba(255,255,255,0.15)", border:"none", color:"white", fontSize:24, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>‹</button>
+            )}
+            <img src={imgs[idx]?.url} alt={viewPoster.title} style={{ maxWidth:"90vw", maxHeight:"74vh", objectFit:"contain", borderRadius:14, boxShadow:"0 24px 80px rgba(0,0,0,0.5)" }} />
+            {imgs.length > 1 && (
+              <button onClick={() => go(1)} style={{ position:"absolute", right:0, transform:"translateX(120%)", width:48, height:48, borderRadius:"50%", background:"rgba(255,255,255,0.15)", border:"none", color:"white", fontSize:24, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>›</button>
+            )}
+          </div>
+
+          {/* 페이지 인디케이터 (점) */}
+          {imgs.length > 1 && (
+            <div onClick={e => e.stopPropagation()} style={{ display:"flex", gap:8, alignItems:"center" }}>
+              {imgs.map((_, i) => (
+                <span key={i} onClick={() => setViewIdx(i)} style={{ width:i===idx?22:8, height:8, borderRadius:100, background:i===idx?"white":"rgba(255,255,255,0.4)", cursor:"pointer", transition:"all 0.2s" }} />
+              ))}
+              <span style={{ color:"rgba(255,255,255,0.7)", fontSize:12, fontWeight:600, marginLeft:6 }}>{idx+1} / {imgs.length}</span>
+            </div>
+          )}
+
           <div onClick={e => e.stopPropagation()} style={{ display:"flex", alignItems:"center", gap:14 }}>
             <div style={{ color:"white", fontSize:16, fontWeight:700 }}>{viewPoster.title}</div>
             {viewPoster.linkUrl && (
@@ -768,7 +860,8 @@ export default function ActionBoard() {
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

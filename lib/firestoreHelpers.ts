@@ -392,15 +392,28 @@ export function subscribeToFavorites(cb: (favs: CloudFavorite[]) => void): Unsub
 
 // ─── Posters (공모전 / 프로젝트 포스터) ─────────────────────────────────────────
 
+export interface PosterImage {
+  url: string;
+  path: string;        // storage path (삭제용)
+}
+
 export interface CloudPoster {
   id: string;
   uid: string;
   creatorName: string;
   title: string;
-  imageUrl: string;
-  imagePath: string;   // storage path (삭제용)
-  linkUrl?: string;    // 클릭 시 이동할 주소 (선택)
+  images: PosterImage[];  // 여러 장 (표지 = images[0])
+  imageUrl: string;       // 하위호환: images[0].url
+  imagePath: string;      // 하위호환: images[0].path
+  linkUrl?: string;       // 클릭 시 이동할 주소 (선택)
   createdAt: number;
+}
+
+/** 포스터의 이미지 목록 (구버전 단일 이미지 문서도 호환) */
+export function posterImages(p: CloudPoster): PosterImage[] {
+  if (p.images && p.images.length) return p.images;
+  if (p.imageUrl) return [{ url: p.imageUrl, path: p.imagePath }];
+  return [];
 }
 
 function postersCol() {

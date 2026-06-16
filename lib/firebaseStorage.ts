@@ -135,10 +135,11 @@ export async function uploadPosterImage(
   posterId: string,
   file: File,
   onProgress?: (pct: number) => void,
+  index = 0,
 ): Promise<{ path: string; url: string }> {
   const storage = getStorageInstance();
   if (!storage) throw new Error("Firebase Storage not initialised");
-  const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const safeName = `${Date.now()}_${index}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const path = `posters/${posterId}/${safeName}`;
   const storageRef = ref(storage, path);
   if (onProgress) {

@@ -357,6 +357,74 @@ export function subscribeToBoardComments(
   return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudBoardComment)));
 }
 
+// ─── Favorites (즐겨찾기) ──────────────────────────────────────────────────────
+
+export interface CloudFavorite {
+  id: string;
+  uid: string;
+  creatorName: string;
+  name: string;        // 표시 이름
+  url: string;         // 주소 (링크)
+  createdAt: number;
+}
+
+function favoritesCol() {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "favorites");
+}
+function favoriteDoc(id: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "favorites", id);
+}
+
+export async function createFavorite(fav: CloudFavorite) {
+  await setDoc(favoriteDoc(fav.id), fav);
+}
+
+export async function deleteFavorite(id: string) {
+  await deleteDoc(favoriteDoc(id));
+}
+
+export function subscribeToFavorites(cb: (favs: CloudFavorite[]) => void): Unsubscribe {
+  const q = query(favoritesCol(), orderBy("createdAt", "asc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudFavorite)));
+}
+
+// ─── Posters (공모전 / 프로젝트 포스터) ─────────────────────────────────────────
+
+export interface CloudPoster {
+  id: string;
+  uid: string;
+  creatorName: string;
+  title: string;
+  imageUrl: string;
+  imagePath: string;   // storage path (삭제용)
+  linkUrl?: string;    // 클릭 시 이동할 주소 (선택)
+  createdAt: number;
+}
+
+function postersCol() {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "posters");
+}
+function posterDoc(id: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "posters", id);
+}
+
+export async function createPoster(poster: CloudPoster) {
+  await setDoc(posterDoc(poster.id), poster);
+}
+
+export async function deletePoster(id: string) {
+  await deleteDoc(posterDoc(id));
+}
+
+export function subscribeToPosters(cb: (posters: CloudPoster[]) => void): Unsubscribe {
+  const q = query(postersCol(), orderBy("createdAt", "desc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudPoster)));
+}
+
 // ─── MetaPrompts ─────────────────────────────────────────────────────────────
 
 export interface CloudMetaPrompt {

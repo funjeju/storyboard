@@ -156,6 +156,38 @@ export default function ActionBoard() {
   const [deleteTarget, setDeleteTarget] = useState<CloudActionBoard | null>(null);
   const [deleting, setDeleting]         = useState(false);
 
+  // QR state
+  const [qrBoard, setQrBoard]   = useState<CloudActionBoard | null>(null);
+  const [qrUrl, setQrUrl]       = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrCopied, setQrCopied] = useState(false);
+
+  const openQr = async (b: CloudActionBoard, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const url = `${window.location.origin}/actionboard/${b.id}`;
+    setQrBoard(b); setQrUrl(url); setQrDataUrl(""); setQrCopied(false);
+    try {
+      const QRCode = (await import("qrcode")).default;
+      const dataUrl = await QRCode.toDataURL(url, { width: 520, margin: 2, color: { dark: "#0F172A", light: "#FFFFFF" } });
+      setQrDataUrl(dataUrl);
+    } catch { /* silent */ }
+  };
+
+  const downloadQr = () => {
+    if (!qrDataUrl || !qrBoard) return;
+    const a = document.createElement("a");
+    a.href = qrDataUrl;
+    a.download = `QR_${qrBoard.title.replace(/[^a-zA-Z0-9가-힣]+/g, "_")}.png`;
+    a.click();
+  };
+
+  const copyQrUrl = () => {
+    navigator.clipboard?.writeText(qrUrl).then(() => {
+      setQrCopied(true);
+      setTimeout(() => setQrCopied(false), 1800);
+    }).catch(() => {});
+  };
+
   // favorites (즐겨찾기)
   const [favorites, setFavorites]   = useState<CloudFavorite[]>([]);
   const [showFavAdd, setShowFavAdd] = useState(false);
@@ -1145,6 +1177,11 @@ export default function ActionBoard() {
                               >🗑 삭제</button>
                             </>
                           )}
+                          <button
+                            onClick={e => openQr(board, e)}
+                            style={{ padding:"4px 10px", background:"rgba(124,58,237,0.08)", border:"none", borderRadius:7, fontSize:12, fontWeight:600, color:P, cursor:"pointer" }}
+                            title="QR 코드"
+                          >🔳 QR</button>
                           <span style={{ fontSize:13, fontWeight:700, color:P }}>열기 →</span>
                         </div>
                       </div>
@@ -1277,6 +1314,38 @@ export default function ActionBoard() {
               >
                 {deleting ? "삭제 중..." : "삭제"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 보드 QR 코드 모달 ── */}
+      {qrBoard && (
+        <div onClick={() => setQrBoard(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:550, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"34px", width:"100%", maxWidth:380, textAlign:"center", boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
+            <div style={{ fontSize:20, fontWeight:800, color:"#111827", marginBottom:4 }}>🔳 보드 QR 코드</div>
+            <div style={{ fontSize:13, color:"#6B7280", marginBottom:22, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{qrBoard.title}</div>
+
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", width:248, height:248, margin:"0 auto", background:"white", borderRadius:16, border:"1.5px solid #EEF0F4", boxShadow:"0 4px 16px rgba(0,0,0,0.06)" }}>
+              {qrDataUrl
+                ? <img src={qrDataUrl} alt="QR" style={{ width:220, height:220 }} />
+                : <span style={{ fontSize:13, color:"#9CA3AF" }}>생성 중...</span>}
+            </div>
+
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:18, padding:"9px 12px", background:"#F8F9FF", borderRadius:10 }}>
+              <span style={{ flex:1, fontSize:12, color:"#6B7280", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textAlign:"left" }}>{qrUrl}</span>
+              <button onClick={copyQrUrl} style={{ flex:"0 0 auto", padding:"5px 10px", borderRadius:8, border:"none", background:qrCopied?"#10B981":"#E5E7EB", color:qrCopied?"white":"#374151", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                {qrCopied ? "복사됨" : "복사"}
+              </button>
+            </div>
+
+            <div style={{ display:"flex", gap:10, marginTop:18 }}>
+              <button onClick={() => setQrBoard(null)} style={{ flex:1, padding:"12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>닫기</button>
+              <button
+                onClick={downloadQr}
+                disabled={!qrDataUrl}
+                style={{ flex:2, padding:"12px", background:qrDataUrl?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:qrDataUrl?"white":"#9CA3AF", cursor:qrDataUrl?"pointer":"default" }}
+              >⬇ PNG 저장</button>
             </div>
           </div>
         </div>

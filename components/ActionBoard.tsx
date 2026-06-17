@@ -571,9 +571,9 @@ export default function ActionBoard() {
         <div style={{ maxWidth:1280, margin:"0 auto", padding:"6px 32px", display:"flex", gap:6, overflowX:"auto" }} className="hscroll">
           {[
             { id:"sec-fav",    label:"⭐ 즐겨찾기" },
+            { id:"sec-posters",label:"🖼️ 포스터" },
             { id:"sec-notes",  label:"📝 메모" },
             { id:"sec-todos",  label:"✅ 투두" },
-            { id:"sec-posters",label:"🖼️ 포스터" },
             { id:"sec-boards", label:"📋 액션보드" },
           ].map(m => (
             <button
@@ -588,15 +588,15 @@ export default function ActionBoard() {
         </div>
       </div>
 
-      <div style={{ maxWidth:1280, margin:"0 auto", padding:"20px 32px 80px" }}>
+      <div style={{ maxWidth:1280, margin:"0 auto", padding:"20px 32px 80px", display:"flex", flexDirection:"column" }}>
 
         {/* ── 즐겨찾기 (Favorites) ── */}
-        <section id="sec-fav" className="sec" style={{ marginBottom:36, animation:"fadeUp 0.4s ease both" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+        <section id="sec-fav" className="sec" style={{ order:0, marginBottom:28, animation:"fadeUp 0.4s ease both" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
             <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>⭐ 즐겨찾기</span>
             <span style={{ fontSize:12, color:"#9CA3AF" }}>자주 쓰는 링크를 버튼으로 모아두세요</span>
           </div>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center" }}>
+          <div className="hscroll" style={{ display:"flex", gap:10, alignItems:"center", overflowX:"auto", paddingBottom:6 }}>
             {favorites.map(fav => (
               <a
                 key={fav.id}
@@ -604,7 +604,7 @@ export default function ActionBoard() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="fav-chip"
-                style={{ position:"relative", display:"inline-flex", alignItems:"center", gap:8, padding:"9px 16px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:100, fontSize:13, fontWeight:700, color:"#374151", textDecoration:"none", boxShadow:"0 1px 3px rgba(0,0,0,0.05)", transition:"all 0.15s" }}
+                style={{ flex:"0 0 auto", position:"relative", display:"inline-flex", alignItems:"center", gap:8, padding:"9px 16px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:100, fontSize:13, fontWeight:700, color:"#374151", textDecoration:"none", boxShadow:"0 1px 3px rgba(0,0,0,0.05)", transition:"all 0.15s" }}
               >
                 <span style={{ fontSize:14 }}>🔗</span>
                 <span style={{ maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{fav.name}</span>
@@ -626,20 +626,23 @@ export default function ActionBoard() {
             ))}
             <button
               onClick={() => user ? setShowFavAdd(true) : signIn()}
-              style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 16px", background:"rgba(124,58,237,0.07)", border:`1.5px dashed ${P}`, borderRadius:100, fontSize:13, fontWeight:700, color:P, cursor:"pointer" }}
+              style={{ flex:"0 0 auto", display:"inline-flex", alignItems:"center", gap:6, padding:"9px 16px", background:"rgba(124,58,237,0.07)", border:`1.5px dashed ${P}`, borderRadius:100, fontSize:13, fontWeight:700, color:P, cursor:"pointer", whiteSpace:"nowrap" }}
             >
               + 즐겨찾기 추가
             </button>
           </div>
         </section>
 
+        {/* ── 메모 + 투두 (한 줄, 2열) ── */}
+        <div style={{ order:2, display:"flex", gap:24, alignItems:"flex-start", flexWrap:"wrap", marginBottom:36 }}>
+
         {/* ── 포스트잇 메모 (Sticky Notes) ── */}
-        <section id="sec-notes" className="sec" style={{ marginBottom:36, animation:"fadeUp 0.42s ease both" }}>
+        <section id="sec-notes" className="sec" style={{ flex:"1 1 420px", minWidth:0, animation:"fadeUp 0.42s ease both" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
             <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>📝 메모</span>
-            <span style={{ fontSize:12, color:"#9CA3AF" }}>아이디어·키워드를 포스트잇처럼 가볍게 적어두세요</span>
+            <span style={{ fontSize:12, color:"#9CA3AF" }}>아이디어·키워드를 가볍게 적어두세요</span>
           </div>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:18, alignItems:"flex-start" }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:16, alignItems:"flex-start" }}>
             {/* 새 메모 입력 포스트잇 */}
             <div style={{ width:172, minHeight:172, background:newNoteColor, borderRadius:"2px 2px 14px 2px", boxShadow:"0 6px 14px rgba(0,0,0,0.12)", padding:"16px 14px 12px", display:"flex", flexDirection:"column" }}>
               <textarea
@@ -710,12 +713,12 @@ export default function ActionBoard() {
         </section>
 
         {/* ── 투두 (Todo) ── */}
-        <section id="sec-todos" className="sec" style={{ marginBottom:36, animation:"fadeUp 0.44s ease both" }}>
+        <section id="sec-todos" className="sec" style={{ flex:"1 1 340px", minWidth:0, maxWidth:520, animation:"fadeUp 0.44s ease both" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
             <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>✅ 투두</span>
             <span style={{ fontSize:12, color:"#9CA3AF" }}>할 일을 체크리스트로 관리하세요</span>
           </div>
-          <div style={{ maxWidth:560, background:"white", borderRadius:18, boxShadow:"0 2px 12px rgba(0,0,0,0.07)", padding:"18px 20px" }}>
+          <div style={{ background:"white", borderRadius:18, boxShadow:"0 2px 12px rgba(0,0,0,0.07)", padding:"18px 20px" }}>
             {/* 입력 */}
             <div style={{ display:"flex", gap:8, marginBottom:todos.length?14:0, flexWrap:"wrap" }}>
               <input
@@ -781,8 +784,10 @@ export default function ActionBoard() {
           </div>
         </section>
 
+        </div>{/* /메모+투두 row */}
+
         {/* ── 포스터 (공모전 / 프로젝트) ── */}
-        <section id="sec-posters" className="sec" style={{ marginBottom:36, animation:"fadeUp 0.45s ease both" }}>
+        <section id="sec-posters" className="sec" style={{ order:1, marginBottom:36, animation:"fadeUp 0.45s ease both" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
             <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>🖼️ 공모전 · 프로젝트 포스터</span>
             <span style={{ fontSize:12, color:"#9CA3AF" }}>포스터 이미지를 업로드해 보드처럼 모아보세요</span>
@@ -849,7 +854,7 @@ export default function ActionBoard() {
         </section>
 
         {/* ── 액션보드 (Boards) ── */}
-        <section id="sec-boards" className="sec">
+        <section id="sec-boards" className="sec" style={{ order:3 }}>
         {/* Header */}
         <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginBottom:32, animation:"fadeUp 0.4s ease both" }}>
           <div>

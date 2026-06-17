@@ -449,6 +449,80 @@ export function subscribeToPosters(cb: (posters: CloudPoster[]) => void): Unsubs
   return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudPoster)));
 }
 
+// ─── Sticky Notes (포스트잇 메모) ──────────────────────────────────────────────
+
+export interface CloudStickyNote {
+  id: string;
+  uid: string;
+  creatorName: string;
+  text: string;        // 메모 / 키워드
+  color: string;       // 포스트잇 색상 (hex)
+  createdAt: number;
+}
+
+function notesCol() {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "stickyNotes");
+}
+function noteDoc(id: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "stickyNotes", id);
+}
+
+export async function createStickyNote(note: CloudStickyNote) {
+  await setDoc(noteDoc(note.id), note);
+}
+
+export async function updateStickyNote(id: string, fields: Partial<Pick<CloudStickyNote, "text" | "color">>) {
+  await setDoc(noteDoc(id), fields, { merge: true });
+}
+
+export async function deleteStickyNote(id: string) {
+  await deleteDoc(noteDoc(id));
+}
+
+export function subscribeToStickyNotes(cb: (notes: CloudStickyNote[]) => void): Unsubscribe {
+  const q = query(notesCol(), orderBy("createdAt", "desc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudStickyNote)));
+}
+
+// ─── Todos (투두) ──────────────────────────────────────────────────────────────
+
+export interface CloudTodo {
+  id: string;
+  uid: string;
+  creatorName: string;
+  text: string;
+  done: boolean;
+  createdAt: number;
+}
+
+function todosCol() {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "todos");
+}
+function todoDoc(id: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "todos", id);
+}
+
+export async function createTodo(todo: CloudTodo) {
+  await setDoc(todoDoc(todo.id), todo);
+}
+
+export async function updateTodo(id: string, fields: Partial<Pick<CloudTodo, "text" | "done">>) {
+  await setDoc(todoDoc(id), fields, { merge: true });
+}
+
+export async function deleteTodo(id: string) {
+  await deleteDoc(todoDoc(id));
+}
+
+export function subscribeToTodos(cb: (todos: CloudTodo[]) => void): Unsubscribe {
+  const q = query(todosCol(), orderBy("createdAt", "asc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudTodo)));
+}
+
 // ─── MetaPrompts ─────────────────────────────────────────────────────────────
 
 export interface CloudMetaPrompt {

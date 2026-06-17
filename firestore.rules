@@ -38,6 +38,20 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
+    // 포스트잇 메모 — 누구나 읽기, 로그인 사용자만 생성, 본인만 수정·삭제
+    match /stickyNotes/{noteId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+
+    // 투두 — 누구나 읽기, 로그인 사용자만 생성, 본인만 수정·삭제
+    match /todos/{todoId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+
     // 액션보드 — 누구나 읽기, 로그인 사용자만 생성
     match /actionBoards/{boardId} {
       allow read: if true;

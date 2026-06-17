@@ -17,15 +17,28 @@ import {
   updatePoster,
   deletePoster,
   posterImages,
+  subscribeToStickyNotes,
+  createStickyNote,
+  updateStickyNote,
+  deleteStickyNote,
+  subscribeToTodos,
+  createTodo,
+  updateTodo,
+  deleteTodo,
   type CloudActionBoard,
   type CloudFavorite,
   type CloudPoster,
   type PosterImage,
+  type CloudStickyNote,
+  type CloudTodo,
 } from "@/lib/firestoreHelpers";
 import { uploadPosterImage, deleteStorageFile } from "@/lib/firebaseStorage";
 
 const P = "#7C3AED";
 const PINK = "#EC4899";
+
+// 포스트잇 색상 팔레트
+const STICKY_COLORS = ["#FFF59D", "#FFCDD2", "#C8E6C9", "#BBDEFB", "#FFE0B2", "#E1BEE7", "#B2EBF2"];
 
 function getBoardStatus(board: CloudActionBoard): "upcoming" | "open" | "closed" {
   const now = Date.now();
@@ -174,6 +187,65 @@ export default function ActionBoard() {
   const [editRemovedPaths, setEditRemovedPaths] = useState<string[]>([]);
   const [editPosterSaving, setEditPosterSaving] = useState(false);
   const [editPosterProgress, setEditPosterProgress] = useState(0);
+
+  // sticky notes (포스트잇 메모)
+  const [notes, setNotes]           = useState<CloudStickyNote[]>([]);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [newNoteColor, setNewNoteColor] = useState(STICKY_COLORS[0]);
+  const [editNoteId, setEditNoteId]   = useState<string | null>(null);
+  const [editNoteText, setEditNoteText] = useState("");
+
+  // todos (투두)
+  const [todos, setTodos]           = useState<CloudTodo[]>([]);
+  const [newTodoText, setNewTodoText] = useState("");
+
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleAddNote = async () => {
+    if (!newNoteText.trim()) return;
+    if (!user) { await signIn(); return; }
+    try {
+      await createStickyNote({
+        id: crypto.randomUUID(),
+        uid: user.uid,
+        creatorName: user.displayName ?? "익명",
+        text: newNoteText.trim(),
+        color: newNoteColor,
+        createdAt: Date.now(),
+      });
+      setNewNoteText("");
+    } catch { /* silent */ }
+  };
+
+  const startEditNote = (n: CloudStickyNote) => { setEditNoteId(n.id); setEditNoteText(n.text); };
+  const saveEditNote = async (n: CloudStickyNote) => {
+    if (!editNoteText.trim()) return;
+    try { await updateStickyNote(n.id, { text: editNoteText.trim() }); } catch { /* silent */ }
+    setEditNoteId(null);
+  };
+  const changeNoteColor = (n: CloudStickyNote, color: string) => {
+    updateStickyNote(n.id, { color }).catch(() => {});
+  };
+
+  const handleAddTodo = async () => {
+    if (!newTodoText.trim()) return;
+    if (!user) { await signIn(); return; }
+    try {
+      await createTodo({
+        id: crypto.randomUUID(),
+        uid: user.uid,
+        creatorName: user.displayName ?? "익명",
+        text: newTodoText.trim(),
+        done: false,
+        createdAt: Date.now(),
+      });
+      setNewTodoText("");
+    } catch { /* silent */ }
+  };
+
+  const toggleTodo = (t: CloudTodo) => { updateTodo(t.id, { done: !t.done }).catch(() => {}); };
 
   const normUrl = (u: string) => /^https?:\/\//i.test(u) ? u : `https://${u}`;
 
@@ -390,7 +462,9 @@ export default function ActionBoard() {
     const unsubBoards = subscribeToActionBoards(setBoards);
     const unsubFavs   = subscribeToFavorites(setFavorites);
     const unsubPost   = subscribeToPosters(setPosters);
-    return () => { unsubBoards(); unsubFavs(); unsubPost(); };
+    const unsubNotes  = subscribeToStickyNotes(setNotes);
+    const unsubTodos  = subscribeToTodos(setTodos);
+    return () => { unsubBoards(); unsubFavs(); unsubPost(); unsubNotes(); unsubTodos(); };
   }, []);
 
   // 포스터 뷰어 키보드 네비게이션
@@ -436,8 +510,13 @@ export default function ActionBoard() {
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6FA", fontFamily: "'Noto Sans KR',-apple-system,sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Nanum+Pen+Script&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; }
+        .sec { scroll-margin-top:130px; }
+        .sec-menu-btn { transition:all 0.15s; cursor:pointer; }
+        .sec-menu-btn:hover { background:rgba(124,58,237,0.1)!important; color:${P}!important; }
+        .sticky-note { transition:transform 0.18s ease, box-shadow 0.18s ease; }
+        .sticky-note:hover { transform:translateY(-4px) rotate(0deg)!important; box-shadow:0 14px 30px rgba(0,0,0,0.18)!important; z-index:5; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
         .board-card:hover { transform:translateY(-6px)!important; box-shadow:0 24px 48px rgba(0,0,0,0.14)!important; }
@@ -480,10 +559,32 @@ export default function ActionBoard() {
         </div>
       </nav>
 
-      <div style={{ maxWidth:1280, margin:"0 auto", padding:"40px 32px 80px" }}>
+      {/* 섹션 이동 메뉴 (스티키) */}
+      <div style={{ position:"sticky", top:64, zIndex:90, background:"rgba(244,246,250,0.85)", backdropFilter:"blur(8px)", borderBottom:"1px solid #E5E7EB" }}>
+        <div style={{ maxWidth:1280, margin:"0 auto", padding:"10px 32px", display:"flex", gap:6, overflowX:"auto" }} className="hscroll">
+          {[
+            { id:"sec-fav",    label:"⭐ 즐겨찾기" },
+            { id:"sec-notes",  label:"📝 메모" },
+            { id:"sec-todos",  label:"✅ 투두" },
+            { id:"sec-posters",label:"🖼️ 포스터" },
+            { id:"sec-boards", label:"📋 액션보드" },
+          ].map(m => (
+            <button
+              key={m.id}
+              onClick={() => scrollToSection(m.id)}
+              className="sec-menu-btn"
+              style={{ flex:"0 0 auto", padding:"7px 14px", borderRadius:100, border:"none", background:"white", fontSize:13, fontWeight:700, color:"#6B7280", whiteSpace:"nowrap", boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ maxWidth:1280, margin:"0 auto", padding:"32px 32px 80px" }}>
 
         {/* ── 즐겨찾기 (Favorites) ── */}
-        <div style={{ marginBottom:28, animation:"fadeUp 0.4s ease both" }}>
+        <section id="sec-fav" className="sec" style={{ marginBottom:36, animation:"fadeUp 0.4s ease both" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
             <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>⭐ 즐겨찾기</span>
             <span style={{ fontSize:12, color:"#9CA3AF" }}>자주 쓰는 링크를 버튼으로 모아두세요</span>
@@ -523,10 +624,128 @@ export default function ActionBoard() {
               + 즐겨찾기 추가
             </button>
           </div>
-        </div>
+        </section>
+
+        {/* ── 포스트잇 메모 (Sticky Notes) ── */}
+        <section id="sec-notes" className="sec" style={{ marginBottom:36, animation:"fadeUp 0.42s ease both" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
+            <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>📝 메모</span>
+            <span style={{ fontSize:12, color:"#9CA3AF" }}>아이디어·키워드를 포스트잇처럼 가볍게 적어두세요</span>
+          </div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:18, alignItems:"flex-start" }}>
+            {/* 새 메모 입력 포스트잇 */}
+            <div style={{ width:172, minHeight:172, background:newNoteColor, borderRadius:"2px 2px 14px 2px", boxShadow:"0 6px 14px rgba(0,0,0,0.12)", padding:"16px 14px 12px", display:"flex", flexDirection:"column" }}>
+              <textarea
+                value={newNoteText}
+                onChange={e => setNewNoteText(e.target.value)}
+                placeholder="메모 입력..."
+                rows={3}
+                style={{ flex:1, width:"100%", background:"transparent", border:"none", outline:"none", resize:"none", fontFamily:"'Nanum Pen Script',cursive", fontSize:22, lineHeight:1.25, color:"#3A3A3A" }}
+              />
+              <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:8 }}>
+                {STICKY_COLORS.map(c => (
+                  <span key={c} onClick={() => setNewNoteColor(c)} style={{ width:15, height:15, borderRadius:"50%", background:c, cursor:"pointer", border:newNoteColor===c?"2px solid #0F172A":"1px solid rgba(0,0,0,0.15)" }} />
+                ))}
+                <button
+                  onClick={handleAddNote}
+                  disabled={!newNoteText.trim()}
+                  style={{ marginLeft:"auto", padding:"5px 12px", borderRadius:8, border:"none", background:newNoteText.trim()?"#0F172A":"rgba(0,0,0,0.15)", color:"white", fontSize:12, fontWeight:700, cursor:newNoteText.trim()?"pointer":"default" }}
+                >붙이기</button>
+              </div>
+            </div>
+
+            {/* 메모 목록 */}
+            {notes.map((n, i) => {
+              const rot = [-2.5, 1.5, -1, 2, -3, 0.8][i % 6];
+              const editing = editNoteId === n.id;
+              return (
+                <div
+                  key={n.id}
+                  className="sticky-note"
+                  style={{ position:"relative", width:172, minHeight:172, background:n.color, borderRadius:"2px 2px 14px 2px", boxShadow:"0 6px 14px rgba(0,0,0,0.12)", padding:"18px 14px 12px", transform:`rotate(${rot}deg)`, display:"flex", flexDirection:"column" }}
+                >
+                  {/* 테이프 */}
+                  <div style={{ position:"absolute", top:-8, left:"50%", transform:"translateX(-50%) rotate(-2deg)", width:54, height:16, background:"rgba(255,255,255,0.5)", boxShadow:"0 1px 2px rgba(0,0,0,0.1)" }} />
+                  {editing ? (
+                    <>
+                      <textarea
+                        value={editNoteText}
+                        onChange={e => setEditNoteText(e.target.value)}
+                        rows={4}
+                        autoFocus
+                        style={{ flex:1, width:"100%", background:"transparent", border:"none", outline:"none", resize:"none", fontFamily:"'Nanum Pen Script',cursive", fontSize:22, lineHeight:1.25, color:"#3A3A3A" }}
+                      />
+                      <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:6 }}>
+                        {STICKY_COLORS.map(c => (
+                          <span key={c} onClick={() => changeNoteColor(n, c)} style={{ width:14, height:14, borderRadius:"50%", background:c, cursor:"pointer", border:n.color===c?"2px solid #0F172A":"1px solid rgba(0,0,0,0.15)" }} />
+                        ))}
+                        <button onClick={() => saveEditNote(n)} style={{ marginLeft:"auto", padding:"4px 10px", borderRadius:7, border:"none", background:"#0F172A", color:"white", fontSize:11, fontWeight:700, cursor:"pointer" }}>저장</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ flex:1, fontFamily:"'Nanum Pen Script',cursive", fontSize:22, lineHeight:1.25, color:"#3A3A3A", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{n.text}</div>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:8 }}>
+                        <span style={{ fontSize:11, color:"rgba(0,0,0,0.4)", fontWeight:600 }}>{n.creatorName}</span>
+                        {user?.uid === n.uid && (
+                          <div style={{ display:"flex", gap:8 }}>
+                            <span onClick={() => startEditNote(n)} style={{ fontSize:12, cursor:"pointer" }} title="수정">✏️</span>
+                            <span onClick={() => deleteStickyNote(n.id).catch(()=>{})} style={{ fontSize:12, cursor:"pointer" }} title="삭제">🗑</span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ── 투두 (Todo) ── */}
+        <section id="sec-todos" className="sec" style={{ marginBottom:36, animation:"fadeUp 0.44s ease both" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
+            <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>✅ 투두</span>
+            <span style={{ fontSize:12, color:"#9CA3AF" }}>할 일을 체크리스트로 관리하세요</span>
+          </div>
+          <div style={{ maxWidth:560, background:"white", borderRadius:18, boxShadow:"0 2px 12px rgba(0,0,0,0.07)", padding:"18px 20px" }}>
+            {/* 입력 */}
+            <div style={{ display:"flex", gap:8, marginBottom:todos.length?14:0 }}>
+              <input
+                value={newTodoText}
+                onChange={e => setNewTodoText(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleAddTodo(); }}
+                placeholder="할 일을 입력하고 Enter"
+                style={{ flex:1, padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+              />
+              <button
+                onClick={handleAddTodo}
+                disabled={!newTodoText.trim()}
+                style={{ padding:"11px 18px", borderRadius:10, border:"none", background:newTodoText.trim()?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", color:newTodoText.trim()?"white":"#9CA3AF", fontSize:14, fontWeight:700, cursor:newTodoText.trim()?"pointer":"default" }}
+              >추가</button>
+            </div>
+            {/* 목록 */}
+            {todos.map((t, i) => (
+              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 4px", borderTop:i===0?"none":"1px solid #F3F4F6" }}>
+                <span
+                  onClick={() => user?.uid === t.uid ? toggleTodo(t) : undefined}
+                  style={{ width:22, height:22, flex:"0 0 auto", borderRadius:7, border:`2px solid ${t.done?"#10B981":"#D1D5DB"}`, background:t.done?"#10B981":"white", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:13, fontWeight:800, cursor:user?.uid===t.uid?"pointer":"default" }}
+                >{t.done ? "✓" : ""}</span>
+                <span style={{ flex:1, fontSize:14, fontWeight:500, color:t.done?"#9CA3AF":"#1F2937", textDecoration:t.done?"line-through":"none" }}>{t.text}</span>
+                <span style={{ fontSize:11, color:"#C0C4CC", fontWeight:600 }}>{t.creatorName}</span>
+                {user?.uid === t.uid && (
+                  <span onClick={() => deleteTodo(t.id).catch(()=>{})} style={{ fontSize:13, cursor:"pointer", color:"#9CA3AF" }} title="삭제">🗑</span>
+                )}
+              </div>
+            ))}
+            {todos.length === 0 && (
+              <div style={{ textAlign:"center", padding:"24px 0 8px", color:"#9CA3AF", fontSize:13 }}>아직 할 일이 없어요</div>
+            )}
+          </div>
+        </section>
 
         {/* ── 포스터 (공모전 / 프로젝트) ── */}
-        <div style={{ marginBottom:36, animation:"fadeUp 0.45s ease both" }}>
+        <section id="sec-posters" className="sec" style={{ marginBottom:36, animation:"fadeUp 0.45s ease both" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
             <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>🖼️ 공모전 · 프로젝트 포스터</span>
             <span style={{ fontSize:12, color:"#9CA3AF" }}>포스터 이미지를 업로드해 보드처럼 모아보세요</span>
@@ -590,8 +809,10 @@ export default function ActionBoard() {
               })}
             </div>
           )}
-        </div>
+        </section>
 
+        {/* ── 액션보드 (Boards) ── */}
+        <section id="sec-boards" className="sec">
         {/* Header */}
         <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginBottom:32, animation:"fadeUp 0.4s ease both" }}>
           <div>
@@ -704,6 +925,7 @@ export default function ActionBoard() {
             })}
           </div>
         )}
+        </section>
       </div>
 
       {/* Create modal */}

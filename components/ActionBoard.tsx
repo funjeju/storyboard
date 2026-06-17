@@ -332,6 +332,27 @@ export default function ActionBoard() {
 
   const normUrl = (u: string) => /^https?:\/\//i.test(u) ? u : `https://${u}`;
 
+  // 텍스트 속 URL을 클릭 가능한 링크로 변환
+  const linkify = (text: string) => {
+    const parts = text.split(/(https?:\/\/[^\s]+|www\.[^\s]+)/gi);
+    return parts.map((part, i) => {
+      if (/^(https?:\/\/|www\.)/i.test(part)) {
+        const href = part.startsWith("http") ? part : `https://${part}`;
+        return (
+          <a
+            key={i}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            style={{ color:"#2563EB", textDecoration:"underline", wordBreak:"break-all" }}
+          >{part}</a>
+        );
+      }
+      return part;
+    });
+  };
+
   const handleAddFavorite = async () => {
     if (!favName.trim() || !favUrl.trim()) return;
     if (!user) { await signIn(); return; }
@@ -816,7 +837,7 @@ export default function ActionBoard() {
                     </>
                   ) : (
                     <>
-                      <div style={{ flex:1, fontFamily:"'Gowun Dodum',sans-serif", fontSize:15, lineHeight:1.5, color:"#3A3A3A", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{n.text}</div>
+                      <div style={{ flex:1, fontFamily:"'Gowun Dodum',sans-serif", fontSize:15, lineHeight:1.5, color:"#3A3A3A", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{linkify(n.text)}</div>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:8 }}>
                         <span style={{ fontSize:11, color:"rgba(0,0,0,0.4)", fontWeight:600 }}>{n.creatorName}</span>
                         {user?.uid === n.uid && (

@@ -406,6 +406,7 @@ export interface CloudPoster {
   uid: string;
   creatorName: string;
   title: string;
+  body?: string;          // 본문 (선택)
   images: PosterImage[];  // 여러 장 (표지 = images[0])
   imageUrl: string;       // 하위호환: images[0].url
   imagePath: string;      // 하위호환: images[0].path
@@ -435,7 +436,7 @@ export async function createPoster(poster: CloudPoster) {
 
 export async function updatePoster(
   id: string,
-  fields: Partial<Pick<CloudPoster, "title" | "linkUrl" | "images" | "imageUrl" | "imagePath">>,
+  fields: Partial<Pick<CloudPoster, "title" | "body" | "linkUrl" | "images" | "imageUrl" | "imagePath">>,
 ) {
   await setDoc(posterDoc(id), fields, { merge: true });
 }

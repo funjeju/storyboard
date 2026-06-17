@@ -171,11 +171,13 @@ export default function ActionBoard() {
   const [posters, setPosters]         = useState<CloudPoster[]>([]);
   const [showPosterAdd, setShowPosterAdd] = useState(false);
   const [posterTitle, setPosterTitle] = useState("");
+  const [posterBody, setPosterBody]   = useState("");
   const [posterLink, setPosterLink]   = useState("");
   const [posterFiles, setPosterFiles]     = useState<File[]>([]);
   const [posterPreviews, setPosterPreviews] = useState<string[]>([]);
   const [posterSaving, setPosterSaving]   = useState(false);
   const [posterProgress, setPosterProgress] = useState(0);
+  const [showAllPosters, setShowAllPosters] = useState(false);
   const [viewPoster, setViewPoster]   = useState<CloudPoster | null>(null);
   const [viewIdx, setViewIdx]         = useState(0);
   const swipeStartX = useRef<number | null>(null);
@@ -183,6 +185,7 @@ export default function ActionBoard() {
   // poster edit
   const [editPoster, setEditPoster]   = useState<CloudPoster | null>(null);
   const [editPosterTitle, setEditPosterTitle] = useState("");
+  const [editPosterBody, setEditPosterBody]   = useState("");
   const [editPosterLink, setEditPosterLink]   = useState("");
   const [editItems, setEditItems]             = useState<EditItem[]>([]);
   const [editRemovedPaths, setEditRemovedPaths] = useState<string[]>([]);
@@ -200,6 +203,9 @@ export default function ActionBoard() {
   const [todos, setTodos]           = useState<CloudTodo[]>([]);
   const [newTodoText, setNewTodoText] = useState("");
   const [newTodoDue, setNewTodoDue]   = useState("");  // yyyy-mm-dd
+  const [calMonth, setCalMonth]       = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  const [calSelKey, setCalSelKey]     = useState<string | null>(null);
+  const dayKey = (y: number, m: number, d: number) => `${y}-${m}-${d}`;
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -334,7 +340,7 @@ export default function ActionBoard() {
   };
 
   const resetPosterForm = () => {
-    setPosterTitle(""); setPosterLink("");
+    setPosterTitle(""); setPosterBody(""); setPosterLink("");
     setPosterFiles([]); setPosterPreviews([]); setPosterProgress(0);
   };
 
@@ -378,6 +384,7 @@ export default function ActionBoard() {
         uid: user.uid,
         creatorName: user.displayName ?? "익명",
         title: posterTitle.trim() || posterFiles[0].name,
+        ...(posterBody.trim() ? { body: posterBody.trim() } : {}),
         images,
         imageUrl: images[0].url,
         imagePath: images[0].path,
@@ -400,10 +407,55 @@ export default function ActionBoard() {
 
   const openPoster = (p: CloudPoster) => { setViewPoster(p); setViewIdx(0); };
 
+  const posterCard = (p: CloudPoster, i: number) => {
+    const imgs = posterImages(p);
+    return (
+      <div
+        key={p.id}
+        onClick={() => openPoster(p)}
+        className="poster-card"
+        style={{ flex:"0 0 auto", width:200, scrollSnapAlign:"start", borderRadius:16, overflow:"hidden", background:"white", boxShadow:"0 2px 12px rgba(0,0,0,0.08)", cursor:"pointer", position:"relative", transition:"transform 0.2s ease, box-shadow 0.2s ease", animation:`fadeUp 0.4s ease ${i*0.05}s both` }}
+      >
+        <div style={{ width:"100%", aspectRatio:"3 / 4", background:"#F3F4F6", overflow:"hidden", position:"relative" }}>
+          <img src={imgs[0]?.url} alt={p.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+          {imgs.length > 1 && (
+            <div style={{ position:"absolute", bottom:8, right:8, display:"flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:100, background:"rgba(0,0,0,0.6)", color:"white", fontSize:11, fontWeight:700, backdropFilter:"blur(4px)" }}>
+              🖼️ {imgs.length}
+            </div>
+          )}
+        </div>
+        <div style={{ padding:"10px 12px" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#1F2937", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.title}</div>
+          {p.body
+            ? <div style={{ fontSize:11, color:"#6B7280", marginTop:3, lineHeight:1.4, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{p.body}</div>
+            : <div style={{ fontSize:11, color:"#9CA3AF", marginTop:2 }}>{p.creatorName}</div>}
+        </div>
+        {user?.uid === p.uid && (
+          <div style={{ position:"absolute", top:8, right:8, display:"flex", gap:6 }}>
+            <button
+              onClick={e => openEditPoster(p, e)}
+              style={{ width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", color:"white", fontSize:12, cursor:"pointer", backdropFilter:"blur(4px)" }}
+              title="수정"
+            >✏️</button>
+            <button
+              onClick={e => handleDeletePoster(p, e)}
+              style={{ width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", color:"white", fontSize:13, cursor:"pointer", backdropFilter:"blur(4px)" }}
+              title="삭제"
+            >🗑</button>
+          </div>
+        )}
+        {p.linkUrl && (
+          <div style={{ position:"absolute", top:8, left:8, padding:"3px 8px", borderRadius:8, background:"rgba(0,0,0,0.55)", color:"white", fontSize:10, fontWeight:700, backdropFilter:"blur(4px)" }}>🔗 링크</div>
+        )}
+      </div>
+    );
+  };
+
   const openEditPoster = (p: CloudPoster, e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
     setEditPoster(p);
     setEditPosterTitle(p.title);
+    setEditPosterBody(p.body ?? "");
     setEditPosterLink(p.linkUrl ?? "");
     setEditItems(posterImages(p).map(img => ({ kind: "existing" as const, img })));
     setEditRemovedPaths([]);
@@ -452,6 +504,7 @@ export default function ActionBoard() {
       }
       await updatePoster(editPoster.id, {
         title: editPosterTitle.trim() || "포스터",
+        body: editPosterBody.trim(),
         linkUrl: editPosterLink.trim() ? normUrl(editPosterLink.trim()) : "",
         images,
         imageUrl: images[0].url,
@@ -557,7 +610,7 @@ export default function ActionBoard() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Gowun+Dodum&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; }
-        .sec { scroll-margin-top:130px; }
+        .sec { scroll-margin-top:84px; }
         .sec-menu-btn { transition:all 0.15s; cursor:pointer; }
         .sec-menu-btn:hover { background:rgba(124,58,237,0.1)!important; color:${P}!important; }
         .sticky-note { transition:transform 0.18s ease, box-shadow 0.18s ease; }
@@ -588,9 +641,30 @@ export default function ActionBoard() {
             </div>
           </Link>
           <div style={{ width:1, height:24, background:"#E5E7EB", margin:"0 4px" }} />
-          <span style={{ fontSize:14, fontWeight:700, color:P }}>📋 액션보드</span>
+          <span style={{ fontSize:14, fontWeight:700, color:P, whiteSpace:"nowrap" }}>📋 액션보드</span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+
+        {/* 섹션 이동 메뉴 (nav 중앙) */}
+        <div className="hscroll" style={{ flex:1, display:"flex", gap:6, justifyContent:"center", alignItems:"center", overflowX:"auto", margin:"0 16px" }}>
+          {[
+            { id:"sec-fav",    label:"⭐ 즐겨찾기" },
+            { id:"sec-posters",label:"🖼️ 포스터" },
+            { id:"sec-notes",  label:"📝 메모" },
+            { id:"sec-todos",  label:"✅ 투두" },
+            { id:"sec-boards", label:"📋 액션보드" },
+          ].map(m => (
+            <button
+              key={m.id}
+              onClick={() => scrollToSection(m.id)}
+              className="sec-menu-btn"
+              style={{ flex:"0 0 auto", padding:"6px 13px", borderRadius:100, border:"none", background:"#F4F6FA", fontSize:13, fontWeight:700, color:"#6B7280", whiteSpace:"nowrap" }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:12, flex:"0 0 auto" }}>
           {user ? (
             <>
               <img src={user.photoURL ?? ""} alt="" style={{ width:32, height:32, borderRadius:"50%", objectFit:"cover" }} />
@@ -604,29 +678,7 @@ export default function ActionBoard() {
         </div>
       </nav>
 
-      {/* 섹션 이동 메뉴 (스티키) */}
-      <div style={{ position:"sticky", top:64, zIndex:90, background:"rgba(244,246,250,0.85)", backdropFilter:"blur(8px)", borderBottom:"1px solid #E5E7EB" }}>
-        <div style={{ maxWidth:1280, margin:"0 auto", padding:"6px 32px", display:"flex", gap:6, overflowX:"auto" }} className="hscroll">
-          {[
-            { id:"sec-fav",    label:"⭐ 즐겨찾기" },
-            { id:"sec-posters",label:"🖼️ 포스터" },
-            { id:"sec-notes",  label:"📝 메모" },
-            { id:"sec-todos",  label:"✅ 투두" },
-            { id:"sec-boards", label:"📋 액션보드" },
-          ].map(m => (
-            <button
-              key={m.id}
-              onClick={() => scrollToSection(m.id)}
-              className="sec-menu-btn"
-              style={{ flex:"0 0 auto", padding:"7px 14px", borderRadius:100, border:"none", background:"white", fontSize:13, fontWeight:700, color:"#6B7280", whiteSpace:"nowrap", boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ maxWidth:1280, margin:"0 auto", padding:"20px 32px 80px", display:"flex", flexDirection:"column" }}>
+      <div style={{ maxWidth:1280, margin:"0 auto", padding:"28px 32px 80px", display:"flex", flexDirection:"column" }}>
 
         {/* ── 즐겨찾기 (Favorites) ── */}
         <section id="sec-fav" className="sec" style={{ order:0, marginBottom:28, animation:"fadeUp 0.4s ease both" }}>
@@ -752,6 +804,72 @@ export default function ActionBoard() {
 
         {/* ── 투두 (Todo) ── */}
         <section id="sec-todos" className="sec" style={{ flex:"1 1 340px", minWidth:0, maxWidth:520, animation:"fadeUp 0.44s ease both" }}>
+          {/* 캘린더 (투두 마감일 연동) */}
+          {(() => {
+            const year = calMonth.getFullYear(), month = calMonth.getMonth();
+            const startDow = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+            const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+            const todayKey = dayKey(today.getFullYear(), today.getMonth(), today.getDate());
+            const byDay: Record<string, CloudTodo[]> = {};
+            todos.forEach(t => { if (t.dueAt) { const d = new Date(t.dueAt); const k = dayKey(d.getFullYear(), d.getMonth(), d.getDate()); (byDay[k] ??= []).push(t); } });
+            const cells: (number | null)[] = [];
+            for (let i = 0; i < startDow; i++) cells.push(null);
+            for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+            const selList = calSelKey ? (byDay[calSelKey] ?? []) : [];
+            const navBtn: React.CSSProperties = { width:28, height:28, borderRadius:8, border:"none", background:"#F3F4F6", color:"#6B7280", fontSize:15, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" };
+            return (
+              <div style={{ background:"white", borderRadius:18, boxShadow:"0 2px 12px rgba(0,0,0,0.07)", padding:"16px 18px", marginBottom:16 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                  <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>📅 {year}년 {month + 1}월</span>
+                  <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                    <button onClick={() => { setCalMonth(new Date(year, month - 1, 1)); setCalSelKey(null); }} style={navBtn}>‹</button>
+                    <button onClick={() => { setCalMonth(new Date(today.getFullYear(), today.getMonth(), 1)); setCalSelKey(null); }} style={{ ...navBtn, width:"auto", padding:"0 10px", fontSize:12, fontWeight:700 }}>오늘</button>
+                    <button onClick={() => { setCalMonth(new Date(year, month + 1, 1)); setCalSelKey(null); }} style={navBtn}>›</button>
+                  </div>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2, marginBottom:4 }}>
+                  {["일","월","화","수","목","금","토"].map((w, wi) => (
+                    <div key={w} style={{ textAlign:"center", fontSize:11, fontWeight:700, color:wi===0?"#EF4444":wi===6?"#3B82F6":"#9CA3AF" }}>{w}</div>
+                  ))}
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2 }}>
+                  {cells.map((d, ci) => {
+                    if (d === null) return <div key={`e${ci}`} />;
+                    const k = dayKey(year, month, d);
+                    const list = byDay[k] ?? [];
+                    const hasIncomplete = list.some(t => !t.done);
+                    const allDone = list.length > 0 && !hasIncomplete;
+                    const isToday = k === todayKey;
+                    const isSel = k === calSelKey;
+                    const overdueDay = hasIncomplete && new Date(year, month, d).getTime() < todayMid;
+                    return (
+                      <div
+                        key={k}
+                        onClick={() => list.length ? setCalSelKey(isSel ? null : k) : undefined}
+                        style={{ aspectRatio:"1", borderRadius:8, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:2, cursor:list.length?"pointer":"default", background:isSel?"rgba(124,58,237,0.12)":(isToday?"rgba(124,58,237,0.06)":"transparent"), border:isToday?`1.5px solid ${P}`:"1.5px solid transparent" }}
+                      >
+                        <span style={{ fontSize:12, fontWeight:isToday?800:600, color:list.length?(overdueDay?"#DC2626":(allDone?"#059669":"#1F2937")):"#C0C4CC" }}>{d}</span>
+                        {list.length > 0 && <span style={{ width:5, height:5, borderRadius:"50%", background:overdueDay?"#DC2626":(allDone?"#10B981":P) }} />}
+                      </div>
+                    );
+                  })}
+                </div>
+                {calSelKey && selList.length > 0 && (
+                  <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid #F3F4F6", display:"flex", flexDirection:"column", gap:7 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:"#6B7280", marginBottom:2 }}>🚩 이 날 마감</div>
+                    {selList.map(t => (
+                      <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ width:8, height:8, borderRadius:"50%", background:t.done?"#10B981":"#EF4444", flex:"0 0 auto" }} />
+                        <span style={{ flex:1, fontSize:12, color:t.done?"#9CA3AF":"#374151", textDecoration:t.done?"line-through":"none", wordBreak:"break-word" }}>{t.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
             <span style={{ fontSize:15, fontWeight:800, color:"#0F172A" }}>✅ 투두</span>
             <span style={{ fontSize:12, color:"#9CA3AF" }}>할 일을 체크리스트로 관리하세요</span>
@@ -907,47 +1025,18 @@ export default function ActionBoard() {
             </div>
           ) : (
             <div className="hscroll" style={{ display:"flex", gap:16, overflowX:"auto", paddingBottom:10, scrollSnapType:"x proximity" }}>
-              {posters.map((p, i) => {
-                const imgs = posterImages(p);
-                return (
+              {posters.slice(0, 3).map((p, i) => posterCard(p, i))}
+              {posters.length > 3 && (
                 <div
-                  key={p.id}
-                  onClick={() => openPoster(p)}
+                  onClick={() => setShowAllPosters(true)}
                   className="poster-card"
-                  style={{ flex:"0 0 auto", width:200, scrollSnapAlign:"start", borderRadius:16, overflow:"hidden", background:"white", boxShadow:"0 2px 12px rgba(0,0,0,0.08)", cursor:"pointer", position:"relative", transition:"transform 0.2s ease, box-shadow 0.2s ease", animation:`fadeUp 0.4s ease ${i*0.05}s both` }}
+                  style={{ flex:"0 0 auto", width:200, borderRadius:16, background:"linear-gradient(135deg,#F8F7FF,#F3EEFF)", border:`2px dashed ${P}`, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, color:P, transition:"transform 0.2s ease, box-shadow 0.2s ease" }}
                 >
-                  <div style={{ width:"100%", aspectRatio:"3 / 4", background:"#F3F4F6", overflow:"hidden", position:"relative" }}>
-                    <img src={imgs[0]?.url} alt={p.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-                    {imgs.length > 1 && (
-                      <div style={{ position:"absolute", bottom:8, right:8, display:"flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:100, background:"rgba(0,0,0,0.6)", color:"white", fontSize:11, fontWeight:700, backdropFilter:"blur(4px)" }}>
-                        🖼️ {imgs.length}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ padding:"10px 12px" }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:"#1F2937", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.title}</div>
-                    <div style={{ fontSize:11, color:"#9CA3AF", marginTop:2 }}>{p.creatorName}</div>
-                  </div>
-                  {user?.uid === p.uid && (
-                    <div style={{ position:"absolute", top:8, right:8, display:"flex", gap:6 }}>
-                      <button
-                        onClick={e => openEditPoster(p, e)}
-                        style={{ width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", color:"white", fontSize:12, cursor:"pointer", backdropFilter:"blur(4px)" }}
-                        title="수정"
-                      >✏️</button>
-                      <button
-                        onClick={e => handleDeletePoster(p, e)}
-                        style={{ width:26, height:26, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", color:"white", fontSize:13, cursor:"pointer", backdropFilter:"blur(4px)" }}
-                        title="삭제"
-                      >🗑</button>
-                    </div>
-                  )}
-                  {p.linkUrl && (
-                    <div style={{ position:"absolute", top:8, left:8, padding:"3px 8px", borderRadius:8, background:"rgba(0,0,0,0.55)", color:"white", fontSize:10, fontWeight:700, backdropFilter:"blur(4px)" }}>🔗 링크</div>
-                  )}
+                  <div style={{ fontSize:30 }}>➕</div>
+                  <div style={{ fontSize:14, fontWeight:800 }}>더보기</div>
+                  <div style={{ fontSize:12, fontWeight:600, opacity:0.8 }}>+{posters.length - 3}개</div>
                 </div>
-                );
-              })}
+              )}
             </div>
           )}
         </section>
@@ -1320,6 +1409,16 @@ export default function ActionBoard() {
                 />
               </div>
               <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>본문 (선택)</label>
+                <textarea
+                  value={posterBody}
+                  onChange={e => setPosterBody(e.target.value)}
+                  placeholder="공모전 일정, 상금, 참가 방법 등 자유롭게 적어보세요"
+                  rows={4}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none", resize:"vertical", lineHeight:1.6 }}
+                />
+              </div>
+              <div>
                 <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>바로가기 링크 (선택)</label>
                 <input
                   value={posterLink}
@@ -1394,6 +1493,16 @@ export default function ActionBoard() {
                 />
               </div>
               <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>본문 (선택)</label>
+                <textarea
+                  value={editPosterBody}
+                  onChange={e => setEditPosterBody(e.target.value)}
+                  placeholder="공모전 일정, 상금, 참가 방법 등 자유롭게 적어보세요"
+                  rows={4}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none", resize:"vertical", lineHeight:1.6 }}
+                />
+              </div>
+              <div>
                 <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>바로가기 링크 (선택)</label>
                 <input
                   value={editPosterLink}
@@ -1412,6 +1521,24 @@ export default function ActionBoard() {
               >
                 {editPosterSaving ? (editItems.some(i=>i.kind==="new") ? `저장 중... ${editPosterProgress}%` : "저장 중...") : "✏️ 수정 완료"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 전체 포스터 모달 (더보기) ── */}
+      {showAllPosters && (
+        <div onClick={() => setShowAllPosters(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:550, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"32px", width:"100%", maxWidth:900, maxHeight:"86vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }} className="hscroll">
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+              <div>
+                <div style={{ fontSize:22, fontWeight:800, color:"#111827" }}>🖼️ 전체 포스터</div>
+                <div style={{ fontSize:13, color:"#6B7280", marginTop:4 }}>총 {posters.length}개</div>
+              </div>
+              <button onClick={() => setShowAllPosters(false)} style={{ width:36, height:36, borderRadius:"50%", background:"#F3F4F6", border:"none", color:"#6B7280", fontSize:18, cursor:"pointer" }}>×</button>
+            </div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:16, justifyContent:"flex-start" }}>
+              {posters.map((p, i) => posterCard(p, i))}
             </div>
           </div>
         </div>
@@ -1471,6 +1598,11 @@ export default function ActionBoard() {
           )}
 
           <div onClick={e => e.stopPropagation()} style={{ color:"white", fontSize:16, fontWeight:700 }}>{viewPoster.title}</div>
+          {viewPoster.body && (
+            <div onClick={e => e.stopPropagation()} style={{ maxWidth:560, maxHeight:"22vh", overflowY:"auto", color:"rgba(255,255,255,0.85)", fontSize:14, lineHeight:1.7, whiteSpace:"pre-wrap", textAlign:"center", background:"rgba(255,255,255,0.06)", borderRadius:12, padding:"14px 18px" }} className="hscroll">
+              {viewPoster.body}
+            </div>
+          )}
         </div>
         );
       })()}

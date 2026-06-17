@@ -198,6 +198,7 @@ export default function ActionBoard() {
   // todos (투두)
   const [todos, setTodos]           = useState<CloudTodo[]>([]);
   const [newTodoText, setNewTodoText] = useState("");
+  const [newTodoDue, setNewTodoDue]   = useState("");  // yyyy-mm-dd
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -229,6 +230,10 @@ export default function ActionBoard() {
     updateStickyNote(n.id, { color }).catch(() => {});
   };
 
+  const dateInputToTs = (s: string) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d).getTime(); };
+  const tsToDateInput = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+  const fmtDay = (ts: number) => { const d = new Date(ts); return `${d.getMonth()+1}/${d.getDate()}`; };
+
   const handleAddTodo = async () => {
     if (!newTodoText.trim()) return;
     if (!user) { await signIn(); return; }
@@ -240,12 +245,14 @@ export default function ActionBoard() {
         text: newTodoText.trim(),
         done: false,
         createdAt: Date.now(),
+        ...(newTodoDue ? { dueAt: dateInputToTs(newTodoDue) } : {}),
       });
-      setNewTodoText("");
+      setNewTodoText(""); setNewTodoDue("");
     } catch { /* silent */ }
   };
 
   const toggleTodo = (t: CloudTodo) => { updateTodo(t.id, { done: !t.done }).catch(() => {}); };
+  const setTodoDue = (t: CloudTodo, s: string) => { updateTodo(t.id, { dueAt: s ? dateInputToTs(s) : null }).catch(() => {}); };
 
   const normUrl = (u: string) => /^https?:\/\//i.test(u) ? u : `https://${u}`;
 
@@ -561,7 +568,7 @@ export default function ActionBoard() {
 
       {/* 섹션 이동 메뉴 (스티키) */}
       <div style={{ position:"sticky", top:64, zIndex:90, background:"rgba(244,246,250,0.85)", backdropFilter:"blur(8px)", borderBottom:"1px solid #E5E7EB" }}>
-        <div style={{ maxWidth:1280, margin:"0 auto", padding:"10px 32px", display:"flex", gap:6, overflowX:"auto" }} className="hscroll">
+        <div style={{ maxWidth:1280, margin:"0 auto", padding:"6px 32px", display:"flex", gap:6, overflowX:"auto" }} className="hscroll">
           {[
             { id:"sec-fav",    label:"⭐ 즐겨찾기" },
             { id:"sec-notes",  label:"📝 메모" },
@@ -581,7 +588,7 @@ export default function ActionBoard() {
         </div>
       </div>
 
-      <div style={{ maxWidth:1280, margin:"0 auto", padding:"32px 32px 80px" }}>
+      <div style={{ maxWidth:1280, margin:"0 auto", padding:"20px 32px 80px" }}>
 
         {/* ── 즐겨찾기 (Favorites) ── */}
         <section id="sec-fav" className="sec" style={{ marginBottom:36, animation:"fadeUp 0.4s ease both" }}>
@@ -710,34 +717,64 @@ export default function ActionBoard() {
           </div>
           <div style={{ maxWidth:560, background:"white", borderRadius:18, boxShadow:"0 2px 12px rgba(0,0,0,0.07)", padding:"18px 20px" }}>
             {/* 입력 */}
-            <div style={{ display:"flex", gap:8, marginBottom:todos.length?14:0 }}>
+            <div style={{ display:"flex", gap:8, marginBottom:todos.length?14:0, flexWrap:"wrap" }}>
               <input
                 value={newTodoText}
                 onChange={e => setNewTodoText(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleAddTodo(); }}
                 placeholder="할 일을 입력하고 Enter"
-                style={{ flex:1, padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                style={{ flex:"1 1 180px", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+              />
+              <input
+                type="date"
+                value={newTodoDue}
+                onChange={e => setNewTodoDue(e.target.value)}
+                title="마감일 (선택)"
+                style={{ flex:"0 0 auto", padding:"11px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:13, fontFamily:"inherit", color:newTodoDue?"#1F2937":"#9CA3AF", outline:"none", cursor:"pointer" }}
               />
               <button
                 onClick={handleAddTodo}
                 disabled={!newTodoText.trim()}
-                style={{ padding:"11px 18px", borderRadius:10, border:"none", background:newTodoText.trim()?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", color:newTodoText.trim()?"white":"#9CA3AF", fontSize:14, fontWeight:700, cursor:newTodoText.trim()?"pointer":"default" }}
+                style={{ flex:"0 0 auto", padding:"11px 18px", borderRadius:10, border:"none", background:newTodoText.trim()?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", color:newTodoText.trim()?"white":"#9CA3AF", fontSize:14, fontWeight:700, cursor:newTodoText.trim()?"pointer":"default" }}
               >추가</button>
             </div>
             {/* 목록 */}
-            {todos.map((t, i) => (
+            {todos.map((t, i) => {
+              const overdue = !!t.dueAt && !t.done && t.dueAt < Date.now();
+              const isOwner = user?.uid === t.uid;
+              return (
               <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 4px", borderTop:i===0?"none":"1px solid #F3F4F6" }}>
                 <span
-                  onClick={() => user?.uid === t.uid ? toggleTodo(t) : undefined}
-                  style={{ width:22, height:22, flex:"0 0 auto", borderRadius:7, border:`2px solid ${t.done?"#10B981":"#D1D5DB"}`, background:t.done?"#10B981":"white", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:13, fontWeight:800, cursor:user?.uid===t.uid?"pointer":"default" }}
+                  onClick={() => isOwner ? toggleTodo(t) : undefined}
+                  style={{ width:22, height:22, flex:"0 0 auto", borderRadius:7, border:`2px solid ${t.done?"#10B981":"#D1D5DB"}`, background:t.done?"#10B981":"white", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:13, fontWeight:800, cursor:isOwner?"pointer":"default" }}
                 >{t.done ? "✓" : ""}</span>
-                <span style={{ flex:1, fontSize:14, fontWeight:500, color:t.done?"#9CA3AF":"#1F2937", textDecoration:t.done?"line-through":"none" }}>{t.text}</span>
-                <span style={{ fontSize:11, color:"#C0C4CC", fontWeight:600 }}>{t.creatorName}</span>
-                {user?.uid === t.uid && (
-                  <span onClick={() => deleteTodo(t.id).catch(()=>{})} style={{ fontSize:13, cursor:"pointer", color:"#9CA3AF" }} title="삭제">🗑</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:14, fontWeight:500, color:t.done?"#9CA3AF":"#1F2937", textDecoration:t.done?"line-through":"none", wordBreak:"break-word" }}>{t.text}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:3, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:11, color:"#9CA3AF" }}>📅 작성 {fmtDay(t.createdAt)}</span>
+                    {isOwner ? (
+                      <label style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:11, color:overdue?"#DC2626":(t.dueAt?"#7C3AED":"#9CA3AF"), fontWeight:overdue?700:600, cursor:"pointer" }}>
+                        🚩 마감
+                        <input
+                          type="date"
+                          value={t.dueAt ? tsToDateInput(t.dueAt) : ""}
+                          onChange={e => setTodoDue(t, e.target.value)}
+                          style={{ border:"none", background:"transparent", fontFamily:"inherit", fontSize:11, color:"inherit", outline:"none", cursor:"pointer", padding:0 }}
+                        />
+                      </label>
+                    ) : t.dueAt ? (
+                      <span style={{ fontSize:11, color:overdue?"#DC2626":"#7C3AED", fontWeight:overdue?700:600 }}>🚩 마감 {fmtDay(t.dueAt)}</span>
+                    ) : null}
+                    {overdue && <span style={{ fontSize:10, color:"#DC2626", fontWeight:800, background:"#FEF2F2", padding:"1px 6px", borderRadius:6 }}>지남</span>}
+                  </div>
+                </div>
+                <span style={{ fontSize:11, color:"#C0C4CC", fontWeight:600, flex:"0 0 auto" }}>{t.creatorName}</span>
+                {isOwner && (
+                  <span onClick={() => deleteTodo(t.id).catch(()=>{})} style={{ fontSize:13, cursor:"pointer", color:"#9CA3AF", flex:"0 0 auto" }} title="삭제">🗑</span>
                 )}
               </div>
-            ))}
+              );
+            })}
             {todos.length === 0 && (
               <div style={{ textAlign:"center", padding:"24px 0 8px", color:"#9CA3AF", fontSize:13 }}>아직 할 일이 없어요</div>
             )}

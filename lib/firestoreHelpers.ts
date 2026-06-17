@@ -494,7 +494,8 @@ export interface CloudTodo {
   creatorName: string;
   text: string;
   done: boolean;
-  createdAt: number;
+  createdAt: number;     // 작성일
+  dueAt?: number | null; // 마감일 (선택)
 }
 
 function todosCol() {
@@ -510,7 +511,7 @@ export async function createTodo(todo: CloudTodo) {
   await setDoc(todoDoc(todo.id), todo);
 }
 
-export async function updateTodo(id: string, fields: Partial<Pick<CloudTodo, "text" | "done">>) {
+export async function updateTodo(id: string, fields: Partial<Pick<CloudTodo, "text" | "done" | "dueAt">>) {
   await setDoc(todoDoc(id), fields, { merge: true });
 }
 

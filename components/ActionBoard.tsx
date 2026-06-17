@@ -104,6 +104,10 @@ function DateTimePicker({ label, icon, value, onChange }: {
   );
 }
 
+type EditItem =
+  | { kind: "existing"; img: PosterImage }
+  | { kind: "new"; file: File; preview: string };
+
 const CARD_GRADIENTS = [
   "linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)",
   "linear-gradient(135deg,#7C3AED,#A855F7,#EC4899)",
@@ -166,9 +170,7 @@ export default function ActionBoard() {
   const [editPoster, setEditPoster]   = useState<CloudPoster | null>(null);
   const [editPosterTitle, setEditPosterTitle] = useState("");
   const [editPosterLink, setEditPosterLink]   = useState("");
-  const [editKeepImages, setEditKeepImages]   = useState<PosterImage[]>([]);
-  const [editNewFiles, setEditNewFiles]       = useState<File[]>([]);
-  const [editNewPreviews, setEditNewPreviews] = useState<string[]>([]);
+  const [editItems, setEditItems]             = useState<EditItem[]>([]);
   const [editRemovedPaths, setEditRemovedPaths] = useState<string[]>([]);
   const [editPosterSaving, setEditPosterSaving] = useState(false);
   const [editPosterProgress, setEditPosterProgress] = useState(0);
@@ -235,6 +237,12 @@ export default function ActionBoard() {
     setPosterPreviews(prev => prev.filter((_, i) => i !== idx));
   };
 
+  // 표지로 지정 = 해당 이미지를 맨 앞으로 이동
+  const setPosterCover = (idx: number) => {
+    setPosterFiles(prev => { const a = [...prev]; const [m] = a.splice(idx, 1); a.unshift(m); return a; });
+    setPosterPreviews(prev => { const a = [...prev]; const [m] = a.splice(idx, 1); a.unshift(m); return a; });
+  };
+
   const handleAddPoster = async () => {
     if (!posterFiles.length) return;
     if (!user) { await signIn(); return; }
@@ -280,50 +288,53 @@ export default function ActionBoard() {
     setEditPoster(p);
     setEditPosterTitle(p.title);
     setEditPosterLink(p.linkUrl ?? "");
-    setEditKeepImages(posterImages(p));
-    setEditNewFiles([]); setEditNewPreviews([]); setEditRemovedPaths([]);
+    setEditItems(posterImages(p).map(img => ({ kind: "existing" as const, img })));
+    setEditRemovedPaths([]);
     setEditPosterProgress(0);
-  };
-
-  const removeKeepImage = (idx: number) => {
-    setEditKeepImages(prev => {
-      const img = prev[idx];
-      if (img?.path) setEditRemovedPaths(r => [...r, img.path]);
-      return prev.filter((_, i) => i !== idx);
-    });
   };
 
   const addEditFiles = (files: FileList | null) => {
     if (!files || !files.length) return;
     const list = Array.from(files).filter(f => f.type.startsWith("image/"));
-    setEditNewFiles(prev => [...prev, ...list]);
-    list.forEach(f => {
-      const reader = new FileReader();
-      reader.onload = () => setEditNewPreviews(prev => [...prev, reader.result as string]);
-      reader.readAsDataURL(f);
+    setEditItems(prev => [...prev, ...list.map(f => ({ kind: "new" as const, file: f, preview: URL.createObjectURL(f) }))]);
+  };
+
+  const removeEditItem = (idx: number) => {
+    setEditItems(prev => {
+      const it = prev[idx];
+      if (it?.kind === "existing" && it.img.path) setEditRemovedPaths(r => [...r, it.img.path]);
+      if (it?.kind === "new") URL.revokeObjectURL(it.preview);
+      return prev.filter((_, i) => i !== idx);
     });
   };
 
-  const removeEditNewFile = (idx: number) => {
-    setEditNewFiles(prev => prev.filter((_, i) => i !== idx));
-    setEditNewPreviews(prev => prev.filter((_, i) => i !== idx));
+  // 표지로 지정 = 맨 앞으로 이동 (기존/새 이미지 모두 가능)
+  const setEditCover = (idx: number) => {
+    setEditItems(prev => { const a = [...prev]; const [m] = a.splice(idx, 1); a.unshift(m); return a; });
   };
 
   const handleEditPoster = async () => {
     if (!editPoster) return;
-    if (editKeepImages.length + editNewFiles.length === 0) return; // 최소 1장
+    if (editItems.length === 0) return; // 최소 1장
     setEditPosterSaving(true);
     setEditPosterProgress(0);
     try {
-      const uploaded: PosterImage[] = [];
-      for (let i = 0; i < editNewFiles.length; i++) {
-        const { path, url } = await uploadPosterImage(editPoster.id, editNewFiles[i], undefined, Date.now() % 100000 + i);
-        uploaded.push({ url, path });
-        setEditPosterProgress(Math.round(((i + 1) / editNewFiles.length) * 100));
+      const newCount = editItems.filter(i => i.kind === "new").length;
+      let done = 0;
+      const images: PosterImage[] = [];
+      for (let i = 0; i < editItems.length; i++) {
+        const it = editItems[i];
+        if (it.kind === "existing") {
+          images.push(it.img);
+        } else {
+          const { path, url } = await uploadPosterImage(editPoster.id, it.file, undefined, Date.now() % 100000 + i);
+          images.push({ url, path });
+          done++;
+          if (newCount) setEditPosterProgress(Math.round((done / newCount) * 100));
+        }
       }
-      const images = [...editKeepImages, ...uploaded];
       await updatePoster(editPoster.id, {
-        title: editPosterTitle.trim() || images[0].url.split("/").pop() || "포스터",
+        title: editPosterTitle.trim() || "포스터",
         linkUrl: editPosterLink.trim() ? normUrl(editPosterLink.trim()) : "",
         images,
         imageUrl: images[0].url,
@@ -902,7 +913,7 @@ export default function ActionBoard() {
         <div onClick={() => { if(!posterSaving){ setShowPosterAdd(false); } }} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"36px", width:"100%", maxWidth:480, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
             <div style={{ fontSize:22, fontWeight:800, color:"#111827", marginBottom:6 }}>🖼️ 포스터 업로드</div>
-            <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>여러 장 올리면 첫 장이 표지가 되고, 클릭 시 넘겨볼 수 있어요</div>
+            <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>여러 장 올리고 표지를 직접 고를 수 있어요. 클릭 시 좌우로 넘겨볼 수 있어요</div>
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
               {/* 선택된 이미지 미리보기 그리드 */}
               {posterPreviews.length > 0 && (
@@ -910,8 +921,13 @@ export default function ActionBoard() {
                   {posterPreviews.map((src, idx) => (
                     <div key={idx} style={{ position:"relative", aspectRatio:"3 / 4", borderRadius:10, overflow:"hidden", border:idx===0?`2px solid ${P}`:"1.5px solid #E5E7EB", background:"#F3F4F6" }}>
                       <img src={src} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-                      {idx === 0 && (
+                      {idx === 0 ? (
                         <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"3px 0", textAlign:"center", background:P, color:"white", fontSize:10, fontWeight:700 }}>표지</div>
+                      ) : !posterSaving && (
+                        <button
+                          onClick={() => setPosterCover(idx)}
+                          style={{ position:"absolute", bottom:0, left:0, right:0, padding:"3px 0", textAlign:"center", background:"rgba(0,0,0,0.6)", border:"none", color:"white", fontSize:10, fontWeight:700, cursor:"pointer" }}
+                        >표지로 지정</button>
                       )}
                       {!posterSaving && (
                         <button
@@ -969,35 +985,33 @@ export default function ActionBoard() {
         <div onClick={() => { if(!editPosterSaving){ setEditPoster(null); } }} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"36px", width:"100%", maxWidth:480, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}>
             <div style={{ fontSize:22, fontWeight:800, color:"#111827", marginBottom:6 }}>✏️ 포스터 수정</div>
-            <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>이미지를 추가·삭제하거나 정보를 변경하세요 (첫 장이 표지)</div>
+            <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>이미지를 추가·삭제하고, 원하는 이미지를 표지로 지정하세요 (첫 장이 표지)</div>
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-              {/* 이미지 그리드: 기존 + 새 추가 */}
-              {(editKeepImages.length + editNewPreviews.length) > 0 && (
+              {/* 이미지 그리드: 기존 + 새 이미지 통합, 표지 선택 가능 */}
+              {editItems.length > 0 && (
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8 }}>
-                  {editKeepImages.map((img, idx) => (
-                    <div key={`k${idx}`} style={{ position:"relative", aspectRatio:"3 / 4", borderRadius:10, overflow:"hidden", border:idx===0?`2px solid ${P}`:"1.5px solid #E5E7EB", background:"#F3F4F6" }}>
-                      <img src={img.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-                      {idx === 0 && <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"3px 0", textAlign:"center", background:P, color:"white", fontSize:10, fontWeight:700 }}>표지</div>}
-                      {!editPosterSaving && (
-                        <button onClick={() => removeKeepImage(idx)} style={{ position:"absolute", top:4, right:4, width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"rgba(0,0,0,0.6)", border:"none", color:"white", fontSize:12, cursor:"pointer" }}>×</button>
-                      )}
-                    </div>
-                  ))}
-                  {editNewPreviews.map((src, idx) => {
-                    const coverIdx = editKeepImages.length === 0 && idx === 0;
+                  {editItems.map((it, idx) => {
+                    const src = it.kind === "existing" ? it.img.url : it.preview;
                     return (
-                    <div key={`n${idx}`} style={{ position:"relative", aspectRatio:"3 / 4", borderRadius:10, overflow:"hidden", border:coverIdx?`2px solid ${P}`:"1.5px solid #E5E7EB", background:"#F3F4F6" }}>
+                    <div key={idx} style={{ position:"relative", aspectRatio:"3 / 4", borderRadius:10, overflow:"hidden", border:idx===0?`2px solid ${P}`:"1.5px solid #E5E7EB", background:"#F3F4F6" }}>
                       <img src={src} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-                      <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"3px 0", textAlign:"center", background:coverIdx?P:"rgba(16,185,129,0.9)", color:"white", fontSize:10, fontWeight:700 }}>{coverIdx ? "표지" : "새 이미지"}</div>
+                      {it.kind === "new" && idx !== 0 && (
+                        <div style={{ position:"absolute", top:4, left:4, padding:"2px 6px", borderRadius:6, background:"rgba(16,185,129,0.9)", color:"white", fontSize:9, fontWeight:700 }}>NEW</div>
+                      )}
+                      {idx === 0 ? (
+                        <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"3px 0", textAlign:"center", background:P, color:"white", fontSize:10, fontWeight:700 }}>표지</div>
+                      ) : !editPosterSaving && (
+                        <button onClick={() => setEditCover(idx)} style={{ position:"absolute", bottom:0, left:0, right:0, padding:"3px 0", textAlign:"center", background:"rgba(0,0,0,0.6)", border:"none", color:"white", fontSize:10, fontWeight:700, cursor:"pointer" }}>표지로 지정</button>
+                      )}
                       {!editPosterSaving && (
-                        <button onClick={() => removeEditNewFile(idx)} style={{ position:"absolute", top:4, right:4, width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"rgba(0,0,0,0.6)", border:"none", color:"white", fontSize:12, cursor:"pointer" }}>×</button>
+                        <button onClick={() => removeEditItem(idx)} style={{ position:"absolute", top:4, right:4, width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"rgba(0,0,0,0.6)", border:"none", color:"white", fontSize:12, cursor:"pointer" }}>×</button>
                       )}
                     </div>
                     );
                   })}
                 </div>
               )}
-              {(editKeepImages.length + editNewPreviews.length) === 0 && (
+              {editItems.length === 0 && (
                 <div style={{ padding:"10px 14px", borderRadius:10, background:"#FEF2F2", color:"#DC2626", fontSize:12, fontWeight:600 }}>⚠️ 최소 1장의 이미지가 필요합니다</div>
               )}
               <label style={{ display:"block", cursor:"pointer" }}>
@@ -1030,10 +1044,10 @@ export default function ActionBoard() {
               <button onClick={() => { if(!editPosterSaving){ setEditPoster(null); } }} disabled={editPosterSaving} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:editPosterSaving?"default":"pointer" }}>취소</button>
               <button
                 onClick={handleEditPoster}
-                disabled={editPosterSaving || (editKeepImages.length + editNewFiles.length === 0)}
-                style={{ flex:2, padding:"13px", background:(editKeepImages.length + editNewFiles.length)?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:(editKeepImages.length + editNewFiles.length)?"white":"#9CA3AF", cursor:(editKeepImages.length + editNewFiles.length)?"pointer":"default" }}
+                disabled={editPosterSaving || editItems.length === 0}
+                style={{ flex:2, padding:"13px", background:editItems.length?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:editItems.length?"white":"#9CA3AF", cursor:editItems.length?"pointer":"default" }}
               >
-                {editPosterSaving ? (editNewFiles.length ? `저장 중... ${editPosterProgress}%` : "저장 중...") : "✏️ 수정 완료"}
+                {editPosterSaving ? (editItems.some(i=>i.kind==="new") ? `저장 중... ${editPosterProgress}%` : "저장 중...") : "✏️ 수정 완료"}
               </button>
             </div>
           </div>

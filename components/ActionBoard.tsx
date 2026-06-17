@@ -517,7 +517,7 @@ export default function ActionBoard() {
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6FA", fontFamily: "'Noto Sans KR',-apple-system,sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Nanum+Pen+Script&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Gowun+Dodum&display=swap');
         * { box-sizing:border-box; margin:0; padding:0; }
         .sec { scroll-margin-top:130px; }
         .sec-menu-btn { transition:all 0.15s; cursor:pointer; }
@@ -650,7 +650,7 @@ export default function ActionBoard() {
                 onChange={e => setNewNoteText(e.target.value)}
                 placeholder="메모 입력..."
                 rows={3}
-                style={{ flex:1, width:"100%", background:"transparent", border:"none", outline:"none", resize:"none", fontFamily:"'Nanum Pen Script',cursive", fontSize:22, lineHeight:1.25, color:"#3A3A3A" }}
+                style={{ flex:1, width:"100%", background:"transparent", border:"none", outline:"none", resize:"none", fontFamily:"'Gowun Dodum',sans-serif", fontSize:15, lineHeight:1.5, color:"#3A3A3A" }}
               />
               <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:8 }}>
                 {STICKY_COLORS.map(c => (
@@ -683,7 +683,7 @@ export default function ActionBoard() {
                         onChange={e => setEditNoteText(e.target.value)}
                         rows={4}
                         autoFocus
-                        style={{ flex:1, width:"100%", background:"transparent", border:"none", outline:"none", resize:"none", fontFamily:"'Nanum Pen Script',cursive", fontSize:22, lineHeight:1.25, color:"#3A3A3A" }}
+                        style={{ flex:1, width:"100%", background:"transparent", border:"none", outline:"none", resize:"none", fontFamily:"'Gowun Dodum',sans-serif", fontSize:15, lineHeight:1.5, color:"#3A3A3A" }}
                       />
                       <div style={{ display:"flex", alignItems:"center", gap:5, marginTop:6 }}>
                         {STICKY_COLORS.map(c => (
@@ -694,7 +694,7 @@ export default function ActionBoard() {
                     </>
                   ) : (
                     <>
-                      <div style={{ flex:1, fontFamily:"'Nanum Pen Script',cursive", fontSize:22, lineHeight:1.25, color:"#3A3A3A", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{n.text}</div>
+                      <div style={{ flex:1, fontFamily:"'Gowun Dodum',sans-serif", fontSize:15, lineHeight:1.5, color:"#3A3A3A", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{n.text}</div>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:8 }}>
                         <span style={{ fontSize:11, color:"rgba(0,0,0,0.4)", fontWeight:600 }}>{n.creatorName}</span>
                         {user?.uid === n.uid && (

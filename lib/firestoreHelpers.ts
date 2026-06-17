@@ -228,6 +228,7 @@ export interface CloudBoardPost {
   authorName: string;
   authorPhoto: string;
   contentType: "text" | "image" | "audio" | "youtube" | "ppt" | "pdf";
+  title?: string;        // 게시물 제목 (선택)
   text?: string;
   imageUrl?: string;
   audioUrl?: string;
@@ -317,7 +318,7 @@ export async function updateBoardPostPosition(boardId: string, postId: string, x
 export async function updateBoardPost(
   boardId: string,
   postId: string,
-  fields: Partial<Pick<CloudBoardPost, "text" | "audioName" | "youtubeUrl" | "pptName" | "pdfName" | "bgColor">>,
+  fields: Partial<Pick<CloudBoardPost, "title" | "text" | "audioName" | "youtubeUrl" | "pptName" | "pdfName" | "bgColor">>,
 ) {
   await setDoc(postDoc(boardId, postId), fields, { merge: true });
 }

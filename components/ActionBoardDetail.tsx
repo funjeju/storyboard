@@ -170,6 +170,13 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, i
         </div>
       </div>
 
+      {/* 제목 (도드라지게) */}
+      {post.title && (
+        <div style={{ fontSize:17, fontWeight:800, color:"#0F172A", lineHeight:1.3, letterSpacing:-0.3, marginBottom:8, paddingBottom:8, borderBottom:"2px solid rgba(0,0,0,0.08)", wordBreak:"break-word" }}>
+          {post.title}
+        </div>
+      )}
+
       {/* Content */}
       {post.contentType === "text" && (
         <div style={{ flex:1, position:"relative" }}>
@@ -408,6 +415,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
   // form
   const [cType, setCType]       = useState<ContentType>("text");
+  const [postTitle, setPostTitle] = useState("");
   const [text, setText]         = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
@@ -429,6 +437,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
   // edit post state
   const [editPost, setEditPost]       = useState<CloudBoardPost | null>(null);
+  const [editTitle, setEditTitle]     = useState("");
   const [editText, setEditText]       = useState("");
   const [editField, setEditField]     = useState(""); // audioName / youtubeUrl / pptName
   const [editColor, setEditColor]     = useState(PALETTE[0]);
@@ -483,6 +492,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
   const openEditPost = (post: CloudBoardPost) => {
     setEditPost(post);
+    setEditTitle(post.title ?? "");
     setEditText(post.text ?? "");
     setEditField(
       post.contentType === "audio"   ? (post.audioName   ?? "") :
@@ -497,7 +507,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     if (!editPost) return;
     setEditSaving(true);
     try {
-      const fields: Parameters<typeof updateBoardPost>[2] = { bgColor: editColor };
+      const fields: Parameters<typeof updateBoardPost>[2] = { bgColor: editColor, title: editTitle.trim() };
       if (editPost.contentType === "text")    fields.text       = editText;
       if (editPost.contentType === "audio")   fields.audioName  = editField;
       if (editPost.contentType === "youtube") fields.youtubeUrl = editField;
@@ -623,6 +633,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         authorPhoto: user.photoURL ?? "",
         contentType: cType,
         bgColor: cardColor,
+        ...(postTitle.trim() && { title: postTitle.trim() }),
         ...(isAnnouncement && { isAnnouncement: true }),
         createdAt: Date.now(),
         ...(cType === "text"    && { text: text.trim() }),
@@ -659,6 +670,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         createFeedPost(feedPost).catch(e => console.error("[feed share]", e));
       }
 
+      setPostTitle("");
       setText(""); setImageUrl(""); setAudioUrl(""); setAudioName(""); setAudioFile(null);
       setYtUrl(""); setPptFile(null); setPptName(""); setPdfFile(null); setPdfName(""); setIsAnnouncement(false);
       setShareToFeed(false); setFeedTitle("");
@@ -789,6 +801,9 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                     )}
                   </div>
                 </div>
+                {post.title && (
+                  <div style={{ fontSize:15, fontWeight:800, color:"#0F172A", lineHeight:1.3, marginBottom:6, paddingBottom:6, borderBottom:"2px solid rgba(0,0,0,0.08)", wordBreak:"break-word" }}>{post.title}</div>
+                )}
                 {post.contentType === "text"  && <p style={{ fontSize:13, color:"#1F2937", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{linkify(post.text ?? "")}</p>}
                 {post.contentType === "image" && post.imageUrl && <img src={post.imageUrl} alt="" style={{ width:"100%", borderRadius:8 }} />}
                 {post.contentType === "youtube" && post.youtubeUrl && getYoutubeId(post.youtubeUrl) && <img src={`https://img.youtube.com/vi/${getYoutubeId(post.youtubeUrl)}/mqdefault.jpg`} alt="" style={{ width:"100%", borderRadius:8 }} />}
@@ -951,6 +966,17 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   {label}
                 </button>
               ))}
+            </div>
+
+            {/* 제목 (선택) — 모든 타입 공통 */}
+            <div style={{ marginBottom:14 }}>
+              <input
+                value={postTitle}
+                onChange={e => setPostTitle(e.target.value)}
+                placeholder="제목 (선택) — 입력하면 크게 표시돼요"
+                maxLength={60}
+                style={{ width:"100%", padding:"12px 14px", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:15, fontWeight:700, fontFamily:"inherit", outline:"none" }}
+              />
             </div>
 
             {/* Inputs by type */}
@@ -1136,6 +1162,11 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
           {/* Content + Comments */}
           <div style={{ flex:1, overflow:"auto", display:"flex", flexDirection:"column", alignItems:"center", padding:"40px 40px 0" }}>
             <div style={{ width:"100%", maxWidth:960 }}>
+              {maximizedPost.title && (
+                <div style={{ fontSize:28, fontWeight:800, color:"#0F172A", lineHeight:1.3, letterSpacing:-0.5, marginBottom:20, wordBreak:"break-word" }}>
+                  {maximizedPost.title}
+                </div>
+              )}
               {maximizedPost.contentType === "text" && (
                 <div style={{ background:maximizedPost.bgColor ?? "#FFF9C4", borderRadius:24, overflow:"hidden" }}>
                   <CopyBar text={maximizedPost.text ?? ""} position="top" />
@@ -1374,6 +1405,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
             style={{ background:"white", borderRadius:24, padding:"36px 32px", width:"100%", maxWidth:460, boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.25s ease both" }}
           >
             <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:20 }}>✏️ 게시물 수정</div>
+
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>제목 (선택)</label>
+              <input value={editTitle} onChange={e => setEditTitle(e.target.value)} maxLength={60} placeholder="제목 — 입력하면 크게 표시돼요"
+                style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:15, fontWeight:700, fontFamily:"inherit", outline:"none" }} />
+            </div>
 
             {editPost.contentType === "text" && (
               <div style={{ marginBottom:16 }}>

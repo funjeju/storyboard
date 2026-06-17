@@ -31,6 +31,7 @@ import {
   type PosterImage,
   type CloudStickyNote,
   type CloudTodo,
+  type TodoSubtask,
 } from "@/lib/firestoreHelpers";
 import { uploadPosterImage, deleteStorageFile } from "@/lib/firebaseStorage";
 
@@ -253,6 +254,43 @@ export default function ActionBoard() {
 
   const toggleTodo = (t: CloudTodo) => { updateTodo(t.id, { done: !t.done }).catch(() => {}); };
   const setTodoDue = (t: CloudTodo, s: string) => { updateTodo(t.id, { dueAt: s ? dateInputToTs(s) : null }).catch(() => {}); };
+
+  // 하위 항목(subtask) 관련
+  const [expandedTodos, setExpandedTodos] = useState<Record<string, boolean>>({});
+  const [subInputs, setSubInputs]         = useState<Record<string, string>>({});
+  const [todoNotice, setTodoNotice]       = useState<string | null>(null);
+
+  const toggleExpand = (id: string) => setExpandedTodos(p => ({ ...p, [id]: !p[id] }));
+
+  // 부모 체크 시도: 미완료 하위가 있으면 안내 후 막기
+  const tryToggleTodo = (t: CloudTodo) => {
+    const subs = t.subtasks ?? [];
+    if (!t.done && subs.length > 0 && subs.some(s => !s.done)) {
+      setTodoNotice(t.id);
+      setExpandedTodos(p => ({ ...p, [t.id]: true }));
+      setTimeout(() => setTodoNotice(n => (n === t.id ? null : n)), 2800);
+      return;
+    }
+    toggleTodo(t);
+  };
+
+  const addSubtask = (t: CloudTodo) => {
+    const text = (subInputs[t.id] ?? "").trim();
+    if (!text) return;
+    const subs: TodoSubtask[] = [...(t.subtasks ?? []), { id: crypto.randomUUID(), text, done: false }];
+    updateTodo(t.id, { subtasks: subs, ...(t.done ? { done: false } : {}) }).catch(() => {});
+    setSubInputs(p => ({ ...p, [t.id]: "" }));
+  };
+
+  const toggleSubtask = (t: CloudTodo, sid: string) => {
+    const subs = (t.subtasks ?? []).map(s => (s.id === sid ? { ...s, done: !s.done } : s));
+    updateTodo(t.id, { subtasks: subs }).catch(() => {});
+  };
+
+  const deleteSubtask = (t: CloudTodo, sid: string) => {
+    const subs = (t.subtasks ?? []).filter(s => s.id !== sid);
+    updateTodo(t.id, { subtasks: subs }).catch(() => {});
+  };
 
   const normUrl = (u: string) => /^https?:\/\//i.test(u) ? u : `https://${u}`;
 
@@ -745,35 +783,96 @@ export default function ActionBoard() {
             {todos.map((t, i) => {
               const overdue = !!t.dueAt && !t.done && t.dueAt < Date.now();
               const isOwner = user?.uid === t.uid;
+              const subs = t.subtasks ?? [];
+              const subDone = subs.filter(s => s.done).length;
+              const hasSubs = subs.length > 0;
+              const allSubsDone = hasSubs && subDone === subs.length;
+              const expanded = !!expandedTodos[t.id];
+              const showNotice = todoNotice === t.id;
               return (
-              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 4px", borderTop:i===0?"none":"1px solid #F3F4F6" }}>
-                <span
-                  onClick={() => isOwner ? toggleTodo(t) : undefined}
-                  style={{ width:22, height:22, flex:"0 0 auto", borderRadius:7, border:`2px solid ${t.done?"#10B981":"#D1D5DB"}`, background:t.done?"#10B981":"white", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:13, fontWeight:800, cursor:isOwner?"pointer":"default" }}
-                >{t.done ? "✓" : ""}</span>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:14, fontWeight:500, color:t.done?"#9CA3AF":"#1F2937", textDecoration:t.done?"line-through":"none", wordBreak:"break-word" }}>{t.text}</div>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:3, flexWrap:"wrap" }}>
-                    <span style={{ fontSize:11, color:"#9CA3AF" }}>📅 작성 {fmtDay(t.createdAt)}</span>
-                    {isOwner ? (
-                      <label style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:11, color:overdue?"#DC2626":(t.dueAt?"#7C3AED":"#9CA3AF"), fontWeight:overdue?700:600, cursor:"pointer" }}>
-                        🚩 마감
-                        <input
-                          type="date"
-                          value={t.dueAt ? tsToDateInput(t.dueAt) : ""}
-                          onChange={e => setTodoDue(t, e.target.value)}
-                          style={{ border:"none", background:"transparent", fontFamily:"inherit", fontSize:11, color:"inherit", outline:"none", cursor:"pointer", padding:0 }}
-                        />
-                      </label>
-                    ) : t.dueAt ? (
-                      <span style={{ fontSize:11, color:overdue?"#DC2626":"#7C3AED", fontWeight:overdue?700:600 }}>🚩 마감 {fmtDay(t.dueAt)}</span>
-                    ) : null}
-                    {overdue && <span style={{ fontSize:10, color:"#DC2626", fontWeight:800, background:"#FEF2F2", padding:"1px 6px", borderRadius:6 }}>지남</span>}
+              <div key={t.id} style={{ borderTop:i===0?"none":"1px solid #F3F4F6", padding:"10px 4px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  <span
+                    onClick={() => isOwner ? tryToggleTodo(t) : undefined}
+                    style={{ width:22, height:22, flex:"0 0 auto", borderRadius:7, border:`2px solid ${t.done?"#10B981":(hasSubs && !allSubsDone ? "#FCD34D" : "#D1D5DB")}`, background:t.done?"#10B981":"white", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:13, fontWeight:800, cursor:isOwner?"pointer":"default" }}
+                    title={hasSubs && !allSubsDone ? "하위 항목을 모두 끝내야 체크할 수 있어요" : ""}
+                  >{t.done ? "✓" : (hasSubs && !allSubsDone ? <span style={{ color:"#FCD34D", fontSize:11 }}>•</span> : "")}</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:14, fontWeight:500, color:t.done?"#9CA3AF":"#1F2937", textDecoration:t.done?"line-through":"none", wordBreak:"break-word" }}>{t.text}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:3, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:11, color:"#9CA3AF" }}>📅 작성 {fmtDay(t.createdAt)}</span>
+                      {isOwner ? (
+                        <label style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:11, color:overdue?"#DC2626":(t.dueAt?"#7C3AED":"#9CA3AF"), fontWeight:overdue?700:600, cursor:"pointer" }}>
+                          🚩 마감
+                          <input
+                            type="date"
+                            value={t.dueAt ? tsToDateInput(t.dueAt) : ""}
+                            onChange={e => setTodoDue(t, e.target.value)}
+                            style={{ border:"none", background:"transparent", fontFamily:"inherit", fontSize:11, color:"inherit", outline:"none", cursor:"pointer", padding:0 }}
+                          />
+                        </label>
+                      ) : t.dueAt ? (
+                        <span style={{ fontSize:11, color:overdue?"#DC2626":"#7C3AED", fontWeight:overdue?700:600 }}>🚩 마감 {fmtDay(t.dueAt)}</span>
+                      ) : null}
+                      {overdue && <span style={{ fontSize:10, color:"#DC2626", fontWeight:800, background:"#FEF2F2", padding:"1px 6px", borderRadius:6 }}>지남</span>}
+                      {/* 하위 항목 배지 */}
+                      {hasSubs && (
+                        <span
+                          onClick={() => toggleExpand(t.id)}
+                          style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, fontWeight:800, color:allSubsDone?"#059669":"#6366F1", background:allSubsDone?"rgba(16,185,129,0.12)":"rgba(99,102,241,0.12)", padding:"2px 9px", borderRadius:100, cursor:"pointer" }}
+                          title="하위 항목 보기"
+                        >📋 하위 {subDone}/{subs.length} {expanded ? "▾" : "▸"}</span>
+                      )}
+                      {isOwner && !hasSubs && (
+                        <span onClick={() => toggleExpand(t.id)} style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", cursor:"pointer" }} title="하위 항목 추가">＋ 하위</span>
+                      )}
+                    </div>
                   </div>
+                  <span style={{ fontSize:11, color:"#C0C4CC", fontWeight:600, flex:"0 0 auto" }}>{t.creatorName}</span>
+                  {isOwner && (
+                    <span onClick={() => deleteTodo(t.id).catch(()=>{})} style={{ fontSize:13, cursor:"pointer", color:"#9CA3AF", flex:"0 0 auto" }} title="삭제">🗑</span>
+                  )}
                 </div>
-                <span style={{ fontSize:11, color:"#C0C4CC", fontWeight:600, flex:"0 0 auto" }}>{t.creatorName}</span>
-                {isOwner && (
-                  <span onClick={() => deleteTodo(t.id).catch(()=>{})} style={{ fontSize:13, cursor:"pointer", color:"#9CA3AF", flex:"0 0 auto" }} title="삭제">🗑</span>
+
+                {/* 체크 막힘 안내 */}
+                {showNotice && (
+                  <div style={{ margin:"8px 0 0 34px", fontSize:12, fontWeight:700, color:"#B45309", background:"#FEF3C7", borderRadius:8, padding:"7px 12px" }}>
+                    ⚠️ 하위 항목 {subs.length - subDone}개가 남아있어요. 먼저 끝내야 완료 체크할 수 있어요.
+                  </div>
+                )}
+
+                {/* 하위 항목 목록 + 입력 */}
+                {expanded && (
+                  <div style={{ margin:"8px 0 2px 34px", paddingLeft:12, borderLeft:"2px solid #EEF0F4", display:"flex", flexDirection:"column", gap:6 }}>
+                    {subs.map(s => (
+                      <div key={s.id} style={{ display:"flex", alignItems:"center", gap:9 }}>
+                        <span
+                          onClick={() => isOwner ? toggleSubtask(t, s.id) : undefined}
+                          style={{ width:17, height:17, flex:"0 0 auto", borderRadius:5, border:`2px solid ${s.done?"#10B981":"#D1D5DB"}`, background:s.done?"#10B981":"white", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:10, fontWeight:800, cursor:isOwner?"pointer":"default" }}
+                        >{s.done ? "✓" : ""}</span>
+                        <span style={{ flex:1, fontSize:13, color:s.done?"#9CA3AF":"#374151", textDecoration:s.done?"line-through":"none", wordBreak:"break-word" }}>{s.text}</span>
+                        {isOwner && (
+                          <span onClick={() => deleteSubtask(t, s.id)} style={{ fontSize:11, cursor:"pointer", color:"#C0C4CC" }} title="삭제">✕</span>
+                        )}
+                      </div>
+                    ))}
+                    {isOwner && (
+                      <div style={{ display:"flex", gap:6, marginTop:2 }}>
+                        <input
+                          value={subInputs[t.id] ?? ""}
+                          onChange={e => setSubInputs(p => ({ ...p, [t.id]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === "Enter") addSubtask(t); }}
+                          placeholder="하위 항목 추가"
+                          style={{ flex:1, padding:"7px 10px", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:12, fontFamily:"inherit", outline:"none" }}
+                        />
+                        <button
+                          onClick={() => addSubtask(t)}
+                          disabled={!(subInputs[t.id] ?? "").trim()}
+                          style={{ padding:"7px 12px", borderRadius:8, border:"none", background:(subInputs[t.id] ?? "").trim()?"#6366F1":"#E5E7EB", color:(subInputs[t.id] ?? "").trim()?"white":"#9CA3AF", fontSize:12, fontWeight:700, cursor:(subInputs[t.id] ?? "").trim()?"pointer":"default" }}
+                        >추가</button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               );

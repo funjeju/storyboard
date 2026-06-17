@@ -488,14 +488,21 @@ export function subscribeToStickyNotes(cb: (notes: CloudStickyNote[]) => void): 
 
 // ─── Todos (투두) ──────────────────────────────────────────────────────────────
 
+export interface TodoSubtask {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 export interface CloudTodo {
   id: string;
   uid: string;
   creatorName: string;
   text: string;
   done: boolean;
-  createdAt: number;     // 작성일
-  dueAt?: number | null; // 마감일 (선택)
+  createdAt: number;        // 작성일
+  dueAt?: number | null;    // 마감일 (선택)
+  subtasks?: TodoSubtask[]; // 하위 항목 (선택)
 }
 
 function todosCol() {
@@ -511,7 +518,7 @@ export async function createTodo(todo: CloudTodo) {
   await setDoc(todoDoc(todo.id), todo);
 }
 
-export async function updateTodo(id: string, fields: Partial<Pick<CloudTodo, "text" | "done" | "dueAt">>) {
+export async function updateTodo(id: string, fields: Partial<Pick<CloudTodo, "text" | "done" | "dueAt" | "subtasks">>) {
   await setDoc(todoDoc(id), fields, { merge: true });
 }
 

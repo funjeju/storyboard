@@ -533,6 +533,91 @@ export function subscribeToTodos(cb: (todos: CloudTodo[]) => void): Unsubscribe 
   return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudTodo)));
 }
 
+// ─── Map Boards (지도 보드) ─────────────────────────────────────────────────────
+
+export interface CloudMapBoard {
+  id: string;
+  uid: string;
+  creatorName: string;
+  creatorPhoto: string;
+  title: string;
+  description: string;
+  postCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CloudMapPost {
+  id: string;
+  boardId: string;
+  uid: string;
+  authorName: string;
+  authorPhoto: string;
+  title: string;        // 핀 제목 (장소명 등)
+  address: string;      // 주소 텍스트
+  text?: string;        // 메모/본문
+  imageUrl?: string;
+  imagePath?: string;
+  lat: number;
+  lng: number;
+  createdAt: number;
+}
+
+function mapBoardsCol() {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "mapBoards");
+}
+function mapBoardDoc(id: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "mapBoards", id);
+}
+function mapPostsCol(boardId: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "mapBoards", boardId, "posts");
+}
+function mapPostDoc(boardId: string, postId: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "mapBoards", boardId, "posts", postId);
+}
+
+export async function createMapBoard(board: Omit<CloudMapBoard, "updatedAt">) {
+  await setDoc(mapBoardDoc(board.id), { ...board, updatedAt: Date.now() });
+}
+export async function updateMapBoard(id: string, fields: Partial<Pick<CloudMapBoard, "title" | "description">>) {
+  await setDoc(mapBoardDoc(id), { ...fields, updatedAt: Date.now() }, { merge: true });
+}
+export async function deleteMapBoard(id: string) {
+  await deleteDoc(mapBoardDoc(id));
+}
+export async function getMapBoard(id: string): Promise<CloudMapBoard | null> {
+  const snap = await getDoc(mapBoardDoc(id));
+  return snap.exists() ? (snap.data() as CloudMapBoard) : null;
+}
+export function subscribeToMapBoards(cb: (boards: CloudMapBoard[]) => void): Unsubscribe {
+  const q = query(mapBoardsCol(), orderBy("createdAt", "desc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudMapBoard)));
+}
+
+export async function addMapPost(boardId: string, post: CloudMapPost) {
+  await setDoc(mapPostDoc(boardId, post.id), post);
+  setDoc(mapBoardDoc(boardId), { postCount: increment(1), updatedAt: Date.now() }, { merge: true }).catch(() => {});
+}
+export async function updateMapPost(
+  boardId: string,
+  postId: string,
+  fields: Partial<Pick<CloudMapPost, "title" | "address" | "text" | "lat" | "lng" | "imageUrl" | "imagePath">>,
+) {
+  await setDoc(mapPostDoc(boardId, postId), fields, { merge: true });
+}
+export async function deleteMapPost(boardId: string, postId: string) {
+  await deleteDoc(mapPostDoc(boardId, postId));
+  setDoc(mapBoardDoc(boardId), { postCount: increment(-1), updatedAt: Date.now() }, { merge: true }).catch(() => {});
+}
+export function subscribeToMapPosts(boardId: string, cb: (posts: CloudMapPost[]) => void): Unsubscribe {
+  const q = query(mapPostsCol(boardId), orderBy("createdAt", "desc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudMapPost)));
+}
+
 // ─── MetaPrompts ─────────────────────────────────────────────────────────────
 
 export interface CloudMetaPrompt {

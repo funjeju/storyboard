@@ -715,6 +715,13 @@ export default function ActionBoard() {
               {m.label}
             </button>
           ))}
+          <Link
+            href="/mapboard"
+            className="sec-menu-btn"
+            style={{ flex:"0 0 auto", padding:"6px 13px", borderRadius:100, background:"rgba(124,58,237,0.1)", fontSize:13, fontWeight:700, color:P, whiteSpace:"nowrap", textDecoration:"none" }}
+          >
+            🗺️ 지도
+          </Link>
         </div>
 
         <div style={{ display:"flex", alignItems:"center", gap:12, flex:"0 0 auto" }}>

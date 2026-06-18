@@ -52,6 +52,28 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
     }
 
+    // 지도 보드 — 누구나 읽기, 로그인 사용자만 생성, 개설자만 수정·삭제
+    match /mapBoards/{boardId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+      // 개설자는 전체 수정 / 일반 참여자는 postCount·updatedAt만
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['postCount','updatedAt'])
+      );
+
+      // 지도 핀(게시물) — 누구나 읽기, 로그인 사용자만 등록, 작성자·개설자만 수정·삭제
+      match /posts/{postId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null && (
+          request.auth.uid == resource.data.uid ||
+          request.auth.uid == get(/databases/$(database)/documents/mapBoards/$(boardId)).data.uid
+        );
+      }
+    }
+
     // 액션보드 — 누구나 읽기, 로그인 사용자만 생성
     match /actionBoards/{boardId} {
       allow read: if true;

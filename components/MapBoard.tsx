@@ -95,6 +95,7 @@ export default function MapBoard({ boardId }: { boardId: string }) {
       const el = document.getElementById("map-canvas");
       if (!el || mapRef.current) return;
       const map = L.map(el, { zoomControl: true, attributionControl: true }).setView([36.5, 127.8], 7);
+      map.zoomControl.setPosition("topright");
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap',
@@ -265,7 +266,7 @@ export default function MapBoard({ boardId }: { boardId: string }) {
 
       {/* Map + overlays */}
       <div style={{ flex:1, position:"relative" }}>
-        <div id="map-canvas" style={{ position:"absolute", inset:0, background:"#E5E7EB" }} />
+        <div id="map-canvas" style={{ position:"absolute", inset:0, background:"#E5E7EB", zIndex:0 }} />
 
         {/* 위치 선택 모드 배너 */}
         {pickMode && (

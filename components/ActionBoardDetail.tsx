@@ -804,7 +804,22 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 {post.title && (
                   <div style={{ fontSize:15, fontWeight:800, color:"#0F172A", lineHeight:1.3, marginBottom:6, paddingBottom:6, borderBottom:"2px solid rgba(0,0,0,0.08)", wordBreak:"break-word" }}>{post.title}</div>
                 )}
-                {post.contentType === "text"  && <p style={{ fontSize:13, color:"#1F2937", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{linkify(post.text ?? "")}</p>}
+                {post.contentType === "text"  && (() => {
+                  const txt = post.text ?? "";
+                  const long = txt.length > 80 || txt.split("\n").length > 4;
+                  const bg = post.bgColor ?? "#FFF9C4";
+                  return (
+                    <div style={{ position:"relative", overflow:"hidden" }}>
+                      <p style={{ fontSize:13, color:"#1F2937", lineHeight:1.6, whiteSpace:"pre-wrap", maxHeight:long?84:"none", overflow:"hidden" }}>{linkify(txt)}</p>
+                      {long && (
+                        <>
+                          <div style={{ position:"absolute", bottom:18, left:0, right:0, height:30, background:`linear-gradient(transparent, ${bg})`, pointerEvents:"none" }} />
+                          <div style={{ marginTop:2, fontSize:12, fontWeight:700, color:"#7C3AED" }}>더보기 ↓</div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
                 {post.contentType === "image" && post.imageUrl && <img src={post.imageUrl} alt="" style={{ width:"100%", borderRadius:8 }} />}
                 {post.contentType === "youtube" && post.youtubeUrl && getYoutubeId(post.youtubeUrl) && <img src={`https://img.youtube.com/vi/${getYoutubeId(post.youtubeUrl)}/mqdefault.jpg`} alt="" style={{ width:"100%", borderRadius:8 }} />}
                 {post.contentType === "ppt" && post.pptUrl && (

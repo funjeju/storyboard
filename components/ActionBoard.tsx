@@ -230,6 +230,8 @@ export default function ActionBoard() {
   const [newNoteColor, setNewNoteColor] = useState(STICKY_COLORS[0]);
   const [editNoteId, setEditNoteId]   = useState<string | null>(null);
   const [editNoteText, setEditNoteText] = useState("");
+  const [viewNote, setViewNote]       = useState<CloudStickyNote | null>(null);
+  const isLongNote = (t: string) => t.length > 90 || t.split("\n").length > 6;
 
   // todos (투두)
   const [todos, setTodos]           = useState<CloudTodo[]>([]);
@@ -844,7 +846,15 @@ export default function ActionBoard() {
                     </>
                   ) : (
                     <>
-                      <div style={{ flex:1, fontFamily:"'Gowun Dodum',sans-serif", fontSize:15, lineHeight:1.5, color:"#3A3A3A", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{linkify(n.text)}</div>
+                      <div style={{ flex:1, position:"relative", overflow:"hidden" }}>
+                        <div style={{ fontFamily:"'Gowun Dodum',sans-serif", fontSize:15, lineHeight:1.5, color:"#3A3A3A", whiteSpace:"pre-wrap", wordBreak:"break-word", maxHeight:isLongNote(n.text)?108:"none", overflow:"hidden" }}>{linkify(n.text)}</div>
+                        {isLongNote(n.text) && (
+                          <>
+                            <div style={{ position:"absolute", bottom:0, left:0, right:0, height:34, background:`linear-gradient(transparent, ${n.color})`, pointerEvents:"none" }} />
+                            <button onClick={() => setViewNote(n)} style={{ position:"relative", marginTop:2, padding:"3px 0", width:"100%", background:"rgba(0,0,0,0.06)", border:"none", borderRadius:6, fontSize:11, fontWeight:700, color:"#374151", cursor:"pointer" }}>더보기 ↓</button>
+                          </>
+                        )}
+                      </div>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:8 }}>
                         <span style={{ fontSize:11, color:"rgba(0,0,0,0.4)", fontWeight:600 }}>{n.creatorName}</span>
                         {user?.uid === n.uid && (
@@ -1342,6 +1352,19 @@ export default function ActionBoard() {
               >
                 {deleting ? "삭제 중..." : "삭제"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 메모 크게 보기 모달 ── */}
+      {viewNote && (
+        <div onClick={() => setViewNote(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:550, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:viewNote.color, borderRadius:"4px 4px 18px 4px", padding:"28px 26px", width:"100%", maxWidth:440, maxHeight:"84vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.25)", animation:"fadeUp 0.25s ease both" }} className="hscroll">
+            <div style={{ fontFamily:"'Gowun Dodum',sans-serif", fontSize:18, lineHeight:1.6, color:"#3A3A3A", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{linkify(viewNote.text)}</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:20, paddingTop:14, borderTop:"1px solid rgba(0,0,0,0.1)" }}>
+              <span style={{ fontSize:12, color:"rgba(0,0,0,0.5)", fontWeight:600 }}>📝 {viewNote.creatorName}</span>
+              <button onClick={() => setViewNote(null)} style={{ padding:"7px 16px", background:"rgba(0,0,0,0.7)", border:"none", borderRadius:9, fontSize:13, fontWeight:700, color:"white", cursor:"pointer" }}>닫기</button>
             </div>
           </div>
         </div>

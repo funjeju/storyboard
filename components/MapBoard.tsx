@@ -228,6 +228,7 @@ export default function MapBoard({ boardId }: { boardId: string }) {
   };
 
   const handleDelete = async (p: CloudMapPost) => {
+    if (!window.confirm(`'${p.title}' 핀을 삭제할까요?`)) return;
     try {
       await deleteMapPost(boardId, p.id);
       if (p.imagePath) deleteStorageFile(p.imagePath);

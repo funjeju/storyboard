@@ -156,6 +156,10 @@ export default function ActionBoard() {
   const [deleteTarget, setDeleteTarget] = useState<CloudActionBoard | null>(null);
   const [deleting, setDeleting]         = useState(false);
 
+  // 공용 삭제 확인
+  const [confirmDel, setConfirmDel] = useState<{ text: string; run: () => void } | null>(null);
+  const confirmDelete = (text: string, run: () => void) => setConfirmDel({ text, run });
+
   // QR state
   const [qrBoard, setQrBoard]   = useState<CloudActionBoard | null>(null);
   const [qrUrl, setQrUrl]       = useState("");
@@ -452,12 +456,14 @@ export default function ActionBoard() {
     setPosterSaving(false);
   };
 
-  const handleDeletePoster = async (p: CloudPoster, e: React.MouseEvent) => {
+  const handleDeletePoster = (p: CloudPoster, e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    try {
-      await deletePoster(p.id);
-      posterImages(p).forEach(img => { if (img.path) deleteStorageFile(img.path); });
-    } catch { /* silent */ }
+    confirmDelete("이 포스터를 삭제할까요?", async () => {
+      try {
+        await deletePoster(p.id);
+        posterImages(p).forEach(img => { if (img.path) deleteStorageFile(img.path); });
+      } catch { /* silent */ }
+    });
   };
 
   const openPoster = (p: CloudPoster) => { setViewPoster(p); setViewIdx(0); };
@@ -768,7 +774,7 @@ export default function ActionBoard() {
                       title="수정"
                     >✏️</span>
                     <span
-                      onClick={e => { e.preventDefault(); e.stopPropagation(); deleteFavorite(fav.id).catch(()=>{}); }}
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); confirmDelete(`즐겨찾기 '${fav.name}'을(를) 삭제할까요?`, () => deleteFavorite(fav.id).catch(()=>{})); }}
                       style={{ width:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"50%", background:"#F3F4F6", color:"#9CA3AF", fontSize:11, fontWeight:700, cursor:"pointer" }}
                       title="삭제"
                     >×</span>
@@ -860,7 +866,7 @@ export default function ActionBoard() {
                         {user?.uid === n.uid && (
                           <div style={{ display:"flex", gap:8 }}>
                             <span onClick={() => startEditNote(n)} style={{ fontSize:12, cursor:"pointer" }} title="수정">✏️</span>
-                            <span onClick={() => deleteStickyNote(n.id).catch(()=>{})} style={{ fontSize:12, cursor:"pointer" }} title="삭제">🗑</span>
+                            <span onClick={() => confirmDelete("이 메모를 삭제할까요?", () => deleteStickyNote(n.id).catch(()=>{}))} style={{ fontSize:12, cursor:"pointer" }} title="삭제">🗑</span>
                           </div>
                         )}
                       </div>
@@ -1018,7 +1024,7 @@ export default function ActionBoard() {
                   </div>
                   <span style={{ fontSize:11, color:"#C0C4CC", fontWeight:600, flex:"0 0 auto" }}>{t.creatorName}</span>
                   {isOwner && (
-                    <span onClick={() => deleteTodo(t.id).catch(()=>{})} style={{ fontSize:13, cursor:"pointer", color:"#9CA3AF", flex:"0 0 auto" }} title="삭제">🗑</span>
+                    <span onClick={() => confirmDelete(`'${t.text}' 할 일을 삭제할까요?`, () => deleteTodo(t.id).catch(()=>{}))} style={{ fontSize:13, cursor:"pointer", color:"#9CA3AF", flex:"0 0 auto" }} title="삭제">🗑</span>
                   )}
                 </div>
 
@@ -1040,7 +1046,7 @@ export default function ActionBoard() {
                         >{s.done ? "✓" : ""}</span>
                         <span style={{ flex:1, fontSize:13, color:s.done?"#9CA3AF":"#374151", textDecoration:s.done?"line-through":"none", wordBreak:"break-word" }}>{s.text}</span>
                         {isOwner && (
-                          <span onClick={() => deleteSubtask(t, s.id)} style={{ fontSize:11, cursor:"pointer", color:"#C0C4CC" }} title="삭제">✕</span>
+                          <span onClick={() => confirmDelete("이 하위 항목을 삭제할까요?", () => deleteSubtask(t, s.id))} style={{ fontSize:11, cursor:"pointer", color:"#C0C4CC" }} title="삭제">✕</span>
                         )}
                       </div>
                     ))}
@@ -1352,6 +1358,21 @@ export default function ActionBoard() {
               >
                 {deleting ? "삭제 중..." : "삭제"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 공용 삭제 확인 모달 ── */}
+      {confirmDel && (
+        <div onClick={() => setConfirmDel(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:650, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"32px", width:"100%", maxWidth:360, textAlign:"center", boxShadow:"0 24px 80px rgba(0,0,0,0.18)", animation:"fadeUp 0.2s ease both" }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>🗑</div>
+            <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:8, lineHeight:1.4, wordBreak:"break-word" }}>{confirmDel.text}</div>
+            <div style={{ fontSize:13, color:"#9CA3AF", marginBottom:22 }}>이 작업은 되돌릴 수 없어요.</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setConfirmDel(null)} style={{ flex:1, padding:"12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>취소</button>
+              <button onClick={() => { confirmDel.run(); setConfirmDel(null); }} style={{ flex:1, padding:"12px", background:"#EF4444", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:"pointer" }}>삭제</button>
             </div>
           </div>
         </div>

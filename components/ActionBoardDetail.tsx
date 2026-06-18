@@ -794,7 +794,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                     )}
                     {user && (user.uid === post.uid || user.uid === board.uid) && (
                       <button
-                        onClick={e => { e.stopPropagation(); deleteBoardPost(boardId, post.id); }}
+                        onClick={e => { e.stopPropagation(); if (window.confirm("이 게시물을 삭제할까요?")) deleteBoardPost(boardId, post.id); }}
                         style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9CA3AF", padding:"2px 4px" }}
                         title="삭제"
                       >×</button>
@@ -955,7 +955,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 <PostCard
                   post={post}
                   canDelete={!!user && (user.uid === post.uid || user.uid === board.uid)}
-                  onDelete={() => deleteBoardPost(boardId, post.id)}
+                  onDelete={() => { if (window.confirm("이 게시물을 삭제할까요?")) deleteBoardPost(boardId, post.id); }}
                   onEdit={() => openEditPost(post)}
                   onOpenPpt={(url, name) => setPptViewer({ url, name })}
                   onMouseDown={e => handleCardMouseDown(e, post.id)}

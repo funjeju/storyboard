@@ -271,7 +271,16 @@ export default function SunoMaker() {
   const { user, signIn } = useAuth();
 
   // ─ App Flow
-  const [appMode, setAppMode]         = useState<"select" | "path-a" | "path-b">("select");
+  const [appMode, setAppMode]         = useState<"select" | "simple" | "path-a" | "path-b">("select");
+
+  // ─ 간단 모드 (한 줄 → AI가 전부 결정)
+  const [simpleIdea,    setSimpleIdea]    = useState("");
+  const [simpleLoading, setSimpleLoading] = useState(false);
+  const [simpleStyle,   setSimpleStyle]   = useState("");
+  const [simpleLyrics,  setSimpleLyrics]  = useState("");
+  const [simpleTitle,   setSimpleTitle]   = useState("");
+  const [simpleMeta,    setSimpleMeta]    = useState<{ genre?: string; mood?: string; vocal?: string; language?: string } | null>(null);
+  const [simpleSaved,   setSimpleSaved]   = useState(false);
   const [pathAStep, setPathAStep]     = useState<"choose" | "paste" | "create" | "style">("choose");
   const [pathBLyricsShown, setPathBLyricsShown] = useState(false);
 
@@ -470,6 +479,52 @@ export default function SunoMaker() {
     setResults(out);
     setLyricsOpen(out.map(() => false));
     setLoading(false);
+  };
+
+  // ── 간단 모드: 한 줄 → 스타일 + 가사 바로 생성 ──────────────────────────────
+  const runSimple = async () => {
+    if (!simpleIdea.trim() || simpleLoading) return;
+    setSimpleLoading(true);
+    setSimpleStyle(""); setSimpleLyrics(""); setSimpleTitle(""); setSimpleMeta(null); setSimpleSaved(false);
+    try {
+      const res = await fetch("/api/suno-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "simple", idea: simpleIdea.trim() }),
+      });
+      const data = await res.json();
+      setSimpleStyle(data.stylePrompt || "생성 실패 — 다시 시도해주세요.");
+      setSimpleLyrics(data.lyrics || "");
+      setSimpleTitle(data.suggestedTitle || "");
+      setSimpleMeta(data.meta || null);
+    } catch {
+      setSimpleStyle("생성 실패 — 다시 시도해주세요.");
+    }
+    setSimpleLoading(false);
+  };
+
+  const saveSimple = () => {
+    if (!user) { setShowLoginModal(true); return; }
+    if (!simpleStyle) return;
+    const now = Date.now();
+    const id = `track-${now}-simple`;
+    const entry: LibraryTrack = {
+      id, title: simpleTitle || "간단 생성 트랙", stylePrompt: simpleStyle,
+      lyrics: simpleLyrics || null,
+      genre: simpleMeta?.genre || "", mood: simpleMeta?.mood || "",
+      vocal: `${simpleMeta?.vocal || "있음"} (${simpleMeta?.language || "한국어"})`,
+      topic: simpleIdea, createdAt: now, audioDataKey: null,
+    };
+    try {
+      const existing: LibraryTrack[] = JSON.parse(localStorage.getItem("suno_library_v1") || "[]");
+      localStorage.setItem("suno_library_v1", JSON.stringify([entry, ...existing].slice(0, 200)));
+    } catch { /* silent */ }
+    upsertSunoTrack(user.uid, {
+      id: entry.id, title: entry.title, stylePrompt: entry.stylePrompt, lyrics: entry.lyrics,
+      genre: entry.genre, mood: entry.mood, vocal: entry.vocal, topic: entry.topic,
+      createdAt: now, updatedAt: now, status: "completed", audioStoragePath: null, audioUrl: null,
+    }).catch(() => {});
+    setSimpleSaved(true);
   };
 
   // Analyze pasted lyrics/keywords
@@ -848,6 +903,26 @@ export default function SunoMaker() {
             </p>
           </div>
 
+          {/* 간단 모드 배너 */}
+          <button
+            onClick={() => setAppMode("simple")}
+            className="suno-mode-btn"
+            style={{ width:"100%", marginBottom:22, background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:20, padding:"22px 26px", cursor:"pointer", textAlign:"left", color:"white", display:"flex", alignItems:"center", gap:18, boxShadow:"0 10px 28px rgba(124,58,237,0.28)", transition:"all 0.2s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform="translateY(-3px)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform="translateY(0)"; }}
+          >
+            <div style={{ fontSize:38, flexShrink:0 }}>⚡</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:19, fontWeight:800, marginBottom:4 }}>간단 모드 — 한 줄로 바로 생성</div>
+              <div style={{ fontSize:13, opacity:0.92, lineHeight:1.6 }}>
+                “비 오는 날 헤어진 연인을 그리는 잔잔한 시티팝” 한 줄만 입력 →<br />장르·무드·보컬까지 AI가 알아서 + 가사·스타일 프롬프트 완성
+              </div>
+            </div>
+            <div style={{ fontSize:22, flexShrink:0 }}>→</div>
+          </button>
+
+          <div style={{ textAlign:"center", fontSize:12, color:"#9CA3AF", fontWeight:600, marginBottom:18 }}>또는 직접 골라서 만들기 (디테일 모드)</div>
+
           {/* Two big mode cards */}
           <div className="suno-mode-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, marginBottom:40 }}>
             {/* Path A: Lyrics First */}
@@ -906,6 +981,101 @@ export default function SunoMaker() {
           <div style={{ textAlign:"center", fontSize:12, color:"#9CA3AF" }}>
             Powered by <span style={{ color:P, fontWeight:600 }}>Gemini 2.5 Flash</span> + <span style={{ color:PINK, fontWeight:600 }}>Suno AI</span>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 간단 모드 화면 ────────────────────────────────────────────────────────────
+  if (appMode === "simple") {
+    const examples = [
+      "비 오는 날 헤어진 연인을 그리는 잔잔한 시티팝",
+      "새벽 운동 갈 때 듣는 에너지 넘치는 EDM",
+      "첫 출근하는 사회초년생을 응원하는 밝은 어쿠스틱",
+      "제주 바다를 달리는 드라이브 록",
+    ];
+    return (
+      <div style={{ minHeight:"100vh", background:"#F8F5FF", fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
+        <style>{globalStyle}</style>
+        {renderLoginModal()}
+        {renderNav()}
+        <div style={{ maxWidth:720, margin:"0 auto", padding:"36px 20px 80px" }}>
+          <button onClick={() => setAppMode("select")} style={{ background:"none", border:"none", color:"#6B7280", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:20 }}>← 처음으로</button>
+
+          <div style={{ textAlign:"center", marginBottom:28, animation:"fadeUp 0.4s ease both" }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>⚡</div>
+            <h1 style={{ fontSize:28, fontWeight:800, color:"#0F172A", letterSpacing:-0.8, marginBottom:10 }}>간단 모드</h1>
+            <p style={{ fontSize:14, color:"#6B7280", lineHeight:1.7 }}>어떤 노래를 원하는지 한 줄로만 적어주세요.<br />장르·무드·보컬은 <b style={{ color:P }}>AI가 알아서</b> 정하고 가사·스타일 프롬프트까지 만들어요.</p>
+          </div>
+
+          <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", boxShadow:"0 4px 16px rgba(124,58,237,0.08)", padding:24, animation:"fadeUp 0.5s ease both" }}>
+            <textarea
+              value={simpleIdea}
+              onChange={e => setSimpleIdea(e.target.value)}
+              placeholder="예: 비 오는 날 헤어진 연인을 그리는 잔잔한 시티팝"
+              rows={3}
+              style={{ width:"100%", padding:"14px 16px", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:15, fontFamily:"inherit", outline:"none", resize:"vertical", lineHeight:1.6 }}
+            />
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:12 }}>
+              {examples.map(ex => (
+                <button key={ex} onClick={() => setSimpleIdea(ex)} style={{ padding:"6px 12px", background:"#F5F3FF", border:"1px solid #EDE9FE", borderRadius:100, fontSize:12, color:"#6D28D9", cursor:"pointer", fontWeight:600 }}>{ex}</button>
+              ))}
+            </div>
+            <button
+              onClick={runSimple}
+              disabled={!simpleIdea.trim() || simpleLoading}
+              style={{ width:"100%", marginTop:16, padding:"15px", borderRadius:14, border:"none", fontSize:15, fontWeight:700, color:"white", cursor:(!simpleIdea.trim()||simpleLoading)?"not-allowed":"pointer", opacity:(!simpleIdea.trim()||simpleLoading)?0.5:1, background:`linear-gradient(135deg,${P},${PINK})`, display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 14px rgba(124,58,237,0.3)" }}
+            >
+              {simpleLoading ? <><Spin size={16} color="white" /> 생성 중... (10~20초)</> : "✨ 바로 생성"}
+            </button>
+          </div>
+
+          {/* 결과 */}
+          {simpleStyle && !simpleLoading && (
+            <div style={{ marginTop:24, display:"flex", flexDirection:"column", gap:20 }}>
+              {/* AI 해석 칩 */}
+              {simpleMeta && (
+                <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:12, color:"#9CA3AF", fontWeight:700 }}>AI 해석</span>
+                  {[simpleMeta.genre, simpleMeta.mood, simpleMeta.vocal === "없음" ? "보컬 없음" : "보컬 있음", simpleMeta.language].filter(Boolean).map((v, i) => (
+                    <span key={i} style={{ padding:"4px 12px", background:"rgba(124,58,237,0.08)", borderRadius:100, fontSize:12, fontWeight:700, color:"#6D28D9" }}>{v}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* 스타일 프롬프트 */}
+              <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden" }}>
+                <div style={{ background:`linear-gradient(135deg,${P},${PINK})`, padding:"14px 22px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div style={{ color:"white", fontWeight:700, fontSize:15 }}>스타일 프롬프트{simpleTitle && ` — ${simpleTitle}`}</div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={() => copy(simpleStyle, "simple-style")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>{copiedTarget === "simple-style" ? "✓ 복사됨" : "복사"}</button>
+                    <button onClick={saveSimple} style={{ padding:"5px 14px", background:simpleSaved?"rgba(16,185,129,0.85)":"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:700 }}>{simpleSaved ? "✓ 저장됨" : "📚 저장"}</button>
+                  </div>
+                </div>
+                <div style={{ padding:"20px 22px" }}>
+                  <div style={{ fontSize:13, color:"#374151", lineHeight:1.8, background:"#FAFAFA", borderRadius:10, padding:16, border:"1px solid #F3F4F6" }}>{simpleStyle}</div>
+                  <div style={{ marginTop:8, fontSize:11, color:"#9CA3AF", textAlign:"right" }}>{simpleStyle.length} / 1000자</div>
+                </div>
+              </div>
+
+              {/* 가사 */}
+              {simpleLyrics && (
+                <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden" }}>
+                  <div style={{ background:"linear-gradient(135deg,#1E3A5F,#2563EB)", padding:"14px 22px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div style={{ color:"white", fontWeight:700, fontSize:15 }}>생성된 가사</div>
+                    <button onClick={() => copy(simpleLyrics, "simple-lyrics")} style={{ padding:"5px 14px", background:"rgba(255,255,255,0.2)", border:"none", borderRadius:8, color:"white", fontSize:12, cursor:"pointer", fontWeight:600 }}>{copiedTarget === "simple-lyrics" ? "✓ 복사됨" : "복사"}</button>
+                  </div>
+                  <div style={{ padding:"20px 22px" }}>
+                    <pre style={{ fontSize:13, color:"#374151", lineHeight:1.9, whiteSpace:"pre-wrap", background:"#FAFAFA", borderRadius:10, padding:16, border:"1px solid #F3F4F6", fontFamily:"inherit", margin:0 }}>{simpleLyrics}</pre>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ textAlign:"center" }}>
+                <button onClick={() => setAppMode("path-b")} style={{ padding:"10px 20px", background:"white", border:`1.5px solid ${P}`, borderRadius:10, fontSize:13, fontWeight:700, color:P, cursor:"pointer" }}>⚙️ 디테일 모드로 더 세밀하게 →</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

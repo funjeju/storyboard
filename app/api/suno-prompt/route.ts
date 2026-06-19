@@ -6,6 +6,54 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // ─── 간단 모드: 한 줄 아이디어 → AI가 장르·무드·보컬까지 알아서 결정 ───────────
+    if (body.mode === "simple") {
+      const idea = String(body.idea || "").trim();
+      if (!idea) return NextResponse.json({ error: "아이디어를 입력하세요." }, { status: 400 });
+      const isKo = /[가-힣]/.test(idea);
+
+      const styleSys = `You are a Grammy-winning music producer writing a Suno AI "Style of Music" prompt.
+From a short, possibly vague idea, YOU DECIDE the genre/subgenre, instrumentation, rhythm, bass, vocal delivery, production style, atmosphere and energy yourself.
+⚠️ HARD LIMIT: 1000 characters max (target ~900). Be DENSE — comma-separated descriptors, single paragraph, every word earns its place.
+Cover: genre blend, 1-2 real artist/sound references, key instrumentation & tone, rhythm/groove & tempo feel, bass, vocal delivery (gender/texture), production style, sonic atmosphere, energy dynamics.
+DO NOT write lyrics. DO NOT use [section] tags. Output ONLY the descriptor paragraph.`;
+
+      const lyricsSys = `You are an acclaimed ${isKo ? "Korean" : "English"} lyricist.
+From a short idea, write COMPLETE original song lyrics in ${isKo ? "Korean" : "English"}.
+Use Suno metatags exactly: [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Final Chorus], [Outro].
+Write ALL sections fully — never truncate, no placeholders. Make it singable, emotionally vivid, with a memorable hook.`;
+
+      const metaSys = `Classify a song idea for display chips. Reply with ONLY compact JSON, no markdown:
+{"genre":"<장르(한국어)>","mood":"<분위기(한국어)>","vocal":"있음 또는 없음","language":"한국어 또는 English"}`;
+
+      const flash = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const [styleR, lyricsR, titleR, metaR] = await Promise.all([
+        genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: styleSys })
+          .generateContent({ contents: [{ role: "user", parts: [{ text: `Idea: ${idea}` }] }], generationConfig: { maxOutputTokens: 4096 } }),
+        genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: lyricsSys })
+          .generateContent({ contents: [{ role: "user", parts: [{ text: `Idea: ${idea}\nWrite the full lyrics now.` }] }], generationConfig: { maxOutputTokens: 16384 } }),
+        flash.generateContent({ contents: [{ role: "user", parts: [{ text: `Suggest ONE punchy song title (2-5 words) in ${isKo ? "Korean" : "English"} for this idea: "${idea}". Reply with ONLY the title. No quotes.` }] }], generationConfig: { maxOutputTokens: 200 } }),
+        genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: metaSys })
+          .generateContent({ contents: [{ role: "user", parts: [{ text: idea }] }], generationConfig: { maxOutputTokens: 200 } }),
+      ]);
+
+      let sPrompt = styleR.response.text().trim().replace(/^["'`]|["'`]$/g, "");
+      if (sPrompt.length > 1000) {
+        const t = sPrompt.slice(0, 1000); const lc = t.lastIndexOf(",");
+        sPrompt = lc > 800 ? t.slice(0, lc) : t;
+      }
+      const sLyrics = lyricsR.response.text().trim();
+      const sTitle = titleR.response.text().trim().replace(/^["'「『【\[<]|["'」』】\]>]$/g, "").split("\n")[0].trim();
+      let meta = { genre: "", mood: "", vocal: "있음", language: isKo ? "한국어" : "English" };
+      try {
+        const parsed = JSON.parse(metaR.response.text().replace(/```json|```/g, "").trim());
+        meta = { ...meta, ...parsed };
+      } catch { /* keep defaults */ }
+
+      return NextResponse.json({ stylePrompt: sPrompt, lyrics: sLyrics, suggestedTitle: sTitle, meta });
+    }
+
     const isAlbum = body.projectType === "album";
     const trackLabel = isAlbum ? `Track ${body.trackIndex || 1} of ${body.trackCount}` : "Single";
     const bpmText = body.bpmMode === "random" ? "tempo auto-matched to genre" : `${body.bpm} BPM`;

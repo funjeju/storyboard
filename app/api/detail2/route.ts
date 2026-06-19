@@ -93,13 +93,13 @@ export async function POST(req: NextRequest) {
 [설득 구조 — 8단 흐름을 12장으로]
 ${sectionList}
 
-⚠️ 언어 규칙 (매우 중요): strategy의 모든 값과 모든 장면의 mainCopy·subCopy·points·trust는 반드시 자연스러운 한국어로 작성하세요. 영어로 쓰지 마세요. (imagePrompt만 영어로 작성하되, 그 안에 렌더링할 카피 텍스트는 위에서 쓴 한국어를 그대로 넣으세요.)
+🔴 언어 규칙 (절대 준수): strategy의 모든 값과 모든 장면의 mainCopy·subCopy·points·trust는 100% 한국어로만 작성. 영어 단어·영어 문장을 절대 쓰지 마세요(브랜드 영문명만 예외). 예: mainCopy "제주 브로콜리, 식탁 위 청정 자연" / points ["국산 100%","유기농 인증","당일 수확"]. "Discover", "Premium", "100% organic" 같은 영어 출력은 금지.
 
-[각 장면 필수 메시지 구조]
-- mainCopy: 핵심 메시지 1개 (강력하게, 한국어)
-- subCopy: 설명 문장 1~2개 (한국어)
-- points: 보조 포인트 3~5개 (한국어)
-- trust: 신뢰/근거 요소 1개 이상 (한국어, 없으면 제품 특징 기반으로 합리적으로)
+[각 장면 필수 메시지 구조] (모두 한국어)
+- mainCopy: 핵심 메시지 1개 (강력한 헤드라인)
+- subCopy: 설명 문장 1~2개
+- points: 보조 포인트 3~5개 (짧고 구체적으로)
+- trust: 신뢰/근거 요소 1개 이상 (없으면 placeholder)
 
 [반복 설계] 같은 가치라도 상황(아침/저녁/직장/집/혼자/가족)·표현(감성/기능/비교/숫자)·시각(모델/클로즈업/사용장면/결과장면)을 다르게.
 
@@ -109,20 +109,27 @@ ${sectionList}
 [상세정보 섹션] 표(Table) 형태로 다음 항목 위주로 구성(해당 없는 항목은 빼고, 제품에 맞게 가감): ${specs.join(", ")}.
 ${toneHint ? `[톤] ${toneHint} 분위기를 유지.` : ""}
 
-[imagePrompt 규칙 — 핵심 출력]
-- 영어로 작성. photorealistic, commercial product photography, natural lighting, minimal clean background (white/light gray), realistic texture, clean ecommerce design, generous whitespace, card-based layout. 과도한 연출 금지.
+[imagePrompt 규칙 — 핵심 출력] (영어 지시문으로 작성하되, 렌더링 텍스트는 한국어)
+imagePrompt는 "예쁜 제품 사진 + 헤드라인" 수준이 아니라, 실제 디자인된 네이버 스마트스토어 상세페이지 한 컷처럼 **고밀도 레이아웃**을 묘사해야 합니다. 다음을 모두 포함:
+- A designed Korean e-commerce detail page section (Naver SmartStore style), clean editorial layout, card-based blocks, rounded info boxes, soft shadows, generous whitespace, subtle brand-color accents, small line icons.
+- TEXT TO RENDER (정확히 이 한국어 그대로, 화면에 또렷하게):
+  · 상단 큰 볼드 헤드라인 = mainCopy
+  · 그 아래 중간 크기 = subCopy
+  · 아이콘이 붙은 체크리스트/불릿으로 points 3~5개를 각각 한 줄씩
+  · 강조 배지/라벨로 trust
+- Typography hierarchy: bold heavy headline, lighter body, color+bold for emphasis. Korean text must be legible and correctly spelled (한글 정확히).
+- photorealistic product photography integrated into the layout, natural lighting, realistic texture. 과도한 연출 금지.
 ${usePeople
-  ? `- "모델 등장" 표시된 장면만 다음 인물을 묘사: ${modelDesc || "an appropriate Korean model fitting the product"}. 나머지는 제품 중심.`
-  : `- 이 상품은 인물 없이 진행: 이미지에 사람/모델/손/신체를 절대 넣지 말 것. 제품 단독 컷, 디테일 클로즈업, 오브제 스타일링, 사용 결과(제품만) 중심으로 연출.`}
-- 이미지에 들어가는 텍스트는 반드시 한국어로, 위 mainCopy/subCopy/points 문장을 그대로 렌더링하도록 영어 지시문 안에 따옴표로 포함. 이미지에 영어 텍스트를 넣지 말 것(브랜드 영문명 제외). 타이포: 헤드라인 굵고 크게, 본문 작게, 강조는 컬러+Bold.
-- 세로 포맷(portrait), aspect ratio 860:${"{height}"}.
+  ? `- "모델 등장" 표시된 장면만 다음 인물 포함: ${modelDesc || "an appropriate Korean model fitting the product"}. 나머지는 제품 중심.`
+  : `- 인물 없이: 사람/손/신체 금지. 제품 단독·클로즈업·오브제 스타일링 중심.`}
+- 이미지에 영어 텍스트 금지(브랜드 영문명 예외). 세로 portrait, aspect ratio 860:${"{height}"}.
 
 [출력 형식] 반드시 아래 JSON만 출력. 마크다운/설명 금지.
 {
   "strategy": { "target":"...", "problem":"...", "values":["v1","v2","v3","v4","v5"], "trigger":"...", "tone":"...", "color":"..." },
   "scenes": [
-    { "section":"hook", "mainCopy":"...", "subCopy":"...", "points":["..."], "trust":"...", "imagePrompt":"..." }
-    // SECTIONS 순서대로 정확히 12개
+    { "section":"hook", "mainCopy":"제주 브로콜리, 식탁 위 청정 자연", "subCopy":"청정 제주에서 키운 신선함을 그대로 담았어요.", "points":["국산 브로콜리 100%","유기농 인증","당일 수확·발송"], "trust":"[HACCP 인증]", "imagePrompt":"A designed Korean e-commerce detail page section (Naver SmartStore style), clean card layout..., bold Korean headline '제주 브로콜리, 식탁 위 청정 자연', subline '청정 제주에서 키운 신선함을 그대로 담았어요.', a checklist with line icons showing '국산 브로콜리 100%', '유기농 인증', '당일 수확·발송', a badge '[HACCP 인증]', photorealistic broccoli, natural lighting, portrait 860:2200" }
+    // 위와 같은 형식으로 SECTIONS 순서대로 정확히 12개. 모든 한국어 필드는 한국어로.
   ]
 }`;
 

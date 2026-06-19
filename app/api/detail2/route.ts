@@ -1,7 +1,7 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const maxDuration = 120;
 
@@ -22,16 +22,15 @@ const SECTIONS = [
 ];
 
 // 일시적 과부하(503/429/overloaded)면 backoff 후 재시도
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function genWithRetry(model: any, request: any, tries = 3): Promise<any> {
+async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < tries; i++) {
     try {
-      return await model.generateContent(request);
+      return await fn();
     } catch (e) {
       lastErr = e;
       const msg = String(e);
-      const transient = /(503|429|high demand|overloaded|unavailable)/i.test(msg);
+      const transient = /(503|429|high demand|overloaded|unavailable|rate limit)/i.test(msg);
       if (transient && i < tries - 1) {
         await new Promise(r => setTimeout(r, 1500 * (i + 1)));
         continue;
@@ -107,15 +106,20 @@ ${features || "(미입력)"}
 
 위 정보로 12장 장면을 설계해 JSON으로만 응답하세요.`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: system });
-    const result = await genWithRetry(model, {
-      contents: [{ role: "user", parts: [{ text: user }] }],
-      generationConfig: { maxOutputTokens: 16384, responseMimeType: "application/json" },
-    });
+    const completion = await withRetry(() => openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 16384,
+      temperature: 0.8,
+    }));
 
     let parsed: { strategy?: unknown; scenes?: Array<Record<string, unknown>> };
     try {
-      parsed = JSON.parse(result.response.text().replace(/```json|```/g, "").trim());
+      parsed = JSON.parse((completion.choices[0]?.message?.content || "").replace(/```json|```/g, "").trim());
     } catch {
       return NextResponse.json({ error: "프롬프트 생성 결과 파싱 실패. 다시 시도해주세요." }, { status: 502 });
     }
@@ -143,8 +147,8 @@ ${features || "(미입력)"}
   } catch (e) {
     console.error("detail2 error:", e);
     const msg = String(e);
-    if (/(503|429|high demand|overloaded|unavailable)/i.test(msg)) {
-      return NextResponse.json({ error: "지금 Gemini가 일시적으로 혼잡해요. 30초쯤 뒤에 다시 시도해주세요. (자동 재시도 후에도 실패)" }, { status: 503 });
+    if (/(503|429|high demand|overloaded|unavailable|rate limit)/i.test(msg)) {
+      return NextResponse.json({ error: "지금 AI 서버가 일시적으로 혼잡해요. 30초쯤 뒤에 다시 시도해주세요. (자동 재시도 후에도 실패)" }, { status: 503 });
     }
     return NextResponse.json({ error: "설계 중 오류가 발생했어요. 다시 시도해주세요." }, { status: 500 });
   }

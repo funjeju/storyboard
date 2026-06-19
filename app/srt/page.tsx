@@ -157,8 +157,8 @@ export default function SrtPage() {
         <div style={{ textAlign:"center", marginBottom:32, animation:"fadeUp 0.4s ease both" }}>
           <h1 style={{ fontSize:28, fontWeight:800, color:"#0F172A", letterSpacing:-0.8, marginBottom:10 }}>🎙️ 자막 자동 생성</h1>
           <p style={{ fontSize:14, color:"#6B7280", lineHeight:1.7 }}>
-            MP3 파일만으로 SRT 자막을 생성하거나,<br />
-            스크립트 TXT를 함께 올리면 정확도가 높아져요
+            MP3만으로 자동 생성하거나,<br />
+            <b style={{ color:"#2563EB" }}>가사 TXT</b>를 함께 올리면 가사 그대로 + 정확한 타이밍으로 정렬돼요
           </p>
         </div>
 
@@ -203,7 +203,7 @@ export default function SrtPage() {
             {/* Divider */}
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
               <div style={{ flex:1, height:1, background:"#F3F4F6" }} />
-              <span style={{ fontSize:10, color:"#9CA3AF", fontWeight:700, letterSpacing:1 }}>선택 — 정확도 향상</span>
+              <span style={{ fontSize:10, color:"#9CA3AF", fontWeight:700, letterSpacing:1 }}>선택 — 가사 정렬</span>
               <div style={{ flex:1, height:1, background:"#F3F4F6" }} />
             </div>
 
@@ -211,7 +211,7 @@ export default function SrtPage() {
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
                 <span style={{ width:20, height:20, borderRadius:"50%", background:txtFile?"#10B981":"#D1D5DB", color:"white", fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>2</span>
-                <span style={{ fontSize:14, fontWeight:700, color:"#1F2937" }}>스크립트 TXT 파일</span>
+                <span style={{ fontSize:14, fontWeight:700, color:"#1F2937" }}>가사 TXT 파일</span>
                 <span style={{ marginLeft:"auto", fontSize:10, fontWeight:700, color:"#9CA3AF", background:"#F3F4F6", padding:"2px 8px", borderRadius:100 }}>선택</span>
               </div>
               <div
@@ -233,7 +233,8 @@ export default function SrtPage() {
                 ) : (
                   <>
                     <div style={{ fontSize:20, marginBottom:4 }}>📄</div>
-                    <div style={{ fontSize:13, color:"#9CA3AF" }}>스크립트 TXT 드래그 또는 클릭</div>
+                    <div style={{ fontSize:13, color:"#9CA3AF" }}>가사 TXT 드래그 또는 클릭</div>
+                    <div style={{ fontSize:11, color:"#CBD5E1", marginTop:3 }}>한 줄에 자막 한 줄씩 넣으면 가장 정확해요</div>
                   </>
                 )}
               </div>
@@ -245,9 +246,9 @@ export default function SrtPage() {
               <div style={{ borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", gap:10, background:txtFile?"#F0FDF4":"#EFF6FF", border:`1px solid ${txtFile?"#BBF7D0":"#BFDBFE"}` }}>
                 <span style={{ fontSize:18 }}>{txtFile ? "✨" : "🎙️"}</span>
                 <div>
-                  <div style={{ fontSize:12, fontWeight:700, color:txtFile?"#15803D":"#2563EB" }}>{txtFile ? "고정확도 모드" : "표준 모드"}</div>
+                  <div style={{ fontSize:12, fontWeight:700, color:txtFile?"#15803D":"#2563EB" }}>{txtFile ? "가사 정렬 모드" : "자동 인식 모드"}</div>
                   <div style={{ fontSize:11, color:txtFile?"#22C55E":"#60A5FA", marginTop:2 }}>
-                    {txtFile ? "MP3 타이밍 + 스크립트 텍스트를 정렬합니다" : "TXT 스크립트를 추가하면 정확도가 올라가요"}
+                    {txtFile ? "자막은 가사 원문 그대로, 타이밍만 음원에 맞춰 정렬해요" : "음원을 받아쓰기 합니다 (반주가 크면 정확도가 떨어질 수 있어요)"}
                   </div>
                 </div>
               </div>

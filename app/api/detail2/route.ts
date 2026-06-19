@@ -21,13 +21,43 @@ const SECTIONS = [
   { key: "cta",      ko: "CTA (행동 유도)",          model: true,  h: 1800 },
 ];
 
-// 카테고리 표준 프리셋 — 상세정보 표 항목/톤/인물 기본값만 다르게
-const CATEGORIES: Record<string, { label: string; specs: string[]; persona: "with" | "product"; tone: string }> = {
-  food:    { label: "식품 · 건강식품",   specs: ["제품 구성/용량", "원재료/성분", "섭취 방법", "보관 방법", "유통기한", "인증/원산지", "주의사항"], persona: "with",    tone: "신뢰감 있고 건강한, 깨끗한" },
-  beauty:  { label: "뷰티 · 화장품",     specs: ["제품 구성/용량", "전성분", "사용 방법", "사용 부위/피부타입", "용량", "유통기한", "주의사항"], persona: "with",    tone: "감각적이고 청결한, 고급스러운" },
-  fashion: { label: "패션 · 의류 · 잡화", specs: ["소재/혼용률", "사이즈/실측", "세탁·관리법", "구성/색상", "핏/스타일", "주의사항"],          persona: "with",    tone: "트렌디하고 감성적인" },
-  digital: { label: "전자 · 가전 · 디지털", specs: ["주요 사양(스펙)", "구성품", "전압/규격", "호환성", "A/S·보증", "주의사항"],              persona: "product", tone: "모던하고 정밀한, 테크" },
-  living:  { label: "리빙 · 생활 · 기타", specs: ["소재/재질", "규격/크기", "구성", "사용·관리법", "주의사항"],                              persona: "product", tone: "깔끔하고 실용적인" },
+// 카테고리 표준 프리셋 — 상세정보 표 항목/톤/인물 기본값 + 카테고리별 아트디렉션
+const CATEGORIES: Record<string, { label: string; specs: string[]; persona: "with" | "product"; tone: string; peopleArt: string; productArt: string }> = {
+  food: {
+    label: "식품 · 건강식품",
+    specs: ["제품 구성/용량", "원재료/성분", "섭취 방법", "보관 방법", "유통기한", "인증/원산지", "주의사항"],
+    persona: "with", tone: "신뢰감 있고 건강한, 깨끗한",
+    peopleArt: "식탁·주방에서 제품을 맛있게 먹는 인물/가족, 만족스러운 표정, 따뜻한 식사 라이프스타일",
+    productArt: "원물(생재료) 배치, 신선도 큐(물방울·은은한 김·단면·떨어지는 재료), 우드보드·리넨 소품, 매크로 질감, before/after 신선도 비교, 패키지/선물세트 히어로",
+  },
+  beauty: {
+    label: "뷰티 · 화장품",
+    specs: ["제품 구성/용량", "전성분", "사용 방법", "사용 부위/피부타입", "용량", "유통기한", "주의사항"],
+    persona: "with", tone: "감각적이고 청결한, 고급스러운",
+    peopleArt: "얼굴·피부 클로즈업, 제품 도포 장면, 윤기나고 깨끗한 피부 결과 컷",
+    productArt: "제형(텍스처) 스와치·클로즈업, 용기 히어로샷, 원료 성분 이미지, 미니멀 화장대/욕실 스타일링, 물·오일 텍스처 큐",
+  },
+  fashion: {
+    label: "패션 · 의류 · 잡화",
+    specs: ["소재/혼용률", "사이즈/실측", "세탁·관리법", "구성/색상", "핏/스타일", "주의사항"],
+    persona: "with", tone: "트렌디하고 감성적인",
+    peopleArt: "제품을 착용한 풀샷·하프샷, 다양한 각도·코디·포즈, 자연광 룩북 무드",
+    productArt: "옷·잡화 플랫레이(탑다운), 원단/소재 매크로 클로즈업, 행거·마네킹 연출, 디테일(스티치·버튼·로고) 컷, 컬러 베리에이션",
+  },
+  digital: {
+    label: "전자 · 가전 · 디지털",
+    specs: ["주요 사양(스펙)", "구성품", "전압/규격", "호환성", "A/S·보증", "주의사항"],
+    persona: "product", tone: "모던하고 정밀한, 테크",
+    peopleArt: "제품을 사용하는 손·사용 장면(얼굴 최소), 책상·공간 사용 컨텍스트",
+    productArt: "제품 단독 히어로(스튜디오 라이팅), 포트·버튼·구성품 디테일, 분해/구조 컷, 화면·UI 목업, 사이즈/스펙 인포그래픽, 패키지 구성",
+  },
+  living: {
+    label: "리빙 · 생활 · 기타",
+    specs: ["소재/재질", "규격/크기", "구성", "사용·관리법", "주의사항"],
+    persona: "product", tone: "깔끔하고 실용적인",
+    peopleArt: "공간에서 제품을 사용·배치하는 라이프스타일 장면(얼굴 최소)",
+    productArt: "제품 단독 히어로, 소재/디테일 클로즈업, 실제 공간 스타일링 컷, 다양한 각도, 구성/사이즈 인포그래픽",
+  },
 };
 
 // 일시적 과부하(503/429/overloaded)면 backoff 후 재시도
@@ -76,6 +106,8 @@ export async function POST(req: NextRequest) {
     const specs = cat ? cat.specs : ["제품 구성/용량", "주요 성분/소재", "사용 방법", "보관/관리", "주의사항"];
     const catLabel = cat ? cat.label : "자동 판단";
     const toneHint = cat ? cat.tone : "";
+    const peopleArt = cat?.peopleArt || "제품을 사용·체험하는 인물 라이프스타일 장면, 감정 표현";
+    const productArt = cat?.productArt || "제품 히어로샷·매크로 디테일·구성품·인포그래픽 등 제품 유형에 맞게 다양하게";
 
     // 인물(모델) 포함 정책
     const usePeople =
@@ -120,18 +152,9 @@ imagePrompt는 "예쁜 제품 사진 + 헤드라인" 수준이 아니라, 실제
 - Typography hierarchy: bold heavy headline, lighter body, color+bold for emphasis. Korean text must be legible and correctly spelled (한글 정확히).
 - photorealistic product photography integrated into the layout, natural lighting, realistic texture. 과도한 연출 금지.
 ${usePeople
-  ? `- "모델 등장" 표시된 장면만 다음 인물 포함: ${modelDesc || "an appropriate Korean model fitting the product"}. 나머지는 제품 중심.`
-  : `- 🚫 인물 없이 진행: 사람/얼굴/손/신체 절대 금지. 단, "제품 단독" 한 컷으로 밋밋해지지 않도록 아래 제품 전용 아트디렉션으로 풍부하게 연출:
-   · 기법 풀(장면마다 다르게 골라 사용): hero product styling with dramatic studio lighting; fresh raw ingredients arranged around the product; macro texture / cross-section close-up; freshness cues (water droplets, gentle steam, motion, falling ingredients); natural props (wood board, linen, stone, fresh greenery); flat-lay top-down composition; before/after product comparison (dull vs vibrant); packaging/giftset hero shot; infographic-style callouts with line icons.
-   · 섹션별 연출 가이드:
-     - Hook: 임팩트 있는 히어로 제품샷(드라마틱 라이팅)
-     - 문제공감: 평범·시든 제품 vs 우리 제품의 선명한 대비
-     - 해결(Before/After): 제품 비교 컷
-     - 핵심가치: 매크로 디테일·원물/원산지·질감·단면 등 매번 다른 앵글
-     - 신뢰: 인증마크·원산지 풍경·제조공정(얼굴 없이)
-     - 상세: 제품 + 스펙 표 레이아웃
-     - CTA: 패키지/선물세트 히어로
-   · 12장이 똑같아 보이지 않게 구도·앵글·배경을 장면마다 변주.`}
+  ? `- "모델 등장" 표시 장면: 다음 인물 포함 — ${modelDesc || "제품에 어울리는 한국인 모델"}. 이 카테고리의 인물 연출 = ${peopleArt}. "모델 등장"이 아닌 장면은 아래 제품 연출(${productArt})로.`
+  : `- 🚫 인물 없이 진행: 사람/얼굴/손/신체 절대 금지. "제품 단독"으로 밋밋해지지 않도록 이 카테고리 전용 제품 아트디렉션으로 풍부하게: ${productArt}.`}
+- 섹션별 연출 변주(인물·제품 공통): Hook=임팩트 히어로 / 문제공감=문제 상황 vs 해결 대비 / 해결=Before·After / 핵심가치=매번 다른 앵글의 디테일·근거 컷 / 신뢰=인증·원산지·공정(얼굴 없이) / 상세=제품+스펙 표 / CTA=패키지·선물세트 히어로. 12장이 똑같아 보이지 않게 구도·앵글·배경을 변주.
 - 이미지에 영어 텍스트 금지(브랜드 영문명 예외). 세로 portrait, aspect ratio 860:${"{height}"}.
 
 [출력 형식] 반드시 아래 JSON만 출력. 마크다운/설명 금지.

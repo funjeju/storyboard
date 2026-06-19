@@ -67,7 +67,6 @@ export default function DetailPage2() {
   const [stitching, setStitching]   = useState(false);
   const [copiedIdx, setCopiedIdx]   = useState<number | null>(null);
   const [hydrated, setHydrated]     = useState(false);
-  const [savedAt, setSavedAt]       = useState<number | null>(null);
 
   // ── 복원 (마운트 시 1회) ──
   useEffect(() => {
@@ -81,7 +80,6 @@ export default function DetailPage2() {
         setMood(d.mood ?? "따뜻하고 신뢰감 있는"); setSituation(d.situation ?? "");
         setStrategy(d.strategy ?? null);
         if (Array.isArray(d.scenes)) setScenes(d.scenes);
-        if (d.savedAt) setSavedAt(d.savedAt);
       }
     } catch { /* ignore */ }
     setHydrated(true);
@@ -98,17 +96,17 @@ export default function DetailPage2() {
       // 용량 초과 → 이미지(base64) 빼고 프롬프트만 저장
       try { localStorage.setItem(SESSION_KEY, JSON.stringify({ ...base, scenes: scenes.map(s => ({ ...s, image: undefined, inCanvas: false })) })); } catch { /* give up */ }
     }
-    setSavedAt(now);
   }, [hydrated, brand, features, categoryKey, modelMode, extra, gender, age, ageRange, mood, situation, strategy, scenes]);
 
   const resetSession = () => {
     if (!window.confirm("현재 작업을 비우고 새 프로젝트를 시작할까요? (저장된 프로젝트는 그대로 보존돼요)")) return;
-    setScenes([]); setStrategy(null); setProjectId("");
+    setScenes([]); setStrategy(null); setProjectId(""); setProjectTitle("");
     try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
   };
 
   // ── 클라우드 프로젝트 저장 ──
-  const [projectId, setProjectId]   = useState("");
+  const [projectId, setProjectId]     = useState("");
+  const [projectTitle, setProjectTitle] = useState("");
   const [saving, setSaving]         = useState(false);
   const [cloudSaved, setCloudSaved] = useState(false);
   const [projects, setProjects]     = useState<CloudDetail2Project[]>([]);
@@ -138,7 +136,7 @@ export default function DetailPage2() {
       const cover = outScenes.find(s => s.image)?.image || null;
       const data = JSON.stringify({ brand, features, categoryKey, modelMode, extra, model: { gender, age, ageRange, mood, situation }, strategy, scenes: outScenes });
       await upsertDetail2Project(user.uid, {
-        id: pid, title: brand.trim() || "제목 없음", coverUrl: cover ?? null,
+        id: pid, title: projectTitle.trim() || brand.trim() || "제목 없음", coverUrl: cover ?? null,
         sceneCount: outScenes.length, generatedCount: outScenes.filter(s => s.image).length,
         data, createdAt: Date.now(),
       });
@@ -162,6 +160,7 @@ export default function DetailPage2() {
       setStrategy(dd.strategy || null);
       setScenes(Array.isArray(dd.scenes) ? dd.scenes.map((s: Scene) => ({ ...s, inCanvas: !!s.image })) : []);
       setProjectId(p.id);
+      setProjectTitle(p.title || "");
       setShowProjects(false);
     } catch { alert("불러오기 실패"); }
   };
@@ -176,6 +175,22 @@ export default function DetailPage2() {
 
   const generateScenes = async () => {
     if (!brand.trim() && !features.trim()) return;
+
+    // 이미 설계된 게 있으면 → 기존은 보존하고, 새 이름으로 별도 프로젝트 분기 (Save As)
+    if (scenes.length > 0) {
+      const suggested = (projectTitle.trim() || brand.trim() || "프로젝트") + " 시안 2";
+      const name = window.prompt(
+        "이미 설계된 작업이 있어요.\n기존 건 저장해두고, 새 이름으로 별도 프로젝트를 만들어 새로 설계합니다.\n\n새 프로젝트 이름을 입력하세요:",
+        suggested,
+      );
+      if (name === null) return; // 취소 → 아무것도 안 함
+      // 기존 작업이 아직 클라우드에 저장 안 됐으면 먼저 저장(보존)
+      if (user && !projectId) { try { await saveProject(); } catch { /* ignore */ } }
+      // 새 프로젝트로 전환
+      setProjectId("");
+      setProjectTitle(name.trim() || suggested);
+    }
+
     setGenLoading(true); setStrategy(null); setScenes([]);
     try {
       const res = await fetch("/api/detail2", {
@@ -399,9 +414,11 @@ export default function DetailPage2() {
           ) : (
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: "white", borderRadius: 14, border: "1px solid #E5E7EB", padding: "12px 16px", position: "sticky", top: 70, zIndex: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>🖼️ 장면 {scenes.length}장 · 생성 {generatedCount}/{scenes.length}</span>
-                  {savedAt && <span style={{ fontSize: 11, color: "#10B981", fontWeight: 600 }}>💾 자동 저장됨</span>}
+                  <span style={{ fontSize: 11, fontWeight: 700, color: projectId ? O : "#9CA3AF", background: projectId ? "#FFF7ED" : "#F3F4F6", padding: "2px 9px", borderRadius: 100 }}>
+                    📁 {projectTitle.trim() || brand.trim() || "이름 없음"}{projectId ? "" : " · 미저장"}
+                  </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <button onClick={resetSession} style={{ padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "white", fontSize: 12, fontWeight: 700, color: "#6B7280", cursor: "pointer" }}>🗑 새로</button>

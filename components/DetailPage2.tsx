@@ -26,7 +26,7 @@ interface Scene {
   section: string; sectionKo: string;
   width: number; height: number; size: string; hasModel: boolean;
   mainCopy: string; subCopy: string; points: string[]; trust: string; imagePrompt: string;
-  image?: string; generating?: boolean; error?: boolean; inCanvas?: boolean;
+  image?: string; generating?: boolean; error?: boolean; errorMsg?: string; inCanvas?: boolean;
 }
 
 function Spin({ s = 16, c = "white" }: { s?: number; c?: string }) {
@@ -82,10 +82,10 @@ export default function DetailPage2() {
         body: JSON.stringify({ prompt: scene.imagePrompt, size: scene.size, quality }),
       });
       const data = await res.json();
-      if (data.imageUrl) setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, image: data.imageUrl, generating: false, inCanvas: true } : s));
-      else setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, generating: false, error: true } : s));
-    } catch {
-      setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, generating: false, error: true } : s));
+      if (data.imageUrl) setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, image: data.imageUrl, generating: false, error: false, errorMsg: undefined, inCanvas: true } : s));
+      else setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, generating: false, error: true, errorMsg: String(data.error || "생성 실패") } : s));
+    } catch (e) {
+      setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, generating: false, error: true, errorMsg: "네트워크 오류: " + String(e) } : s));
     }
   };
 
@@ -319,7 +319,7 @@ export default function DetailPage2() {
                         style={{ marginTop: 10, padding: "9px 16px", borderRadius: 9, border: `1.5px solid ${O}`, background: s.image ? "white" : `linear-gradient(135deg,${O},${O2})`, color: s.image ? O : "white", fontSize: 12, fontWeight: 700, cursor: s.generating ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6 }}>
                         {s.generating ? <><Spin s={13} c={O} /> 생성 중...</> : s.image ? "🔄 다시 생성" : "🎨 이미지 생성"}
                       </button>
-                      {s.error && <span style={{ marginLeft: 8, fontSize: 11, color: "#DC2626" }}>생성 실패</span>}
+                      {s.error && <div style={{ marginTop: 8, fontSize: 11, color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "7px 10px", lineHeight: 1.5, wordBreak: "break-all", maxHeight: 90, overflow: "auto" }} className="d2-scroll">⚠️ {s.errorMsg || "생성 실패"}</div>}
                     </div>
 
                     {/* 이미지 미리보기 */}

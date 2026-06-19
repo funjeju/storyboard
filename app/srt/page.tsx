@@ -42,6 +42,8 @@ export default function SrtPage() {
 
   const [mp3File, setMp3File]   = useState<File | null>(null);
   const [txtFile, setTxtFile]   = useState<File | null>(null);
+  const [txtMode, setTxtMode]   = useState<"file" | "paste">("file");
+  const [txtPaste, setTxtPaste] = useState("");
   const [status, setStatus]     = useState<"idle" | "uploading" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [srtContent, setSrt]    = useState("");
@@ -81,9 +83,10 @@ export default function SrtPage() {
       const mp3Path = `srt_temp/${user.uid}/${fileId}`;
       await uploadBytes(storageRef(storage, mp3Path), mp3File, { contentType: mp3File.type || "audio/mpeg" });
 
-      // 2. TXT 스크립트 (옵션)
+      // 2. 가사 (옵션) — 붙여넣기 우선, 없으면 파일
       let txtContent = "";
-      if (txtFile) txtContent = await txtFile.text();
+      if (txtMode === "paste" && txtPaste.trim()) txtContent = txtPaste;
+      else if (txtFile) txtContent = await txtFile.text();
 
       // 3. API 호출
       setStatus("loading");
@@ -126,6 +129,7 @@ export default function SrtPage() {
 
   const segmentCount = cues.length;
   const busy = status === "uploading" || status === "loading";
+  const hasLyrics = txtMode === "paste" ? txtPaste.trim().length > 0 : !!txtFile;
   // 환각 휴리스틱: 가사 정렬 모드가 아니고, 서로 다른 줄이 절반 이하면 반복 환각 의심
   const uniqueLines = new Set(cues.map(c => c.text.trim()).filter(Boolean)).size;
   const looksHallucinated = !aligned && cues.length >= 4 && uniqueLines <= Math.ceil(cues.length * 0.5);
@@ -163,7 +167,7 @@ export default function SrtPage() {
           <h1 style={{ fontSize:28, fontWeight:800, color:"#0F172A", letterSpacing:-0.8, marginBottom:10 }}>🎙️ 자막 자동 생성</h1>
           <p style={{ fontSize:14, color:"#6B7280", lineHeight:1.7 }}>
             MP3만으로 자동 생성하거나,<br />
-            <b style={{ color:"#2563EB" }}>가사 TXT</b>를 함께 올리면 가사 그대로 + 정확한 타이밍으로 정렬돼요
+            <b style={{ color:"#2563EB" }}>가사</b>를 함께 넣으면(파일·붙여넣기) 가사 그대로 + 정확한 타이밍으로 정렬돼요
           </p>
         </div>
 
@@ -212,48 +216,74 @@ export default function SrtPage() {
               <div style={{ flex:1, height:1, background:"#F3F4F6" }} />
             </div>
 
-            {/* TXT */}
+            {/* 가사 (파일 또는 붙여넣기) */}
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-                <span style={{ width:20, height:20, borderRadius:"50%", background:txtFile?"#10B981":"#D1D5DB", color:"white", fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>2</span>
-                <span style={{ fontSize:14, fontWeight:700, color:"#1F2937" }}>가사 TXT 파일</span>
+                <span style={{ width:20, height:20, borderRadius:"50%", background:hasLyrics?"#10B981":"#D1D5DB", color:"white", fontSize:11, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>2</span>
+                <span style={{ fontSize:14, fontWeight:700, color:"#1F2937" }}>가사 입력</span>
                 <span style={{ marginLeft:"auto", fontSize:10, fontWeight:700, color:"#9CA3AF", background:"#F3F4F6", padding:"2px 8px", borderRadius:100 }}>선택</span>
               </div>
-              <div
-                onClick={() => txtRef.current?.click()}
-                onDrop={e => onDrop(e, "txt")}
-                onDragOver={e => { e.preventDefault(); setTxtDrag(true); }}
-                onDragLeave={() => setTxtDrag(false)}
-                style={{ border:`2px dashed ${txtDrag||txtFile?"#10B981":"#E5E7EB"}`, borderRadius:14, padding:txtFile?"14px":"20px 16px", textAlign:"center", cursor:"pointer", background:txtDrag||txtFile?"#F0FDF4":"transparent", transition:"all 0.15s" }}
-              >
-                {txtFile ? (
-                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                    <span style={{ fontSize:20 }}>📄</span>
-                    <div style={{ textAlign:"left", minWidth:0, flex:1 }}>
-                      <div style={{ fontSize:13, fontWeight:600, color:"#15803D", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{txtFile.name}</div>
-                      <div style={{ fontSize:12, color:"#4ADE80" }}>{(txtFile.size / 1024).toFixed(0)} KB</div>
-                    </div>
-                    <button onClick={e => { e.stopPropagation(); setTxtFile(null); }} style={{ background:"none", border:"none", color:"#86EFAC", fontSize:18, cursor:"pointer" }}>×</button>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ fontSize:20, marginBottom:4 }}>📄</div>
-                    <div style={{ fontSize:13, color:"#9CA3AF" }}>가사 TXT 드래그 또는 클릭</div>
-                    <div style={{ fontSize:11, color:"#CBD5E1", marginTop:3 }}>한 줄에 자막 한 줄씩 넣으면 가장 정확해요</div>
-                  </>
-                )}
+
+              {/* 입력 방식 토글 */}
+              <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+                {([["file","📄 파일 업로드"],["paste","✍️ 직접 붙여넣기"]] as const).map(([k,lb]) => (
+                  <button key={k} onClick={() => setTxtMode(k)} style={{ flex:1, padding:"8px 0", borderRadius:10, border:`1.5px solid ${txtMode===k?"#10B981":"#E5E7EB"}`, background:txtMode===k?"#F0FDF4":"white", fontSize:12, fontWeight:700, color:txtMode===k?"#15803D":"#6B7280", cursor:"pointer" }}>{lb}</button>
+                ))}
               </div>
-              <input ref={txtRef} type="file" accept=".txt,text/plain" style={{ display:"none" }} onChange={e => setTxtFile(e.target.files?.[0] || null)} />
+
+              {txtMode === "file" ? (
+                <>
+                  <div
+                    onClick={() => txtRef.current?.click()}
+                    onDrop={e => onDrop(e, "txt")}
+                    onDragOver={e => { e.preventDefault(); setTxtDrag(true); }}
+                    onDragLeave={() => setTxtDrag(false)}
+                    style={{ border:`2px dashed ${txtDrag||txtFile?"#10B981":"#E5E7EB"}`, borderRadius:14, padding:txtFile?"14px":"20px 16px", textAlign:"center", cursor:"pointer", background:txtDrag||txtFile?"#F0FDF4":"transparent", transition:"all 0.15s" }}
+                  >
+                    {txtFile ? (
+                      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                        <span style={{ fontSize:20 }}>📄</span>
+                        <div style={{ textAlign:"left", minWidth:0, flex:1 }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:"#15803D", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{txtFile.name}</div>
+                          <div style={{ fontSize:12, color:"#4ADE80" }}>{(txtFile.size / 1024).toFixed(0)} KB</div>
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); setTxtFile(null); }} style={{ background:"none", border:"none", color:"#86EFAC", fontSize:18, cursor:"pointer" }}>×</button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize:20, marginBottom:4 }}>📄</div>
+                        <div style={{ fontSize:13, color:"#9CA3AF" }}>가사 TXT 드래그 또는 클릭</div>
+                        <div style={{ fontSize:11, color:"#CBD5E1", marginTop:3 }}>한 줄에 자막 한 줄씩 넣으면 가장 정확해요</div>
+                      </>
+                    )}
+                  </div>
+                  <input ref={txtRef} type="file" accept=".txt,text/plain" style={{ display:"none" }} onChange={e => setTxtFile(e.target.files?.[0] || null)} />
+                </>
+              ) : (
+                <>
+                  <textarea
+                    value={txtPaste}
+                    onChange={e => setTxtPaste(e.target.value)}
+                    placeholder={"가사를 붙여넣으세요.\n한 줄에 자막 한 줄씩 넣으면 가장 정확해요.\n\n새벽 카페 창가에 기대어\n희미한 불빛 아래 앉아"}
+                    rows={6}
+                    style={{ width:"100%", padding:"12px 14px", border:`1.5px solid ${txtPaste.trim()?"#10B981":"#E5E7EB"}`, borderRadius:14, fontSize:13, fontFamily:"inherit", lineHeight:1.7, resize:"vertical", outline:"none", background:txtPaste.trim()?"#F0FDF4":"white" }}
+                  />
+                  <div style={{ display:"flex", justifyContent:"space-between", marginTop:5, fontSize:11, color:"#CBD5E1" }}>
+                    <span>줄바꿈 = 자막 줄 단위</span>
+                    {txtPaste.trim() && <span style={{ color:"#22C55E", fontWeight:600 }}>{txtPaste.trim().split(/\n/).filter(Boolean).length}줄</span>}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Mode */}
             {mp3File && (
-              <div style={{ borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", gap:10, background:txtFile?"#F0FDF4":"#EFF6FF", border:`1px solid ${txtFile?"#BBF7D0":"#BFDBFE"}` }}>
-                <span style={{ fontSize:18 }}>{txtFile ? "✨" : "🎙️"}</span>
+              <div style={{ borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", gap:10, background:hasLyrics?"#F0FDF4":"#EFF6FF", border:`1px solid ${hasLyrics?"#BBF7D0":"#BFDBFE"}` }}>
+                <span style={{ fontSize:18 }}>{hasLyrics ? "✨" : "🎙️"}</span>
                 <div>
-                  <div style={{ fontSize:12, fontWeight:700, color:txtFile?"#15803D":"#2563EB" }}>{txtFile ? "가사 정렬 모드" : "자동 인식 모드"}</div>
-                  <div style={{ fontSize:11, color:txtFile?"#22C55E":"#60A5FA", marginTop:2 }}>
-                    {txtFile ? "자막은 가사 원문 그대로, 타이밍만 음원에 맞춰 정렬해요" : "음원을 받아쓰기 합니다 (반주가 크면 정확도가 떨어질 수 있어요)"}
+                  <div style={{ fontSize:12, fontWeight:700, color:hasLyrics?"#15803D":"#2563EB" }}>{hasLyrics ? "가사 정렬 모드" : "자동 인식 모드"}</div>
+                  <div style={{ fontSize:11, color:hasLyrics?"#22C55E":"#60A5FA", marginTop:2 }}>
+                    {hasLyrics ? "자막은 가사 원문 그대로, 타이밍만 음원에 맞춰 정렬해요" : "음원을 받아쓰기 합니다 (반주가 크면 정확도가 떨어질 수 있어요)"}
                   </div>
                 </div>
               </div>

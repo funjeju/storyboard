@@ -40,23 +40,36 @@ export async function POST(req: NextRequest) {
     }
 
     // Standard text-to-image
-    console.log("[image] mode: generate | model:", MODEL, "| prompt length:", prompt.length);
-    const response = await openai.images.generate({
-      model: MODEL,
-      prompt,
-      n: 1,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      size: (reqSize ?? "1024x1536") as any,
-      quality: "medium",
-    });
+    console.log("[image] mode: generate | model:", MODEL, "| size:", reqSize ?? "1024x1536", "| q:", q, "| prompt length:", prompt.length);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gen = (sz: string) => openai.images.generate({ model: MODEL, prompt, n: 1, size: sz as any, quality: q });
 
-    console.log("[image] generate done | usage:", JSON.stringify(response.usage ?? {}));
+    let response;
+    let usedSize = reqSize ?? "1024x1536";
+    try {
+      response = await gen(usedSize);
+    } catch (e) {
+      // 임의 사이즈를 API가 거부하면 비율 맞는 표준 사이즈로 폴백
+      const msg = e instanceof Error ? e.message : String(e);
+      const sizeIssue = /size|dimension|invalid|unsupported|must be|one of|400/i.test(msg);
+      if (reqSize && sizeIssue) {
+        const [w, h] = reqSize.split("x").map(Number);
+        usedSize = h > w * 1.2 ? "1024x1536" : w > h * 1.2 ? "1536x1024" : "1024x1024";
+        console.warn(`[image] size '${reqSize}' rejected → fallback '${usedSize}'`);
+        response = await gen(usedSize);
+      } else {
+        throw e;
+      }
+    }
+
+    console.log("[image] generate done | size:", usedSize, "| usage:", JSON.stringify(response.usage ?? {}));
     const b64 = response.data?.[0]?.b64_json;
     if (!b64) throw new Error("No image data returned");
 
-    return NextResponse.json({ imageUrl: `data:image/png;base64,${b64}`, model: MODEL, mode: "generate" });
+    return NextResponse.json({ imageUrl: `data:image/png;base64,${b64}`, model: MODEL, mode: "generate", size: usedSize });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
+    console.error("[image] error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

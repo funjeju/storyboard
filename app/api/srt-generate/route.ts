@@ -179,7 +179,9 @@ export async function POST(req: NextRequest) {
     const lyricLines = lyricsRaw
       .split(/\r?\n/)
       .map(l => l.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      // 섹션 마커([Verse 1], [Chorus], (간주) 등)는 자막에서 제외
+      .filter(l => !/^[[(][^\])]*[\])]$/.test(l));
     const promptText = lyricsRaw
       ? lyricsRaw.replace(/\s+/g, " ").slice(0, 800).trim()
       : undefined;

@@ -121,7 +121,17 @@ imagePrompt는 "예쁜 제품 사진 + 헤드라인" 수준이 아니라, 실제
 - photorealistic product photography integrated into the layout, natural lighting, realistic texture. 과도한 연출 금지.
 ${usePeople
   ? `- "모델 등장" 표시된 장면만 다음 인물 포함: ${modelDesc || "an appropriate Korean model fitting the product"}. 나머지는 제품 중심.`
-  : `- 인물 없이: 사람/손/신체 금지. 제품 단독·클로즈업·오브제 스타일링 중심.`}
+  : `- 🚫 인물 없이 진행: 사람/얼굴/손/신체 절대 금지. 단, "제품 단독" 한 컷으로 밋밋해지지 않도록 아래 제품 전용 아트디렉션으로 풍부하게 연출:
+   · 기법 풀(장면마다 다르게 골라 사용): hero product styling with dramatic studio lighting; fresh raw ingredients arranged around the product; macro texture / cross-section close-up; freshness cues (water droplets, gentle steam, motion, falling ingredients); natural props (wood board, linen, stone, fresh greenery); flat-lay top-down composition; before/after product comparison (dull vs vibrant); packaging/giftset hero shot; infographic-style callouts with line icons.
+   · 섹션별 연출 가이드:
+     - Hook: 임팩트 있는 히어로 제품샷(드라마틱 라이팅)
+     - 문제공감: 평범·시든 제품 vs 우리 제품의 선명한 대비
+     - 해결(Before/After): 제품 비교 컷
+     - 핵심가치: 매크로 디테일·원물/원산지·질감·단면 등 매번 다른 앵글
+     - 신뢰: 인증마크·원산지 풍경·제조공정(얼굴 없이)
+     - 상세: 제품 + 스펙 표 레이아웃
+     - CTA: 패키지/선물세트 히어로
+   · 12장이 똑같아 보이지 않게 구도·앵글·배경을 장면마다 변주.`}
 - 이미지에 영어 텍스트 금지(브랜드 영문명 예외). 세로 portrait, aspect ratio 860:${"{height}"}.
 
 [출력 형식] 반드시 아래 JSON만 출력. 마크다운/설명 금지.

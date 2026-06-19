@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
+
+const SESSION_KEY = "detail2_session_v1";
 
 const O = "#EA580C";
 const O2 = "#F97316";
@@ -57,6 +59,46 @@ export default function DetailPage2() {
   const [seqRunning, setSeqRunning] = useState(false);
   const [stitching, setStitching]   = useState(false);
   const [copiedIdx, setCopiedIdx]   = useState<number | null>(null);
+  const [hydrated, setHydrated]     = useState(false);
+  const [savedAt, setSavedAt]       = useState<number | null>(null);
+
+  // ── 복원 (마운트 시 1회) ──
+  useEffect(() => {
+    try {
+      const d = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+      if (d) {
+        setBrand(d.brand ?? ""); setFeatures(d.features ?? "");
+        setCategoryKey(d.categoryKey ?? "auto"); setModelMode(d.modelMode ?? "auto");
+        setExtra(d.extra ?? "");
+        setGender(d.gender ?? "여성"); setAge(d.age ?? "30"); setAgeRange(d.ageRange ?? "30대");
+        setMood(d.mood ?? "따뜻하고 신뢰감 있는"); setSituation(d.situation ?? "");
+        setStrategy(d.strategy ?? null);
+        if (Array.isArray(d.scenes)) setScenes(d.scenes);
+        if (d.savedAt) setSavedAt(d.savedAt);
+      }
+    } catch { /* ignore */ }
+    setHydrated(true);
+  }, []);
+
+  // ── 자동 저장 (복원 후) ──
+  useEffect(() => {
+    if (!hydrated) return;
+    const now = Date.now();
+    const base = { brand, features, categoryKey, modelMode, extra, gender, age, ageRange, mood, situation, strategy, savedAt: now };
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ ...base, scenes }));
+    } catch {
+      // 용량 초과 → 이미지(base64) 빼고 프롬프트만 저장
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify({ ...base, scenes: scenes.map(s => ({ ...s, image: undefined, inCanvas: false })) })); } catch { /* give up */ }
+    }
+    setSavedAt(now);
+  }, [hydrated, brand, features, categoryKey, modelMode, extra, gender, age, ageRange, mood, situation, strategy, scenes]);
+
+  const resetSession = () => {
+    if (!window.confirm("설계한 12장과 입력을 모두 초기화할까요?")) return;
+    setScenes([]); setStrategy(null);
+    try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+  };
 
   const generateScenes = async () => {
     if (!brand.trim() && !features.trim()) return;
@@ -280,10 +322,16 @@ export default function DetailPage2() {
           ) : (
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: "white", borderRadius: 14, border: "1px solid #E5E7EB", padding: "12px 16px", position: "sticky", top: 70, zIndex: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>🖼️ 장면 {scenes.length}장 · 생성 {generatedCount}/{scenes.length}</div>
-                <button onClick={generateAll} disabled={seqRunning} style={{ padding: "9px 16px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, color: "white", cursor: seqRunning ? "not-allowed" : "pointer", background: seqRunning ? "#9CA3AF" : `linear-gradient(135deg,${O},${O2})`, display: "flex", alignItems: "center", gap: 7 }}>
-                  {seqRunning ? <><Spin s={14} /> 순차 생성 중...</> : "⚡ 전체 순차 생성"}
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>🖼️ 장면 {scenes.length}장 · 생성 {generatedCount}/{scenes.length}</span>
+                  {savedAt && <span style={{ fontSize: 11, color: "#10B981", fontWeight: 600 }}>💾 자동 저장됨</span>}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button onClick={resetSession} style={{ padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "white", fontSize: 12, fontWeight: 700, color: "#6B7280", cursor: "pointer" }}>🗑 초기화</button>
+                  <button onClick={generateAll} disabled={seqRunning} style={{ padding: "9px 16px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, color: "white", cursor: seqRunning ? "not-allowed" : "pointer", background: seqRunning ? "#9CA3AF" : `linear-gradient(135deg,${O},${O2})`, display: "flex", alignItems: "center", gap: 7 }}>
+                    {seqRunning ? <><Spin s={14} /> 순차 생성 중...</> : "⚡ 전체 순차 생성"}
+                  </button>
+                </div>
               </div>
 
               {scenes.map((s, i) => (

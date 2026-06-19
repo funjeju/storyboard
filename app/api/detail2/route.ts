@@ -21,6 +21,27 @@ const SECTIONS = [
   { key: "cta",      ko: "CTA (행동 유도)",          model: true,  h: 1800 },
 ];
 
+// 일시적 과부하(503/429/overloaded)면 backoff 후 재시도
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function genWithRetry(model: any, request: any, tries = 3): Promise<any> {
+  let lastErr: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await model.generateContent(request);
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e);
+      const transient = /(503|429|high demand|overloaded|unavailable)/i.test(msg);
+      if (transient && i < tries - 1) {
+        await new Promise(r => setTimeout(r, 1500 * (i + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const b = await req.json();
@@ -87,7 +108,7 @@ ${features || "(미입력)"}
 위 정보로 12장 장면을 설계해 JSON으로만 응답하세요.`;
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction: system });
-    const result = await model.generateContent({
+    const result = await genWithRetry(model, {
       contents: [{ role: "user", parts: [{ text: user }] }],
       generationConfig: { maxOutputTokens: 16384, responseMimeType: "application/json" },
     });
@@ -121,6 +142,10 @@ ${features || "(미입력)"}
     return NextResponse.json({ strategy: parsed.strategy || null, scenes });
   } catch (e) {
     console.error("detail2 error:", e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    const msg = String(e);
+    if (/(503|429|high demand|overloaded|unavailable)/i.test(msg)) {
+      return NextResponse.json({ error: "지금 Gemini가 일시적으로 혼잡해요. 30초쯤 뒤에 다시 시도해주세요. (자동 재시도 후에도 실패)" }, { status: 503 });
+    }
+    return NextResponse.json({ error: "설계 중 오류가 발생했어요. 다시 시도해주세요." }, { status: 500 });
   }
 }

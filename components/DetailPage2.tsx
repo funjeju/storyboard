@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
 
 const O = "#EA580C";
 const O2 = "#F97316";
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "";
 
 interface Strategy {
   target?: string; problem?: string; values?: string[];
@@ -22,6 +24,10 @@ function Spin({ s = 16, c = "white" }: { s?: number; c?: string }) {
 }
 
 export default function DetailPage2() {
+  const { user, loading: authLoading, signIn } = useAuth();
+  const isAdmin = !!user && !!ADMIN_EMAIL && user.email === ADMIN_EMAIL;
+  const [quality, setQuality] = useState<"low" | "medium" | "high">("medium");
+
   // 입력
   const [brand, setBrand]       = useState("");
   const [features, setFeatures] = useState("");
@@ -62,7 +68,7 @@ export default function DetailPage2() {
     try {
       const res = await fetch("/api/image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: scene.imagePrompt, size: scene.size }),
+        body: JSON.stringify({ prompt: scene.imagePrompt, size: scene.size, quality }),
       });
       const data = await res.json();
       if (data.imageUrl) setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, image: data.imageUrl, generating: false, inCanvas: true } : s));
@@ -114,6 +120,22 @@ export default function DetailPage2() {
     } catch { alert("합치기 실패"); }
     setStitching(false);
   };
+
+  // ── 로그인 게이트 ──
+  if (!authLoading && !user) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Noto Sans KR',-apple-system,sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');* { box-sizing:border-box; margin:0; padding:0; }`}</style>
+        <div style={{ background: "white", borderRadius: 24, padding: "44px 36px", maxWidth: 380, width: "100%", textAlign: "center", boxShadow: "0 12px 40px rgba(0,0,0,0.1)" }}>
+          <div style={{ fontSize: 46, marginBottom: 14 }}>🔒</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>로그인이 필요해요</div>
+          <div style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.6, marginBottom: 26 }}>상세페이지 2는 로그인 후 이용할 수 있어요.</div>
+          <button onClick={signIn} style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${O},${O2})`, color: "white", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Google로 로그인</button>
+          <Link href="/" style={{ display: "inline-block", marginTop: 16, fontSize: 13, color: "#9CA3AF", textDecoration: "none" }}>← 홈으로</Link>
+        </div>
+      </div>
+    );
+  }
 
   const inCanvasImgs = scenes.filter(s => s.inCanvas && s.image);
   const generatedCount = scenes.filter(s => s.image).length;
@@ -209,11 +231,23 @@ export default function DetailPage2() {
             </div>
           ) : (
             <>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "white", borderRadius: 14, border: "1px solid #E5E7EB", padding: "12px 16px", position: "sticky", top: 70, zIndex: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: "white", borderRadius: 14, border: "1px solid #E5E7EB", padding: "12px 16px", position: "sticky", top: 70, zIndex: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>🖼️ 장면 {scenes.length}장 · 생성 {generatedCount}/{scenes.length}</div>
-                <button onClick={generateAll} disabled={seqRunning} style={{ padding: "9px 16px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, color: "white", cursor: seqRunning ? "not-allowed" : "pointer", background: seqRunning ? "#9CA3AF" : `linear-gradient(135deg,${O},${O2})`, display: "flex", alignItems: "center", gap: 7 }}>
-                  {seqRunning ? <><Spin s={14} /> 순차 생성 중...</> : "⚡ 전체 순차 생성"}
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {isAdmin && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 9, padding: "3px 4px 3px 9px" }} title="어드민 전용 — 이미지 품질(테스트)">
+                      <span style={{ fontSize: 11, fontWeight: 700, color: O }}>🔧 품질</span>
+                      {(["low", "medium", "high"] as const).map(qv => (
+                        <button key={qv} onClick={() => setQuality(qv)} style={{ padding: "4px 9px", borderRadius: 7, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: quality === qv ? O : "transparent", color: quality === qv ? "white" : "#9A3412" }}>
+                          {qv === "low" ? "Low" : qv === "medium" ? "Mid" : "High"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button onClick={generateAll} disabled={seqRunning} style={{ padding: "9px 16px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, color: "white", cursor: seqRunning ? "not-allowed" : "pointer", background: seqRunning ? "#9CA3AF" : `linear-gradient(135deg,${O},${O2})`, display: "flex", alignItems: "center", gap: 7 }}>
+                    {seqRunning ? <><Spin s={14} /> 순차 생성 중...</> : "⚡ 전체 순차 생성"}
+                  </button>
+                </div>
               </div>
 
               {scenes.map((s, i) => (

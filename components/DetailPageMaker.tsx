@@ -382,7 +382,7 @@ function isAbort(e: unknown) { return e instanceof Error && e.name === "AbortErr
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DetailPageMaker() {
-  const { user, signIn, signOut } = useAuth();
+  const { user, signIn, signOut, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
 
   const [step, setStep]               = useState(0);
@@ -848,6 +848,22 @@ export default function DetailPageMaker() {
   };
 
   const sortedModules = [...project.modules].sort((a, b) => a.order - b.order);
+
+  // ─── 로그인 게이트 ──────────────────────────────────────────────────────────
+  if (!authLoading && !user) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F0F4FF", fontFamily: "'Noto Sans KR',-apple-system,sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');* { box-sizing:border-box; margin:0; padding:0; }`}</style>
+        <div style={{ background: "white", borderRadius: 24, padding: "44px 36px", maxWidth: 380, width: "100%", textAlign: "center", boxShadow: "0 12px 40px rgba(0,0,0,0.1)" }}>
+          <div style={{ fontSize: 46, marginBottom: 14 }}>🔒</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#0F172A", marginBottom: 8 }}>로그인이 필요해요</div>
+          <div style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.6, marginBottom: 26 }}>상세페이지 메이커는 로그인 후 이용할 수 있어요.</div>
+          <button onClick={signIn} style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2563EB,#0EA5E9)", color: "white", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Google로 로그인</button>
+          <a href="/" style={{ display: "inline-block", marginTop: 16, fontSize: 13, color: "#9CA3AF", textDecoration: "none" }}>← 홈으로</a>
+        </div>
+      </div>
+    );
+  }
 
   // ─── Render ────────────────────────────────────────────────────────────────
 

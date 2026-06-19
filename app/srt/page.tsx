@@ -46,6 +46,7 @@ export default function SrtPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [srtContent, setSrt]    = useState("");
   const [cues, setCues]         = useState<Cue[]>([]);
+  const [aligned, setAligned]   = useState(false);
   const [mp3Drag, setMp3Drag]   = useState(false);
   const [txtDrag, setTxtDrag]   = useState(false);
   const mp3Ref = useRef<HTMLInputElement>(null);
@@ -98,6 +99,7 @@ export default function SrtPage() {
       const srt = data.srt || "";
       setSrt(srt);
       setCues(parseSrt(srt));
+      setAligned(!!data.aligned);
       setStatus("done");
       // 자동 다운로드 제거 — 사용자가 검수·편집 후 직접 다운로드
     } catch (e) {
@@ -124,6 +126,9 @@ export default function SrtPage() {
 
   const segmentCount = cues.length;
   const busy = status === "uploading" || status === "loading";
+  // 환각 휴리스틱: 가사 정렬 모드가 아니고, 서로 다른 줄이 절반 이하면 반복 환각 의심
+  const uniqueLines = new Set(cues.map(c => c.text.trim()).filter(Boolean)).size;
+  const looksHallucinated = !aligned && cues.length >= 4 && uniqueLines <= Math.ceil(cues.length * 0.5);
 
   return (
     <div style={{ minHeight: "100vh", background: "#F5F7FA", fontFamily: "'Noto Sans KR',-apple-system,sans-serif" }}>
@@ -292,6 +297,21 @@ export default function SrtPage() {
                 </div>
                 <button onClick={() => downloadSrt(buildSrt(cues))} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, background:BLUE, color:"white", border:"none", fontSize:12, fontWeight:700, cursor:"pointer" }}>↓ 다운로드</button>
               </div>
+
+              {looksHallucinated && (
+                <div style={{ background:"#FFFBEB", border:"1px solid #FDE68A", borderRadius:12, padding:"12px 14px", marginBottom:12, fontSize:12, color:"#92400E", lineHeight:1.6, display:"flex", gap:8 }}>
+                  <span>⚠️</span>
+                  <div>
+                    <b>같은 문장이 반복돼요 — 음원 받아쓰기가 실패했을 가능성이 높아요.</b><br />
+                    반주가 있는 노래는 자동 인식이 부정확해요. <b>가사 TXT</b>를 함께 올려 <b>가사 정렬 모드</b>로 다시 생성하면 가사 그대로 정확히 나와요.
+                  </div>
+                </div>
+              )}
+              {aligned && (
+                <div style={{ background:"#F0FDF4", border:"1px solid #BBF7D0", borderRadius:12, padding:"10px 14px", marginBottom:12, fontSize:12, color:"#15803D", display:"flex", gap:8 }}>
+                  <span>✅</span><span>가사 정렬 모드 — 제공한 가사 원문에 타이밍을 맞췄어요.</span>
+                </div>
+              )}
               <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:420, overflow:"auto", paddingRight:4 }}>
                 {cues.map((cue, i) => (
                   <div key={i} style={{ background:"white", borderRadius:10, border:"1px solid #E5E7EB", padding:"10px 12px" }}>

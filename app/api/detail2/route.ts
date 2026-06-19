@@ -21,6 +21,15 @@ const SECTIONS = [
   { key: "cta",      ko: "CTA (행동 유도)",          model: true,  h: 1800 },
 ];
 
+// 카테고리 표준 프리셋 — 상세정보 표 항목/톤/인물 기본값만 다르게
+const CATEGORIES: Record<string, { label: string; specs: string[]; persona: "with" | "product"; tone: string }> = {
+  food:    { label: "식품 · 건강식품",   specs: ["제품 구성/용량", "원재료/성분", "섭취 방법", "보관 방법", "유통기한", "인증/원산지", "주의사항"], persona: "with",    tone: "신뢰감 있고 건강한, 깨끗한" },
+  beauty:  { label: "뷰티 · 화장품",     specs: ["제품 구성/용량", "전성분", "사용 방법", "사용 부위/피부타입", "용량", "유통기한", "주의사항"], persona: "with",    tone: "감각적이고 청결한, 고급스러운" },
+  fashion: { label: "패션 · 의류 · 잡화", specs: ["소재/혼용률", "사이즈/실측", "세탁·관리법", "구성/색상", "핏/스타일", "주의사항"],          persona: "with",    tone: "트렌디하고 감성적인" },
+  digital: { label: "전자 · 가전 · 디지털", specs: ["주요 사양(스펙)", "구성품", "전압/규격", "호환성", "A/S·보증", "주의사항"],              persona: "product", tone: "모던하고 정밀한, 테크" },
+  living:  { label: "리빙 · 생활 · 기타", specs: ["소재/재질", "규격/크기", "구성", "사용·관리법", "주의사항"],                              persona: "product", tone: "깔끔하고 실용적인" },
+};
+
 // 일시적 과부하(503/429/overloaded)면 backoff 후 재시도
 async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
   let lastErr: unknown;
@@ -46,8 +55,9 @@ export async function POST(req: NextRequest) {
     const b = await req.json();
     const brand: string = (b.brand || "").trim();
     const features: string = (b.features || "").trim();
-    const category: string = (b.category || "").trim();
     const extra: string = (b.extra || "").trim();
+    const categoryKey: string = (b.categoryKey || "auto").trim();
+    const modelMode: string = (b.modelMode || "auto").trim(); // auto | with | without
     const m = b.model || {};
     const modelDesc = [
       m.gender && `gender: ${m.gender}`,
@@ -55,14 +65,27 @@ export async function POST(req: NextRequest) {
       m.ageRange && `age range: ${m.ageRange}`,
       m.mood && `mood/expression: ${m.mood}`,
       m.situation && `usage situation: ${m.situation}`,
-      m.ethnicity && `appearance: ${m.ethnicity}`,
     ].filter(Boolean).join(", ");
 
     if (!brand && !features) {
       return NextResponse.json({ error: "브랜드명 또는 제품 특징을 입력하세요." }, { status: 400 });
     }
 
-    const sectionList = SECTIONS.map((s, i) => `${i + 1}. ${s.key} — ${s.ko} (860x${s.h}px${s.model ? ", 모델 등장" : ""})`).join("\n");
+    // 카테고리 프리셋 (없거나 auto면 범용 + AI 판단)
+    const cat = CATEGORIES[categoryKey] || null;
+    const specs = cat ? cat.specs : ["제품 구성/용량", "주요 성분/소재", "사용 방법", "보관/관리", "주의사항"];
+    const catLabel = cat ? cat.label : "자동 판단";
+    const toneHint = cat ? cat.tone : "";
+
+    // 인물(모델) 포함 정책
+    const usePeople =
+      modelMode === "without" ? false :
+      modelMode === "with" ? true :
+      (cat ? cat.persona === "with" : true); // auto = 카테고리 기본값
+
+    // 인물 미포함이면 모든 섹션 model 플래그 off
+    const effSections = SECTIONS.map(s => ({ ...s, model: usePeople ? s.model : false }));
+    const sectionList = effSections.map((s, i) => `${i + 1}. ${s.key} — ${s.ko} (860x${s.h}px${s.model ? ", 모델 등장" : ", 제품 단독/오브제 중심"})`).join("\n");
 
     const system = `당신은 네이버 스마트스토어 상세페이지를 제작하는 시니어 광고 디자이너이자 퍼포먼스 마케터입니다.
 사용자가 제공한 상품 정보만으로 구매 전환을 극대화하는 "고밀도 설득 구조 상세페이지"의 장면별 이미지 생성 프롬프트를 자동 설계합니다.
@@ -80,11 +103,15 @@ ${sectionList}
 
 [신뢰 섹션 주의] 후기·평점·판매량은 사실이 없으면 지어내지 말고 "[실제 후기]" "[★N.N/5.0]" "[누적 N개]" 같은 자리표시자(placeholder)로 비워둘 것.
 
-[상세정보 섹션] 표(Table) 형태로: 제품 구성/용량, 원재료/성분, 섭취방법, 보관방법, 제조방식, 유통기한, 주의사항.
+[제품 카테고리] ${catLabel}${cat ? "" : " — 제품 특징을 보고 카테고리를 스스로 판단해 적절한 스펙 항목으로 구성"}
+[상세정보 섹션] 표(Table) 형태로 다음 항목 위주로 구성(해당 없는 항목은 빼고, 제품에 맞게 가감): ${specs.join(", ")}.
+${toneHint ? `[톤] ${toneHint} 분위기를 유지.` : ""}
 
 [imagePrompt 규칙 — 핵심 출력]
 - 영어로 작성. photorealistic, commercial product photography, natural lighting, minimal clean background (white/light gray), realistic texture, clean ecommerce design, generous whitespace, card-based layout. 과도한 연출 금지.
-- 모델 등장 장면은 다음 모델을 묘사: ${modelDesc || "an appropriate Korean model fitting the product"}.
+${usePeople
+  ? `- "모델 등장" 표시된 장면만 다음 인물을 묘사: ${modelDesc || "an appropriate Korean model fitting the product"}. 나머지는 제품 중심.`
+  : `- 이 상품은 인물 없이 진행: 이미지에 사람/모델/손/신체를 절대 넣지 말 것. 제품 단독 컷, 디테일 클로즈업, 오브제 스타일링, 사용 결과(제품만) 중심으로 연출.`}
 - 이미지 안에 들어갈 한국어 카피(mainCopy/subCopy/points)를 그대로 렌더링하도록 지시. 타이포: 헤드라인 굵고 크게, 본문 작게, 강조는 컬러+Bold.
 - 세로 포맷(portrait), aspect ratio 860:${"{height}"}.
 
@@ -99,7 +126,8 @@ ${sectionList}
 
     const user = `[상품 정보]
 브랜드명: ${brand || "(미입력)"}
-카테고리: ${category || "(미입력)"}
+카테고리: ${catLabel}
+인물(모델) 포함: ${usePeople ? "예" : "아니오 (사람 없이)"}
 주요 특징:
 ${features || "(미입력)"}
 추가 요청: ${extra || "없음"}
@@ -126,7 +154,7 @@ ${features || "(미입력)"}
 
     const aiScenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
     // 고정 섹션/사이즈에 AI 카피를 매핑 (사이즈는 서버가 보장)
-    const scenes = SECTIONS.map((s, i) => {
+    const scenes = effSections.map((s, i) => {
       const a = aiScenes[i] || aiScenes.find(x => x.section === s.key) || {};
       return {
         section: s.key,

@@ -8,6 +8,16 @@ const O = "#EA580C";
 const O2 = "#F97316";
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "naggu1999@gmail.com";
 
+// 카테고리 표준 프리셋 (서버 키와 일치)
+const CATEGORY_OPTS: { key: string; label: string; persona: "with" | "product" }[] = [
+  { key: "auto",    label: "🪄 자동 판단",          persona: "with" },
+  { key: "food",    label: "🥤 식품 · 건강식품",     persona: "with" },
+  { key: "beauty",  label: "💄 뷰티 · 화장품",       persona: "with" },
+  { key: "fashion", label: "👗 패션 · 의류 · 잡화",   persona: "with" },
+  { key: "digital", label: "🔌 전자 · 가전 · 디지털", persona: "product" },
+  { key: "living",  label: "🛋 리빙 · 생활 · 기타",   persona: "product" },
+];
+
 interface Strategy {
   target?: string; problem?: string; values?: string[];
   trigger?: string; tone?: string; color?: string;
@@ -31,7 +41,8 @@ export default function DetailPage2() {
   // 입력
   const [brand, setBrand]       = useState("");
   const [features, setFeatures] = useState("");
-  const [category, setCategory] = useState("");
+  const [categoryKey, setCategoryKey] = useState("auto");
+  const [modelMode, setModelMode]     = useState<"auto" | "with" | "without">("auto");
   const [extra, setExtra]       = useState("");
   // 모델 설정
   const [gender, setGender]     = useState("여성");
@@ -53,7 +64,7 @@ export default function DetailPage2() {
     try {
       const res = await fetch("/api/detail2", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand, features, category, extra, model: { gender, age, ageRange, mood, situation } }),
+        body: JSON.stringify({ brand, features, categoryKey, modelMode, extra, model: { gender, age, ageRange, mood, situation } }),
       });
       const data = await res.json();
       if (Array.isArray(data.scenes)) { setScenes(data.scenes); setStrategy(data.strategy || null); }
@@ -137,6 +148,8 @@ export default function DetailPage2() {
     );
   }
 
+  const catPersona = CATEGORY_OPTS.find(c => c.key === categoryKey)?.persona ?? "with";
+  const peopleLikely = modelMode === "without" ? false : modelMode === "with" ? true : catPersona === "with";
   const inCanvasImgs = scenes.filter(s => s.inCanvas && s.image);
   const generatedCount = scenes.filter(s => s.image).length;
   const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 13, fontFamily: "inherit", outline: "none" };
@@ -177,14 +190,34 @@ export default function DetailPage2() {
             <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 14 }}>입력만 하면 12장 설득 구조로 설계돼요</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div><label style={labelStyle}>브랜드명 / 상품명</label><input value={brand} onChange={e => setBrand(e.target.value)} placeholder="예: 인터뷰어 토마토즙" style={inputStyle} /></div>
-              <div><label style={labelStyle}>카테고리 (선택)</label><input value={category} onChange={e => setCategory(e.target.value)} placeholder="예: 건강식품 / 토마토즙" style={inputStyle} /></div>
+              <div>
+                <label style={labelStyle}>카테고리</label>
+                <select value={categoryKey} onChange={e => { const k = e.target.value; setCategoryKey(k); }} style={inputStyle}>
+                  {CATEGORY_OPTS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                </select>
+                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 5, lineHeight: 1.5 }}>카테고리에 맞춰 상세정보 항목·톤이 자동 조정돼요</div>
+              </div>
+              <div>
+                <label style={labelStyle}>인물(모델) 포함</label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {([["auto", "자동"], ["with", "포함"], ["without", "제외"]] as const).map(([k, lb]) => (
+                    <button key={k} type="button" onClick={() => setModelMode(k)} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${modelMode === k ? O : "#E5E7EB"}`, fontSize: 12, fontWeight: 700, cursor: "pointer", background: modelMode === k ? "#FFF7ED" : "white", color: modelMode === k ? O : "#6B7280" }}>{lb}</button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 5, lineHeight: 1.5 }}>
+                  {modelMode === "without" ? "사람 없이 제품 단독·클로즈업 중심으로 생성" : modelMode === "with" ? "모든 적합 장면에 모델 등장" : "카테고리 기본값(전자·생활용품은 제품 중심)"}
+                </div>
+              </div>
               <div><label style={labelStyle}>주요 특징 (줄바꿈으로 여러 개)</label><textarea value={features} onChange={e => setFeatures(e.target.value)} rows={6} placeholder={"예:\n국산 토마토 100%\nNFC 착즙\n무첨가\n스파우트 파우치"} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }} /></div>
               <div><label style={labelStyle}>추가 요청 (선택)</label><input value={extra} onChange={e => setExtra(e.target.value)} placeholder="강조하고 싶은 포인트 등" style={inputStyle} /></div>
             </div>
           </div>
 
-          <div style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", padding: 18 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "#0F172A", marginBottom: 12 }}>👤 모델 설정</div>
+          <div style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", padding: 18, opacity: peopleLikely ? 1 : 0.5 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>👤 모델 설정</span>
+              {!peopleLikely && <span style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", background: "#F3F4F6", padding: "2px 7px", borderRadius: 100 }}>인물 미포함 — 미적용</span>}
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", gap: 8 }}>
                 <div style={{ flex: 1 }}><label style={labelStyle}>성별</label>

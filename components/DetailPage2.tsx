@@ -3,6 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
+import {
+  upsertDetail2Project,
+  deleteDetail2Project,
+  subscribeToDetail2Projects,
+  type CloudDetail2Project,
+} from "@/lib/firestoreHelpers";
+import { uploadImageDataUrl } from "@/lib/firebaseStorage";
 
 const SESSION_KEY = "detail2_session_v1";
 
@@ -95,9 +102,76 @@ export default function DetailPage2() {
   }, [hydrated, brand, features, categoryKey, modelMode, extra, gender, age, ageRange, mood, situation, strategy, scenes]);
 
   const resetSession = () => {
-    if (!window.confirm("설계한 12장과 입력을 모두 초기화할까요?")) return;
-    setScenes([]); setStrategy(null);
+    if (!window.confirm("현재 작업을 비우고 새 프로젝트를 시작할까요? (저장된 프로젝트는 그대로 보존돼요)")) return;
+    setScenes([]); setStrategy(null); setProjectId("");
     try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+  };
+
+  // ── 클라우드 프로젝트 저장 ──
+  const [projectId, setProjectId]   = useState("");
+  const [saving, setSaving]         = useState(false);
+  const [cloudSaved, setCloudSaved] = useState(false);
+  const [projects, setProjects]     = useState<CloudDetail2Project[]>([]);
+  const [showProjects, setShowProjects] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setProjects([]); return; }
+    return subscribeToDetail2Projects(user.uid, setProjects);
+  }, [user]);
+
+  const saveProject = async () => {
+    if (!user) return;
+    if (!scenes.length) { alert("먼저 12장 프롬프트를 설계해주세요."); return; }
+    setSaving(true); setCloudSaved(false);
+    try {
+      const pid = projectId || crypto.randomUUID();
+      // base64 이미지는 스토리지로 업로드 → URL로 치환
+      const outScenes = await Promise.all(scenes.map(async (s, idx) => {
+        if (s.image && s.image.startsWith("data:")) {
+          try {
+            const { url } = await uploadImageDataUrl(user.uid, `detail2/${pid}`, `scene${idx}.png`, s.image);
+            return { ...s, image: url };
+          } catch { return { ...s, image: undefined, inCanvas: false }; }
+        }
+        return s;
+      }));
+      const cover = outScenes.find(s => s.image)?.image || null;
+      const data = JSON.stringify({ brand, features, categoryKey, modelMode, extra, model: { gender, age, ageRange, mood, situation }, strategy, scenes: outScenes });
+      await upsertDetail2Project(user.uid, {
+        id: pid, title: brand.trim() || "제목 없음", coverUrl: cover ?? null,
+        sceneCount: outScenes.length, generatedCount: outScenes.filter(s => s.image).length,
+        data, createdAt: Date.now(),
+      });
+      setScenes(outScenes); // 업로드된 URL 반영(재저장 시 재업로드 방지)
+      setProjectId(pid);
+      setCloudSaved(true);
+      setTimeout(() => setCloudSaved(false), 2500);
+    } catch { alert("저장 실패 — 잠시 후 다시 시도해주세요."); }
+    setSaving(false);
+  };
+
+  const loadProject = (p: CloudDetail2Project) => {
+    try {
+      const dd = JSON.parse(p.data);
+      setBrand(dd.brand || ""); setFeatures(dd.features || "");
+      setCategoryKey(dd.categoryKey || "auto"); setModelMode(dd.modelMode || "auto");
+      setExtra(dd.extra || "");
+      const mm = dd.model || {};
+      setGender(mm.gender || "여성"); setAge(mm.age || "30"); setAgeRange(mm.ageRange || "30대");
+      setMood(mm.mood || "따뜻하고 신뢰감 있는"); setSituation(mm.situation || "");
+      setStrategy(dd.strategy || null);
+      setScenes(Array.isArray(dd.scenes) ? dd.scenes.map((s: Scene) => ({ ...s, inCanvas: !!s.image })) : []);
+      setProjectId(p.id);
+      setShowProjects(false);
+    } catch { alert("불러오기 실패"); }
+  };
+
+  const removeProject = (p: CloudDetail2Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) return;
+    if (!window.confirm(`'${p.title}' 프로젝트를 삭제할까요?`)) return;
+    deleteDetail2Project(user.uid, p.id).catch(() => {});
+    if (projectId === p.id) setProjectId("");
   };
 
   const generateScenes = async () => {
@@ -220,7 +294,10 @@ export default function DetailPage2() {
           <div style={{ width: 1, height: 20, background: "#E5E7EB" }} />
           <span style={{ fontSize: 14, fontWeight: 700, color: O }}>🧱 상세페이지 2</span>
         </div>
-        <Link href="/detail" style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textDecoration: "none" }}>← 상세페이지 1</Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={() => setShowProjects(true)} style={{ padding: "7px 14px", borderRadius: 9, border: `1.5px solid ${O}`, background: "white", color: O, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📂 내 프로젝트{projects.length ? ` (${projects.length})` : ""}</button>
+          <Link href="/detail" style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textDecoration: "none" }}>← 상세페이지 1</Link>
+        </div>
       </nav>
 
       <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap", maxWidth: 1500, margin: "0 auto", padding: "20px 18px 60px" }}>
@@ -327,7 +404,10 @@ export default function DetailPage2() {
                   {savedAt && <span style={{ fontSize: 11, color: "#10B981", fontWeight: 600 }}>💾 자동 저장됨</span>}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button onClick={resetSession} style={{ padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "white", fontSize: 12, fontWeight: 700, color: "#6B7280", cursor: "pointer" }}>🗑 초기화</button>
+                  <button onClick={resetSession} style={{ padding: "9px 12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "white", fontSize: 12, fontWeight: 700, color: "#6B7280", cursor: "pointer" }}>🗑 새로</button>
+                  <button onClick={saveProject} disabled={saving} style={{ padding: "9px 16px", borderRadius: 10, border: `1.5px solid ${cloudSaved ? "#10B981" : O}`, background: cloudSaved ? "#ECFDF5" : "white", fontSize: 13, fontWeight: 700, color: cloudSaved ? "#10B981" : O, cursor: saving ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                    {saving ? <><Spin s={13} c={O} /> 저장 중...</> : cloudSaved ? "✓ 저장됨" : "💾 프로젝트 저장"}
+                  </button>
                   <button onClick={generateAll} disabled={seqRunning} style={{ padding: "9px 16px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, color: "white", cursor: seqRunning ? "not-allowed" : "pointer", background: seqRunning ? "#9CA3AF" : `linear-gradient(135deg,${O},${O2})`, display: "flex", alignItems: "center", gap: 7 }}>
                     {seqRunning ? <><Spin s={14} /> 순차 생성 중...</> : "⚡ 전체 순차 생성"}
                   </button>
@@ -414,6 +494,44 @@ export default function DetailPage2() {
           </div>
         </div>
       </div>
+
+      {/* ── 내 프로젝트 모달 ── */}
+      {showProjects && (
+        <div onClick={() => setShowProjects(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background: "white", borderRadius: 22, width: "100%", maxWidth: 760, maxHeight: "86vh", overflowY: "auto", padding: 28, boxShadow: "0 24px 80px rgba(0,0,0,0.18)" }} className="d2-scroll">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#0F172A" }}>📂 내 프로젝트</div>
+                <div style={{ fontSize: 13, color: "#9CA3AF", marginTop: 3 }}>저장한 상세페이지 프로젝트 {projects.length}개</div>
+              </div>
+              <button onClick={() => setShowProjects(false)} style={{ width: 36, height: 36, borderRadius: "50%", background: "#F3F4F6", border: "none", color: "#6B7280", fontSize: 18, cursor: "pointer" }}>×</button>
+            </div>
+            {projects.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "50px 20px", color: "#9CA3AF" }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>📂</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>저장된 프로젝트가 없어요</div>
+                <div style={{ fontSize: 12, marginTop: 6 }}>설계 후 “💾 프로젝트 저장”을 누르면 여기에 모여요</div>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14 }}>
+                {projects.map(p => (
+                  <div key={p.id} onClick={() => loadProject(p)} style={{ border: `1.5px solid ${projectId === p.id ? O : "#E5E7EB"}`, borderRadius: 14, overflow: "hidden", cursor: "pointer", background: "white", position: "relative" }}>
+                    <div style={{ width: "100%", aspectRatio: "3 / 2", background: "#F3F4F6", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {p.coverUrl ? <img src={p.coverUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 30 }}>🧱</span>}
+                    </div>
+                    <div style={{ padding: "10px 12px" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#1F2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
+                      <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 3 }}>이미지 {p.generatedCount}/{p.sceneCount} · {new Date(p.updatedAt).toLocaleDateString("ko-KR")}</div>
+                    </div>
+                    <button onClick={e => removeProject(p, e)} style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 8, background: "rgba(0,0,0,0.55)", border: "none", color: "white", fontSize: 13, cursor: "pointer", backdropFilter: "blur(4px)" }} title="삭제">🗑</button>
+                    {projectId === p.id && <div style={{ position: "absolute", top: 8, left: 8, padding: "2px 8px", borderRadius: 7, background: O, color: "white", fontSize: 10, fontWeight: 700 }}>열림</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

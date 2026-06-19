@@ -132,6 +132,33 @@ export async function getDetailProject(uid: string, projectId: string): Promise<
   return snap.exists() ? (snap.data() as CloudDetailProject) : null;
 }
 
+// ─── Detail2 Projects (상세페이지 2) ──────────────────────────────────────────
+
+export interface CloudDetail2Project {
+  id: string;
+  uid: string;
+  title: string;
+  coverUrl: string | null;     // 첫 이미지 썸네일
+  sceneCount: number;
+  generatedCount: number;
+  data: string;                // JSON.stringify(전체 프로젝트: 입력·전략·scenes(imageUrl 포함))
+  createdAt: number;
+  updatedAt: number;
+}
+
+export async function upsertDetail2Project(uid: string, project: Omit<CloudDetail2Project, "uid" | "updatedAt">) {
+  await setDoc(d(uid, "detail2Projects", project.id), { ...project, uid, updatedAt: Date.now() }, { merge: true });
+}
+
+export async function deleteDetail2Project(uid: string, id: string) {
+  await deleteDoc(d(uid, "detail2Projects", id));
+}
+
+export function subscribeToDetail2Projects(uid: string, cb: (projects: CloudDetail2Project[]) => void): Unsubscribe {
+  const q = query(col(uid, "detail2Projects"), orderBy("updatedAt", "desc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(x => x.data() as CloudDetail2Project)));
+}
+
 // ─── Feed Posts ───────────────────────────────────────────────────────────────
 
 export type FeedCategory = "music" | "video" | "image" | "web";

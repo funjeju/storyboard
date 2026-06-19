@@ -6,7 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 
 const O = "#EA580C";
 const O2 = "#F97316";
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "";
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "naggu1999@gmail.com";
 
 interface Strategy {
   target?: string; problem?: string; values?: string[];
@@ -204,6 +204,21 @@ export default function DetailPage2() {
             </div>
           </div>
 
+          {isAdmin && (
+            <div style={{ background: "#FFF7ED", borderRadius: 16, border: "1px solid #FED7AA", padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#9A3412", marginBottom: 4 }}>🔧 어드민 — 이미지 품질</div>
+              <div style={{ fontSize: 11, color: "#C2410C", marginBottom: 10 }}>gpt-image-2 생성 품질 (테스트용)</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["low", "medium", "high"] as const).map(qv => (
+                  <button key={qv} onClick={() => setQuality(qv)} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${quality === qv ? O : "#FED7AA"}`, fontSize: 12, fontWeight: 700, cursor: "pointer", background: quality === qv ? O : "white", color: quality === qv ? "white" : "#9A3412" }}>
+                    {qv === "low" ? "Low" : qv === "medium" ? "Mid" : "High"}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 8, lineHeight: 1.5 }}>Low=빠름·저렴 / High=느림·디테일↑</div>
+            </div>
+          )}
+
           <button onClick={generateScenes} disabled={genLoading || (!brand.trim() && !features.trim())}
             style={{ padding: "14px", borderRadius: 14, border: "none", fontSize: 14, fontWeight: 800, color: "white", cursor: (genLoading || (!brand.trim() && !features.trim())) ? "not-allowed" : "pointer", opacity: (genLoading || (!brand.trim() && !features.trim())) ? 0.5 : 1, background: `linear-gradient(135deg,${O},${O2})`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 4px 14px rgba(234,88,12,0.3)" }}>
             {genLoading ? <><Spin /> 설계 중... (20~40초)</> : "🧱 12장 프롬프트 설계"}
@@ -233,21 +248,9 @@ export default function DetailPage2() {
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: "white", borderRadius: 14, border: "1px solid #E5E7EB", padding: "12px 16px", position: "sticky", top: 70, zIndex: 20 }}>
                 <div style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>🖼️ 장면 {scenes.length}장 · 생성 {generatedCount}/{scenes.length}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  {isAdmin && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 9, padding: "3px 4px 3px 9px" }} title="어드민 전용 — 이미지 품질(테스트)">
-                      <span style={{ fontSize: 11, fontWeight: 700, color: O }}>🔧 품질</span>
-                      {(["low", "medium", "high"] as const).map(qv => (
-                        <button key={qv} onClick={() => setQuality(qv)} style={{ padding: "4px 9px", borderRadius: 7, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: quality === qv ? O : "transparent", color: quality === qv ? "white" : "#9A3412" }}>
-                          {qv === "low" ? "Low" : qv === "medium" ? "Mid" : "High"}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <button onClick={generateAll} disabled={seqRunning} style={{ padding: "9px 16px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, color: "white", cursor: seqRunning ? "not-allowed" : "pointer", background: seqRunning ? "#9CA3AF" : `linear-gradient(135deg,${O},${O2})`, display: "flex", alignItems: "center", gap: 7 }}>
-                    {seqRunning ? <><Spin s={14} /> 순차 생성 중...</> : "⚡ 전체 순차 생성"}
-                  </button>
-                </div>
+                <button onClick={generateAll} disabled={seqRunning} style={{ padding: "9px 16px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, color: "white", cursor: seqRunning ? "not-allowed" : "pointer", background: seqRunning ? "#9CA3AF" : `linear-gradient(135deg,${O},${O2})`, display: "flex", alignItems: "center", gap: 7 }}>
+                  {seqRunning ? <><Spin s={14} /> 순차 생성 중...</> : "⚡ 전체 순차 생성"}
+                </button>
               </div>
 
               {scenes.map((s, i) => (

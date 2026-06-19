@@ -5,10 +5,12 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, refImageBase64 } = await req.json();
+    const { prompt, refImageBase64, size } = await req.json();
     if (!prompt) return NextResponse.json({ error: "No prompt provided" }, { status: 400 });
 
     const MODEL = "gpt-image-2";
+    // 요청에서 받은 size("860x2400" 등)를 그대로 사용. 형식이 아니면 기본값.
+    const reqSize = typeof size === "string" && /^\d{2,5}x\d{2,5}$/.test(size) ? size : null;
 
     if (refImageBase64) {
       // Reference image mode → images.edit
@@ -41,7 +43,8 @@ export async function POST(req: NextRequest) {
       model: MODEL,
       prompt,
       n: 1,
-      size: "1024x1536",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      size: (reqSize ?? "1024x1536") as any,
       quality: "medium",
     });
 

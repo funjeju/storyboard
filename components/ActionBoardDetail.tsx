@@ -553,6 +553,14 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     }
   };
 
+  // 모바일 감지
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const onR = () => setIsMobile(window.innerWidth <= 640);
+    onR(); window.addEventListener("resize", onR);
+    return () => window.removeEventListener("resize", onR);
+  }, []);
+
   // ── QR 코드 ──
   const [showQr, setShowQr]       = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState("");
@@ -740,8 +748,34 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         textarea:focus,input:focus { outline:none; border-color:${P}!important; }
       `}</style>
 
-      {/* Nav */}
-      <nav style={{ background:"white", borderBottom:"1px solid #E5E7EB", padding:"0 32px", height:60, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
+      {/* ── 모바일 전용 헤더 ── */}
+      {isMobile && (
+        <div style={{ position:"sticky", top:0, zIndex:100, background:"white", borderBottom:"1px solid #E5E7EB", boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px" }}>
+            <Link href="/actionboard" style={{ textDecoration:"none", fontSize:20, color:"#6B7280", flexShrink:0, lineHeight:1 }}>←</Link>
+            <span style={{ flex:1, minWidth:0, fontSize:15, fontWeight:800, color:"#111827", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{board.title}</span>
+            <span style={{ flexShrink:0, fontSize:10, fontWeight:700, color:statusColors[status], background:`${statusColors[status]}18`, padding:"3px 8px", borderRadius:100 }}>{statusLabels[status]}</span>
+            <button onClick={openQr} style={{ flexShrink:0, background:"none", border:"none", fontSize:19, cursor:"pointer", padding:0 }} title="QR">🔳</button>
+          </div>
+          {status === "open" ? (
+            <div style={{ display:"flex", gap:8, padding:"0 12px 11px" }}>
+              {user ? (
+                <>
+                  <button onClick={() => setShowQuestionForm(true)} style={{ flex:1, padding:"14px 0", background:"white", border:"2px solid #F59E0B", borderRadius:13, fontSize:15, fontWeight:800, color:"#D97706", cursor:"pointer" }}>❓ 질문하기</button>
+                  <button onClick={() => setShowForm(true)} style={{ flex:1.5, padding:"14px 0", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:13, fontSize:15, fontWeight:800, color:"white", cursor:"pointer", boxShadow:"0 4px 14px rgba(124,58,237,0.3)" }}>＋ 게시물 추가</button>
+                </>
+              ) : (
+                <button onClick={signIn} style={{ flex:1, padding:"14px 0", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:13, fontSize:15, fontWeight:800, color:"white", cursor:"pointer" }}>로그인하고 참여하기</button>
+              )}
+            </div>
+          ) : (
+            <div style={{ padding:"0 14px 11px", fontSize:12, color:"#92400E", fontWeight:600 }}>⚠️ 입력 기간이 종료되어 열람만 가능해요</div>
+          )}
+        </div>
+      )}
+
+      {/* Nav (데스크탑) */}
+      <nav style={{ background:"white", borderBottom:"1px solid #E5E7EB", padding:"0 32px", height:60, display:isMobile?"none":"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <Link href="/actionboard" style={{ display:"flex", alignItems:"center", gap:6, textDecoration:"none", fontSize:13, color:"#6B7280", fontWeight:600 }}>
             ← 액션보드
@@ -780,8 +814,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         </div>
       </nav>
 
-      {/* Board info bar */}
-      <div style={{ background:"white", borderBottom:"1px solid #E5E7EB", padding:"12px 32px", display:"flex", alignItems:"center", gap:24 }}>
+      {/* Board info bar (데스크탑) */}
+      <div style={{ background:"white", borderBottom:"1px solid #E5E7EB", padding:"12px 32px", display:isMobile?"none":"flex", alignItems:"center", gap:24 }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#6B7280" }}>
           {board.creatorPhoto && <img src={board.creatorPhoto} alt="" style={{ width:18, height:18, borderRadius:"50%" }} />}
           <span>개설자: <strong style={{ color:"#374151" }}>{board.creatorName}</strong></span>
@@ -791,8 +825,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         {board.description && <div style={{ fontSize:12, color:"#6B7280" }}>💬 {board.description}</div>}
       </div>
 
-      {/* Closed banner */}
-      {status === "closed" && (
+      {/* Closed banner (데스크탑) */}
+      {status === "closed" && !isMobile && (
         <div style={{ background:"#FFF3CD", borderBottom:"1px solid #FCD34D", padding:"10px 32px", fontSize:13, color:"#92400E", fontWeight:600 }}>
           ⚠️ 입력 기간이 종료되었습니다. 게시물 열람만 가능합니다.
         </div>

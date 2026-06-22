@@ -7,6 +7,7 @@ import {
   subscribeToActionBoards,
   createActionBoard,
   updateActionBoard,
+  updateBoardOrder,
   deleteActionBoard,
   subscribeToFavorites,
   createFavorite,
@@ -37,6 +38,7 @@ import { uploadPosterImage, deleteStorageFile } from "@/lib/firebaseStorage";
 
 const P = "#7C3AED";
 const PINK = "#EC4899";
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "naggu1999@gmail.com";
 
 // 포스트잇 색상 팔레트
 const STICKY_COLORS = ["#FFF59D", "#FFCDD2", "#C8E6C9", "#BBDEFB", "#FFE0B2", "#E1BEE7", "#B2EBF2"];
@@ -639,7 +641,28 @@ export default function ActionBoard() {
     return () => window.removeEventListener("keydown", onKey);
   }, [viewPoster]);
 
-  const filtered = boards.filter(b => filter === "all" || getBoardStatus(b) === filter);
+  const isAdmin = !!user && !!ADMIN_EMAIL && user.email === ADMIN_EMAIL;
+
+  // 수동 순서(order) 우선, 없으면 최신순
+  const sortedBoards = [...boards].sort((a, b) => {
+    const ao = a.order, bo = b.order;
+    if (ao != null && bo != null) return ao - bo;
+    if (ao != null) return -1;
+    if (bo != null) return 1;
+    return b.createdAt - a.createdAt;
+  });
+  const filtered = sortedBoards.filter(b => filter === "all" || getBoardStatus(b) === filter);
+
+  // 보드 순서 이동(관리자) — 전체 정렬 목록 기준으로 스왑 후 전체 재인덱싱
+  const moveBoard = async (id: string, dir: "left" | "right", e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const list = [...sortedBoards];
+    const i = list.findIndex(b => b.id === id);
+    const j = dir === "left" ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await Promise.all(list.map((b, idx) => updateBoardOrder(b.id, idx).catch(() => {})));
+  };
 
   const handleCreate = async () => {
     if (!title.trim()) return;
@@ -1172,6 +1195,24 @@ export default function ActionBoard() {
                     <div style={{ background:grad, padding:"28px 24px 22px", position:"relative", overflow:"hidden" }}>
                       <div style={{ position:"absolute", right:-20, top:-20, width:120, height:120, borderRadius:"50%", background:"rgba(255,255,255,0.07)" }} />
                       <div style={{ position:"absolute", right:20, bottom:-30, width:80, height:80, borderRadius:"50%", background:"rgba(255,255,255,0.05)" }} />
+
+                      {/* 순서 이동 (관리자, 전체 보기) */}
+                      {isAdmin && filter === "all" && (
+                        <div style={{ position:"absolute", top:14, right:14, display:"flex", gap:4, zIndex:2 }}>
+                          <button
+                            onClick={e => moveBoard(board.id, "left", e)}
+                            disabled={i === 0}
+                            style={{ width:24, height:24, borderRadius:7, border:"none", background:"rgba(255,255,255,0.22)", color:"white", fontSize:13, fontWeight:800, cursor:i===0?"default":"pointer", opacity:i===0?0.35:1, backdropFilter:"blur(4px)" }}
+                            title="앞으로"
+                          >‹</button>
+                          <button
+                            onClick={e => moveBoard(board.id, "right", e)}
+                            disabled={i === filtered.length - 1}
+                            style={{ width:24, height:24, borderRadius:7, border:"none", background:"rgba(255,255,255,0.22)", color:"white", fontSize:13, fontWeight:800, cursor:i===filtered.length-1?"default":"pointer", opacity:i===filtered.length-1?0.35:1, backdropFilter:"blur(4px)" }}
+                            title="뒤로"
+                          >›</button>
+                        </div>
+                      )}
 
                       {/* Status badge */}
                       <div style={{ display:"inline-flex", alignItems:"center", padding:"4px 12px", background:"rgba(255,255,255,0.2)", backdropFilter:"blur(4px)", borderRadius:100, fontSize:11, fontWeight:700, color:"white", marginBottom:14 }}>

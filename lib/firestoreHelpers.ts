@@ -244,6 +244,7 @@ export interface CloudActionBoard {
   startAt: number;      // posting open timestamp
   endAt: number;        // posting close timestamp
   postCount: number;
+  order?: number;       // 수동 정렬 순서 (없으면 createdAt 기준)
   createdAt: number;
   updatedAt: number;
 }
@@ -315,6 +316,10 @@ export async function updateActionBoard(id: string, fields: Partial<Pick<CloudAc
 
 export async function deleteActionBoard(id: string) {
   await deleteDoc(boardDoc(id));
+}
+
+export async function updateBoardOrder(id: string, order: number) {
+  await setDoc(boardDoc(id), { order }, { merge: true });
 }
 
 export async function getActionBoard(id: string): Promise<CloudActionBoard | null> {

@@ -8,4 +8,6 @@ html,
 body {
   margin: 0;
   padding: 0;
+  /* 모바일 당겨서 새로고침(pull-to-refresh) + 오버스크롤 바운스 방지 */
+  overscroll-behavior-y: none;
 }

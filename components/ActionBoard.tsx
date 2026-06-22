@@ -158,6 +158,10 @@ export default function ActionBoard() {
   const [deleteTarget, setDeleteTarget] = useState<CloudActionBoard | null>(null);
   const [deleting, setDeleting]         = useState(false);
 
+  // 드래그 정렬
+  const [dragId, setDragId]         = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
   // 공용 삭제 확인
   const [confirmDel, setConfirmDel] = useState<{ text: string; run: () => void } | null>(null);
   const confirmDelete = (text: string, run: () => void) => setConfirmDel({ text, run });
@@ -661,6 +665,20 @@ export default function ActionBoard() {
     const j = dir === "left" ? i - 1 : i + 1;
     if (i < 0 || j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]];
+    await Promise.all(list.map((b, idx) => updateBoardOrder(b.id, idx).catch(() => {})));
+  };
+
+  // 드래그앤드롭: dragId를 targetId 위치로 이동
+  const dropOnBoard = async (targetId: string) => {
+    const src = dragId;
+    setDragId(null); setDragOverId(null);
+    if (!src || src === targetId) return;
+    const list = [...sortedBoards];
+    const from = list.findIndex(b => b.id === src);
+    const to = list.findIndex(b => b.id === targetId);
+    if (from < 0 || to < 0) return;
+    const [moved] = list.splice(from, 1);
+    list.splice(to, 0, moved);
     await Promise.all(list.map((b, idx) => updateBoardOrder(b.id, idx).catch(() => {})));
   };
 
@@ -1169,7 +1187,8 @@ export default function ActionBoard() {
               {f!=="all" && <span style={{ marginLeft:6, fontSize:11, opacity:0.7 }}>{boards.filter(b=>getBoardStatus(b)===f).length}</span>}
             </button>
           ))}
-          <span style={{ marginLeft:"auto", fontSize:13, color:"#9CA3AF", alignSelf:"center" }}>{filtered.length}개</span>
+          {isAdmin && filter === "all" && <span style={{ marginLeft:"auto", fontSize:12, color:P, fontWeight:700, alignSelf:"center" }}>✋ 카드를 끌어 순서 변경</span>}
+          <span style={{ marginLeft:isAdmin && filter==="all" ? 12 : "auto", fontSize:13, color:"#9CA3AF", alignSelf:"center" }}>{filtered.length}개</span>
         </div>
 
         {/* Board grid */}
@@ -1186,7 +1205,17 @@ export default function ActionBoard() {
               const st = STATUS_LABEL[status];
               const grad = CARD_GRADIENTS[i % CARD_GRADIENTS.length];
               return (
-                <Link key={board.id} href={`/actionboard/${board.id}`} style={{ textDecoration:"none", flex:"0 0 auto", width:300, scrollSnapAlign:"start" }}>
+                <Link
+                  key={board.id}
+                  href={`/actionboard/${board.id}`}
+                  draggable={isAdmin && filter === "all"}
+                  onDragStart={e => { if (!(isAdmin && filter === "all")) return; setDragId(board.id); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", board.id); } catch {} }}
+                  onDragOver={e => { if (dragId && dragId !== board.id) { e.preventDefault(); setDragOverId(board.id); } }}
+                  onDragLeave={() => { if (dragOverId === board.id) setDragOverId(null); }}
+                  onDrop={e => { e.preventDefault(); dropOnBoard(board.id); }}
+                  onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                  style={{ textDecoration:"none", flex:"0 0 auto", width:300, scrollSnapAlign:"start", cursor:(isAdmin && filter==="all") ? (dragId ? "grabbing" : "grab") : "pointer", opacity:dragId===board.id?0.4:1, outline:dragOverId===board.id?`3px dashed ${P}`:"none", outlineOffset:3, borderRadius:20, transition:"opacity 0.15s" }}
+                >
                   <div
                     className="board-card"
                     style={{ borderRadius:20, overflow:"hidden", boxShadow:"0 2px 12px rgba(0,0,0,0.08)", transition:"transform 0.25s ease,box-shadow 0.25s ease", animation:`fadeUp 0.4s ease ${i*0.07}s both`, background:"white" }}

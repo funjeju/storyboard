@@ -14,10 +14,12 @@
     "firebase": "^11.0.0",
     "firebase-admin": "^13.10.0",
     "heic2any": "^0.0.4",
+    "jspdf": "^4.2.1",
     "lamejs": "^1.2.1",
     "leaflet": "^1.9.4",
     "next": "^15.3.2",
     "openai": "^6.39.1",
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

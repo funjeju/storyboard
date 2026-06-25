@@ -572,15 +572,16 @@ export default function SunoMaker() {
       });
       const data: LyricsResult = await res.json();
       setLyricsResult(data);
-      // After lyrics created in Path A → move to style step
+      // Path A: 스타일 단계용 컨텍스트만 준비. 화면은 자동 점프하지 않고
+      // 현재('create') 단계에 가사를 먼저 보여준 뒤, 사용자가 버튼으로 넘어간다.
       if (appMode === "path-a") {
-        // Extract simple context from the generated lyrics form params
         setLyricsContext(prev => prev || {
           genre: genre1, mood: mood,
           atmosphere: backgroundScenes.join(", "),
           styleHint: `감정: ${lyricsEmotions.join(", ")}. 상황: ${lyricsSituation}`,
         });
-        setPathAStep("style");
+        // 생성된 가사가 보이도록 부드럽게 스크롤
+        setTimeout(() => lyricsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
       }
     } catch { /* silent */ }
     setGeneratingLyrics(false);
@@ -1554,7 +1555,7 @@ export default function SunoMaker() {
 
               {/* Lyrics Result + Continue to Style */}
               {lyricsResult && (
-                <div style={{ marginTop:32, display:"flex", flexDirection:"column", gap:20, animation:"fadeUp 0.4s ease both" }}>
+                <div ref={lyricsTopRef} style={{ marginTop:32, display:"flex", flexDirection:"column", gap:20, animation:"fadeUp 0.4s ease both", scrollMarginTop:80 }}>
                   <div style={{ background:"white", borderRadius:20, border:"1px solid #EDE9FE", overflow:"hidden" }}>
                     <div style={{ background:"linear-gradient(135deg,#1E3A5F,#2563EB)", padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                       <div style={{ color:"white", fontWeight:700, fontSize:15 }}>생성된 가사</div>

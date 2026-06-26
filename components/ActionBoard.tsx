@@ -241,7 +241,15 @@ export default function ActionBoard() {
   const [editNoteId, setEditNoteId]   = useState<string | null>(null);
   const [editNoteText, setEditNoteText] = useState("");
   const [viewNote, setViewNote]       = useState<CloudStickyNote | null>(null);
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
   const isLongNote = (t: string) => t.length > 90 || t.split("\n").length > 6;
+
+  const copyNote = (n: CloudStickyNote) => {
+    navigator.clipboard?.writeText(n.text).then(() => {
+      setCopiedNoteId(n.id);
+      setTimeout(() => setCopiedNoteId(c => (c === n.id ? null : c)), 1500);
+    }).catch(() => {});
+  };
 
   // todos (투두)
   const [todos, setTodos]           = useState<CloudTodo[]>([]);
@@ -904,12 +912,15 @@ export default function ActionBoard() {
                       </div>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:8 }}>
                         <span style={{ fontSize:11, color:"rgba(0,0,0,0.4)", fontWeight:600 }}>{n.creatorName}</span>
-                        {user?.uid === n.uid && (
-                          <div style={{ display:"flex", gap:8 }}>
-                            <span onClick={() => startEditNote(n)} style={{ fontSize:12, cursor:"pointer" }} title="수정">✏️</span>
-                            <span onClick={() => confirmDelete("이 메모를 삭제할까요?", () => deleteStickyNote(n.id).catch(()=>{}))} style={{ fontSize:12, cursor:"pointer" }} title="삭제">🗑</span>
-                          </div>
-                        )}
+                        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                          <span onClick={() => copyNote(n)} style={{ fontSize:12, cursor:"pointer", fontWeight:700, color:copiedNoteId===n.id?"#059669":"rgba(0,0,0,0.45)" }} title="복사">{copiedNoteId===n.id?"✓ 복사됨":"📋 복사"}</span>
+                          {user?.uid === n.uid && (
+                            <>
+                              <span onClick={() => startEditNote(n)} style={{ fontSize:12, cursor:"pointer" }} title="수정">✏️</span>
+                              <span onClick={() => confirmDelete("이 메모를 삭제할까요?", () => deleteStickyNote(n.id).catch(()=>{}))} style={{ fontSize:12, cursor:"pointer" }} title="삭제">🗑</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </>
                   )}
@@ -1455,7 +1466,10 @@ export default function ActionBoard() {
             <div style={{ fontFamily:"'Gowun Dodum',sans-serif", fontSize:18, lineHeight:1.6, color:"#3A3A3A", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{linkify(viewNote.text)}</div>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:20, paddingTop:14, borderTop:"1px solid rgba(0,0,0,0.1)" }}>
               <span style={{ fontSize:12, color:"rgba(0,0,0,0.5)", fontWeight:600 }}>📝 {viewNote.creatorName}</span>
-              <button onClick={() => setViewNote(null)} style={{ padding:"7px 16px", background:"rgba(0,0,0,0.7)", border:"none", borderRadius:9, fontSize:13, fontWeight:700, color:"white", cursor:"pointer" }}>닫기</button>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={() => copyNote(viewNote)} style={{ padding:"7px 14px", background:copiedNoteId===viewNote.id?"#059669":"rgba(0,0,0,0.08)", border:"none", borderRadius:9, fontSize:13, fontWeight:700, color:copiedNoteId===viewNote.id?"white":"#3A3A3A", cursor:"pointer" }}>{copiedNoteId===viewNote.id?"✓ 복사됨":"📋 복사"}</button>
+                <button onClick={() => setViewNote(null)} style={{ padding:"7px 16px", background:"rgba(0,0,0,0.7)", border:"none", borderRadius:9, fontSize:13, fontWeight:700, color:"white", cursor:"pointer" }}>닫기</button>
+              </div>
             </div>
           </div>
         </div>

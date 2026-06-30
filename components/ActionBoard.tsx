@@ -145,6 +145,7 @@ export default function ActionBoard() {
   const [desc, setDesc]           = useState("");
   const [startPick, setStartPick] = useState<DatePick>(() => nowPick(0));
   const [endPick, setEndPick]     = useState<DatePick>(() => nowPick(9));
+  const [password, setPassword]   = useState("");
 
   // edit state
   const [editBoard, setEditBoard]     = useState<CloudActionBoard | null>(null);
@@ -152,6 +153,7 @@ export default function ActionBoard() {
   const [editDesc, setEditDesc]       = useState("");
   const [editStart, setEditStart]     = useState<DatePick>(() => nowPick(0));
   const [editEnd, setEditEnd]         = useState<DatePick>(() => nowPick(9));
+  const [editPassword, setEditPassword] = useState("");
   const [editSaving, setEditSaving]   = useState(false);
 
   // delete state
@@ -599,6 +601,7 @@ export default function ActionBoard() {
     setEditDesc(b.description);
     setEditStart(tsToDatePick(b.startAt));
     setEditEnd(tsToDatePick(b.endAt));
+    setEditPassword(b.password ?? "");
   };
 
   const openDelete = (b: CloudActionBoard, e: React.MouseEvent) => {
@@ -615,6 +618,7 @@ export default function ActionBoard() {
         description: editDesc.trim(),
         startAt: datepickToTs(editStart),
         endAt: datepickToTs(editEnd),
+        password: editPassword.trim(),  // 빈 문자열이면 비밀번호 해제
       });
       setEditBoard(null);
     } catch { /* silent */ }
@@ -697,6 +701,8 @@ export default function ActionBoard() {
     try {
       const startAt = datepickToTs(startPick);
       const endAt   = datepickToTs(endPick);
+      // 최신 보드가 항상 맨 왼쪽에 오도록 기존 최소 order보다 작은 값 부여
+      const minOrder = boards.reduce((m, b) => (b.order != null ? Math.min(m, b.order) : m), 0);
       await createActionBoard({
         id: crypto.randomUUID(),
         uid: user.uid,
@@ -707,10 +713,12 @@ export default function ActionBoard() {
         startAt,
         endAt,
         postCount: 0,
+        order: minOrder - 1,
+        ...(password.trim() ? { password: password.trim() } : {}),
         createdAt: Date.now(),
       });
       setShowCreate(false);
-      setTitle(""); setDesc("");
+      setTitle(""); setDesc(""); setPassword("");
     } catch { /* silent */ }
     setCreating(false);
   };
@@ -1351,6 +1359,18 @@ export default function ActionBoard() {
               <DateTimePicker label="입력 시작" icon="📅" value={startPick} onChange={setStartPick} />
               <DateTimePicker label="입력 마감" icon="🔒" value={endPick} onChange={setEndPick} />
 
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>🔑 비밀번호 (선택)</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="설정하면 입장 시 비밀번호가 필요합니다"
+                  autoComplete="new-password"
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+              </div>
+
               <div style={{ background:"#F8F9FF", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#6B7280", lineHeight:1.6 }}>
                 ℹ️ 마감 이후에는 새 게시물 등록이 불가하며, 기존 게시물은 계속 열람할 수 있습니다.
               </div>
@@ -1398,6 +1418,19 @@ export default function ActionBoard() {
               </div>
               <DateTimePicker label="입력 시작" icon="📅" value={editStart} onChange={setEditStart} />
               <DateTimePicker label="입력 마감" icon="🔒" value={editEnd} onChange={setEditEnd} />
+
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>🔑 비밀번호 (선택)</label>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={e => setEditPassword(e.target.value)}
+                  placeholder="설정하면 입장 시 비밀번호가 필요합니다"
+                  autoComplete="new-password"
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:5 }}>비워 두고 저장하면 비밀번호가 해제됩니다.</div>
+              </div>
             </div>
 
             <div style={{ display:"flex", gap:10, marginTop:28 }}>

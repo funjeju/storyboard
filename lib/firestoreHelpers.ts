@@ -245,6 +245,7 @@ export interface CloudActionBoard {
   endAt: number;        // posting close timestamp
   postCount: number;
   order?: number;       // 수동 정렬 순서 (없으면 createdAt 기준)
+  password?: string;    // 입장 비밀번호 (없으면 누구나 열람)
   createdAt: number;
   updatedAt: number;
 }
@@ -310,7 +311,7 @@ export async function createActionBoard(board: Omit<CloudActionBoard, "updatedAt
   await setDoc(ref, { ...board, updatedAt: Date.now() });
 }
 
-export async function updateActionBoard(id: string, fields: Partial<Pick<CloudActionBoard, "title" | "description" | "startAt" | "endAt">>) {
+export async function updateActionBoard(id: string, fields: Partial<Pick<CloudActionBoard, "title" | "description" | "startAt" | "endAt" | "password">>) {
   await setDoc(boardDoc(id), { ...fields, updatedAt: Date.now() }, { merge: true });
 }
 

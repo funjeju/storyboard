@@ -293,6 +293,10 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [board, setBoard]     = useState<CloudActionBoard | null>(null);
   const [posts, setPosts]     = useState<CloudBoardPost[]>([]);
   const [loading, setLoading] = useState(true);
+  // 비밀번호 잠금
+  const [unlocked, setUnlocked] = useState(false);
+  const [pwInput, setPwInput]   = useState("");
+  const [pwError, setPwError]   = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -592,7 +596,13 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const pdfFileRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    getActionBoard(boardId).then(b => { setBoard(b); setLoading(false); });
+    getActionBoard(boardId).then(b => {
+      setBoard(b);
+      setLoading(false);
+      // 비밀번호가 없거나, 이전에 인증했으면 잠금 해제
+      if (!b?.password) setUnlocked(true);
+      else if (typeof window !== "undefined" && sessionStorage.getItem(`ab-unlock-${boardId}`) === "1") setUnlocked(true);
+    });
     const unsub = subscribeToBoardPosts(boardId, setPosts);
     return unsub;
   }, [boardId]);
@@ -732,6 +742,43 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       </div>
     </div>
   );
+
+  // 비밀번호 잠금 화면 (작성자는 통과)
+  if (board.password && !unlocked && !isAdmin) {
+    const submitPw = () => {
+      if (pwInput === board.password) {
+        setUnlocked(true);
+        setPwError(false);
+        try { sessionStorage.setItem(`ab-unlock-${boardId}`, "1"); } catch {}
+      } else {
+        setPwError(true);
+      }
+    };
+    return (
+      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#F4F6FA", padding:24, fontFamily:"'Noto Sans KR',-apple-system,sans-serif" }}>
+        <div style={{ background:"white", borderRadius:24, padding:"40px 32px", width:"100%", maxWidth:380, boxShadow:"0 24px 80px rgba(0,0,0,0.12)", textAlign:"center" }}>
+          <div style={{ fontSize:44, marginBottom:12 }}>🔒</div>
+          <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:6 }}>{board.title}</div>
+          <div style={{ fontSize:13, color:"#6B7280", marginBottom:24 }}>이 보드는 비밀번호로 보호되어 있어요</div>
+          <input
+            type="password"
+            value={pwInput}
+            onChange={e => { setPwInput(e.target.value); setPwError(false); }}
+            onKeyDown={e => { if (e.key === "Enter") submitPw(); }}
+            placeholder="비밀번호 입력"
+            autoFocus
+            style={{ width:"100%", padding:"12px 14px", border:`1.5px solid ${pwError ? "#DC2626" : "#E5E7EB"}`, borderRadius:12, fontSize:15, fontFamily:"inherit", outline:"none", textAlign:"center", marginBottom:pwError ? 8 : 16 }}
+          />
+          {pwError && <div style={{ fontSize:12, color:"#DC2626", marginBottom:16 }}>비밀번호가 일치하지 않습니다</div>}
+          <button
+            onClick={submitPw}
+            style={{ width:"100%", padding:"13px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}
+          >입장하기</button>
+          <Link href="/actionboard" style={{ display:"inline-block", marginTop:16, color:"#9CA3AF", fontSize:13, fontWeight:600 }}>← 목록으로</Link>
+        </div>
+      </div>
+    );
+  }
 
   const statusColors = { open:"#059669", upcoming:"#2563EB", closed:"#6B7280" };
   const statusLabels = { open:"🟢 입력 진행중", upcoming:"🔵 곧 시작", closed:"⚫ 입력 마감" };

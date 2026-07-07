@@ -591,23 +591,26 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   };
 
   // ── 게시물 QR 코드 (특정 게시물로 바로 가는 딥링크) ──
-  const [postQrDataUrl, setPostQrDataUrl] = useState("");
+  // 게시물별로 한 번 생성하면 계속 고정 표시 (id → dataUrl 캐시)
+  const [postQrs, setPostQrs]             = useState<Record<string, string>>({});
   const [postQrLoading, setPostQrLoading] = useState(false);
   const [showPostQrBig, setShowPostQrBig] = useState(false);
   const [postQrCopied, setPostQrCopied]   = useState(false);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const postUrl = maximizedPost ? `${origin}/actionboard/${boardId}?post=${maximizedPost.id}` : "";
+  const postQrDataUrl = maximizedPost ? (postQrs[maximizedPost.id] ?? "") : "";
 
-  // 최대화 게시물이 바뀌면 QR 상태 초기화
-  useEffect(() => { setPostQrDataUrl(""); setShowPostQrBig(false); setPostQrCopied(false); }, [maximizedPost?.id]);
+  // 게시물이 바뀌면 확대/복사 UI 상태만 초기화 (생성된 QR 캐시는 유지)
+  useEffect(() => { setShowPostQrBig(false); setPostQrCopied(false); }, [maximizedPost?.id]);
 
   const generatePostQr = async () => {
     if (!maximizedPost) return;
-    setPostQrLoading(true); setPostQrDataUrl("");
+    const id = maximizedPost.id;
+    setPostQrLoading(true);
     try {
       const QRCode = (await import("qrcode")).default;
-      const dataUrl = await QRCode.toDataURL(`${origin}/actionboard/${boardId}?post=${maximizedPost.id}`, { width: 520, margin: 2, color: { dark: "#0F172A", light: "#FFFFFF" } });
-      setPostQrDataUrl(dataUrl);
+      const dataUrl = await QRCode.toDataURL(`${origin}/actionboard/${boardId}?post=${id}`, { width: 520, margin: 2, color: { dark: "#0F172A", light: "#FFFFFF" } });
+      setPostQrs(prev => ({ ...prev, [id]: dataUrl }));
     } catch { /* silent */ }
     setPostQrLoading(false);
   };

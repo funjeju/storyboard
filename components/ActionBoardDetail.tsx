@@ -590,6 +590,38 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     navigator.clipboard?.writeText(boardUrl).then(() => { setQrCopied(true); setTimeout(() => setQrCopied(false), 1800); }).catch(() => {});
   };
 
+  // ── 게시물 QR 코드 (특정 게시물로 바로 가는 딥링크) ──
+  const [postQrDataUrl, setPostQrDataUrl] = useState("");
+  const [postQrLoading, setPostQrLoading] = useState(false);
+  const [showPostQrBig, setShowPostQrBig] = useState(false);
+  const [postQrCopied, setPostQrCopied]   = useState(false);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const postUrl = maximizedPost ? `${origin}/actionboard/${boardId}?post=${maximizedPost.id}` : "";
+
+  // 최대화 게시물이 바뀌면 QR 상태 초기화
+  useEffect(() => { setPostQrDataUrl(""); setShowPostQrBig(false); setPostQrCopied(false); }, [maximizedPost?.id]);
+
+  const generatePostQr = async () => {
+    if (!maximizedPost) return;
+    setPostQrLoading(true); setPostQrDataUrl("");
+    try {
+      const QRCode = (await import("qrcode")).default;
+      const dataUrl = await QRCode.toDataURL(`${origin}/actionboard/${boardId}?post=${maximizedPost.id}`, { width: 520, margin: 2, color: { dark: "#0F172A", light: "#FFFFFF" } });
+      setPostQrDataUrl(dataUrl);
+    } catch { /* silent */ }
+    setPostQrLoading(false);
+  };
+  const downloadPostQr = () => {
+    if (!postQrDataUrl || !maximizedPost) return;
+    const a = document.createElement("a");
+    a.href = postQrDataUrl;
+    a.download = `QR_${(maximizedPost.title || "post").replace(/[^a-zA-Z0-9가-힣]+/g, "_")}.png`;
+    a.click();
+  };
+  const copyPostQrUrl = () => {
+    navigator.clipboard?.writeText(postUrl).then(() => { setPostQrCopied(true); setTimeout(() => setPostQrCopied(false), 1800); }).catch(() => {});
+  };
+
   const fileRef     = useRef<HTMLInputElement>(null);
   const audioRef2   = useRef<HTMLInputElement>(null);
   const pptFileRef  = useRef<HTMLInputElement>(null);
@@ -612,6 +644,17 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     const unsub = subscribeToBoardComments(boardId, maximizedPost.id, setComments);
     return unsub;
   }, [boardId, maximizedPost?.id]);
+
+  // 딥링크: URL에 ?post=<id>가 있으면 해당 게시물을 자동으로 크게 열기 (최초 1회)
+  const deepLinkedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkedRef.current) return;
+    if (!unlocked || posts.length === 0) return;
+    const pid = new URLSearchParams(window.location.search).get("post");
+    if (!pid) { deepLinkedRef.current = true; return; }
+    const post = posts.find(p => p.id === pid);
+    if (post) { setMaximizedPost(post); deepLinkedRef.current = true; }
+  }, [posts, unlocked]);
 
   const status = board ? getBoardStatus(board) : "closed";
   const canPost = status === "open" && !!user;
@@ -1281,7 +1324,21 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
               <span style={{ color:"white", fontSize:14, fontWeight:700 }}>{maximizedPost.authorName}</span>
               <span style={{ color:"rgba(255,255,255,0.5)", fontSize:12 }}>{fmtDate(maximizedPost.createdAt)}</span>
             </div>
-            <button onClick={() => setMaximizedPost(null)} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.2)", color:"white", borderRadius:10, padding:"8px 20px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕ 닫기</button>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              {postQrDataUrl ? (
+                <img
+                  src={postQrDataUrl}
+                  onClick={() => setShowPostQrBig(true)}
+                  title="QR 코드 크게 보기"
+                  style={{ width:40, height:40, borderRadius:8, background:"white", padding:3, cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.3)" }}
+                />
+              ) : (
+                <button onClick={generatePostQr} disabled={postQrLoading} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.2)", color:"white", borderRadius:10, padding:"8px 16px", cursor:postQrLoading?"default":"pointer", fontSize:13, fontWeight:700 }}>
+                  {postQrLoading ? "생성 중..." : "📱 QR 생성"}
+                </button>
+              )}
+              <button onClick={() => setMaximizedPost(null)} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.2)", color:"white", borderRadius:10, padding:"8px 20px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕ 닫기</button>
+            </div>
           </div>
 
           {/* Content + Comments */}
@@ -1539,6 +1596,27 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
             <div style={{ display:"flex", gap:10, marginTop:18 }}>
               <button onClick={() => setShowQr(false)} style={{ flex:1, padding:"12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>닫기</button>
               <button onClick={downloadQr} disabled={!qrDataUrl} style={{ flex:2, padding:"12px", background:qrDataUrl?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:qrDataUrl?"white":"#9CA3AF", cursor:qrDataUrl?"pointer":"default" }}>⬇ PNG 저장</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 게시물 QR 크게 보기 */}
+      {showPostQrBig && maximizedPost && (
+        <div onClick={() => setShowPostQrBig(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ background:"white", borderRadius:24, padding:"34px", width:"100%", maxWidth:380, textAlign:"center", boxShadow:"0 24px 80px rgba(0,0,0,0.18)" }}>
+            <div style={{ fontSize:20, fontWeight:800, color:"#111827", marginBottom:4 }}>📱 게시물 QR 코드</div>
+            <div style={{ fontSize:13, color:"#6B7280", marginBottom:22, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{maximizedPost.title || "게시물"}</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", width:248, height:248, margin:"0 auto", background:"white", borderRadius:16, border:"1.5px solid #EEF0F4", boxShadow:"0 4px 16px rgba(0,0,0,0.06)" }}>
+              {postQrDataUrl ? <img src={postQrDataUrl} alt="QR" style={{ width:220, height:220 }} /> : <span style={{ fontSize:13, color:"#9CA3AF" }}>생성 중...</span>}
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:18, padding:"9px 12px", background:"#F8F9FF", borderRadius:10 }}>
+              <span style={{ flex:1, fontSize:12, color:"#6B7280", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textAlign:"left" }}>{postUrl}</span>
+              <button onClick={copyPostQrUrl} style={{ flex:"0 0 auto", padding:"5px 10px", borderRadius:8, border:"none", background:postQrCopied?"#10B981":"#E5E7EB", color:postQrCopied?"white":"#374151", fontSize:12, fontWeight:700, cursor:"pointer" }}>{postQrCopied ? "복사됨" : "복사"}</button>
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:18 }}>
+              <button onClick={() => setShowPostQrBig(false)} style={{ flex:1, padding:"12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>닫기</button>
+              <button onClick={downloadPostQr} disabled={!postQrDataUrl} style={{ flex:2, padding:"12px", background:postQrDataUrl?`linear-gradient(135deg,${P},${PINK})`:"#E5E7EB", border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:postQrDataUrl?"white":"#9CA3AF", cursor:postQrDataUrl?"pointer":"default" }}>⬇ PNG 저장</button>
             </div>
           </div>
         </div>

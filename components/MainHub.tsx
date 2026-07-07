@@ -195,6 +195,27 @@ const TOOLS = [
     ctaText: "🔗 URL 단축하기",
   },
   {
+    id: "qr",
+    icon: "🔳",
+    name: "QR Code Generator",
+    nameKo: "QR 코드 생성기",
+    desc: "웹 주소를 넣으면 QR 코드 즉시 생성 · 이력 저장",
+    features: [
+      "웹사이트 주소 → QR 코드 즉시 생성",
+      "생성 이력 클라우드 저장 · 언제든 재사용",
+      "연결 주소 · QR 이름 수정 가능",
+      "PNG 다운로드 + 삭제 관리",
+    ],
+    gradient: "linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%)",
+    accentGrad: "linear-gradient(135deg, #7C3AED, #6366F1)",
+    accent: "#6366F1",
+    accentRgb: "99,102,241",
+    border: "rgba(99,102,241,0.25)",
+    href: "/qr",
+    badge: "NEW",
+    ctaText: "🔳 QR 만들기",
+  },
+  {
     id: "thumbnail",
     icon: "🖼️",
     name: "YouTube Thumbnail Maker",
@@ -303,6 +324,12 @@ export default function MainHub() {
             style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", background:"rgba(5,150,105,0.07)", border:"1.5px solid rgba(5,150,105,0.2)", borderRadius:10, textDecoration:"none", fontSize:13, fontWeight:700, color:"#059669" }}
           >
             🔗 URL 단축
+          </Link>
+          <Link
+            href="/qr"
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 16px", background:"rgba(99,102,241,0.07)", border:"1.5px solid rgba(99,102,241,0.2)", borderRadius:10, textDecoration:"none", fontSize:13, fontWeight:700, color:"#6366F1" }}
+          >
+            🔳 QR 코드
           </Link>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>

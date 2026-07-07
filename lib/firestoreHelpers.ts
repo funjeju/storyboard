@@ -13,6 +13,7 @@ import {
   deleteDoc,
   onSnapshot,
   query,
+  where,
   orderBy,
   serverTimestamp,
   increment,
@@ -654,6 +655,49 @@ export async function deleteMapPost(boardId: string, postId: string) {
 export function subscribeToMapPosts(boardId: string, cb: (posts: CloudMapPost[]) => void): Unsubscribe {
   const q = query(mapPostsCol(boardId), orderBy("createdAt", "desc"));
   return onSnapshot(q, snap => cb(snap.docs.map(d => d.data() as CloudMapPost)));
+}
+
+// ─── QR Codes (QR 코드 생성기) ──────────────────────────────────────────────────
+
+export interface CloudQrCode {
+  id: string;
+  uid: string;
+  creatorName: string;
+  name: string;        // QR 이름 (표시용)
+  url: string;         // 연결된 웹사이트 주소
+  createdAt: number;
+  updatedAt: number;
+}
+
+function qrCodesCol() {
+  if (!db) throw new Error("Firestore not initialised");
+  return collection(db, "qrCodes");
+}
+function qrCodeDoc(id: string) {
+  if (!db) throw new Error("Firestore not initialised");
+  return doc(db, "qrCodes", id);
+}
+
+export async function createQrCode(qr: Omit<CloudQrCode, "updatedAt">) {
+  await setDoc(qrCodeDoc(qr.id), { ...qr, updatedAt: Date.now() });
+}
+
+export async function updateQrCode(id: string, fields: Partial<Pick<CloudQrCode, "name" | "url">>) {
+  await setDoc(qrCodeDoc(id), { ...fields, updatedAt: Date.now() }, { merge: true });
+}
+
+export async function deleteQrCode(id: string) {
+  await deleteDoc(qrCodeDoc(id));
+}
+
+/** 로그인 사용자 본인이 만든 QR 목록 구독 (최신순은 클라이언트에서 정렬) */
+export function subscribeToQrCodes(uid: string, cb: (qrs: CloudQrCode[]) => void): Unsubscribe {
+  const q = query(qrCodesCol(), where("uid", "==", uid));
+  return onSnapshot(q, snap => {
+    const list = snap.docs.map(d => d.data() as CloudQrCode);
+    list.sort((a, b) => b.createdAt - a.createdAt);
+    cb(list);
+  });
 }
 
 // ─── MetaPrompts ─────────────────────────────────────────────────────────────

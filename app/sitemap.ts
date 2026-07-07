@@ -17,6 +17,7 @@ const ROUTES: { path: string; priority: number }[] = [
   { path: "/actionboard", priority: 0.6 },
   { path: "/feed", priority: 0.6 },
   { path: "/url", priority: 0.5 },
+  { path: "/qr", priority: 0.6 },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

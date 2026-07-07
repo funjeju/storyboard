@@ -10,6 +10,7 @@ import {
   deleteBoardPost,
   updateBoardPost,
   updateBoardPostPosition,
+  updateBoardPostQr,
   createFeedPost,
   addBoardComment,
   deleteBoardComment,
@@ -591,16 +592,18 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   };
 
   // ── 게시물 QR 코드 (특정 게시물로 바로 가는 딥링크) ──
-  // 게시물별로 한 번 생성하면 계속 고정 표시 (id → dataUrl 캐시)
-  const [postQrs, setPostQrs]             = useState<Record<string, string>>({});
+  // 한 번 생성하면 Firestore(post.qrDataUrl)에 영구 저장 → 새로고침·모든 사용자에게 그대로 표시
   const [postQrLoading, setPostQrLoading] = useState(false);
   const [showPostQrBig, setShowPostQrBig] = useState(false);
   const [postQrCopied, setPostQrCopied]   = useState(false);
+  const [localQrs, setLocalQrs]           = useState<Record<string, string>>({}); // 저장 반영 전 즉시 표시용
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const postUrl = maximizedPost ? `${origin}/actionboard/${boardId}?post=${maximizedPost.id}` : "";
-  const postQrDataUrl = maximizedPost ? (postQrs[maximizedPost.id] ?? "") : "";
+  // 저장된 값(구독 반영) 우선, 없으면 방금 만든 로컬 값
+  const livePost = maximizedPost ? posts.find(p => p.id === maximizedPost.id) : null;
+  const postQrDataUrl = (livePost?.qrDataUrl ?? (maximizedPost ? localQrs[maximizedPost.id] : "")) ?? "";
 
-  // 게시물이 바뀌면 확대/복사 UI 상태만 초기화 (생성된 QR 캐시는 유지)
+  // 게시물이 바뀌면 확대/복사 UI 상태만 초기화
   useEffect(() => { setShowPostQrBig(false); setPostQrCopied(false); }, [maximizedPost?.id]);
 
   const generatePostQr = async () => {
@@ -610,7 +613,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     try {
       const QRCode = (await import("qrcode")).default;
       const dataUrl = await QRCode.toDataURL(`${origin}/actionboard/${boardId}?post=${id}`, { width: 520, margin: 2, color: { dark: "#0F172A", light: "#FFFFFF" } });
-      setPostQrs(prev => ({ ...prev, [id]: dataUrl }));
+      setLocalQrs(prev => ({ ...prev, [id]: dataUrl }));   // 즉시 표시
+      await updateBoardPostQr(boardId, id, dataUrl);        // Firestore에 영구 저장
     } catch { /* silent */ }
     setPostQrLoading(false);
   };

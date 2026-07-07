@@ -276,6 +276,7 @@ export interface CloudBoardPost {
   createdAt: number;
   x?: number;
   y?: number;
+  qrDataUrl?: string;    // 게시물 딥링크 QR 코드 (한 번 생성하면 영구 저장)
 }
 
 export interface CloudBoardComment {
@@ -354,6 +355,10 @@ export async function updateBoardPost(
   fields: Partial<Pick<CloudBoardPost, "title" | "text" | "audioName" | "youtubeUrl" | "pptName" | "pdfName" | "bgColor">>,
 ) {
   await setDoc(postDoc(boardId, postId), fields, { merge: true });
+}
+
+export async function updateBoardPostQr(boardId: string, postId: string, qrDataUrl: string) {
+  await setDoc(postDoc(boardId, postId), { qrDataUrl }, { merge: true });
 }
 
 export function subscribeToBoardPosts(boardId: string, cb: (posts: CloudBoardPost[]) => void): Unsubscribe {

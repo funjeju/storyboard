@@ -101,6 +101,8 @@ export default function QrGenerator() {
   const [previewUrl, setPreviewUrl] = useState("");   // 현재 미리보기가 가리키는 주소
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");     // 저장 실패 안내
+  const [savedFlash, setSavedFlash] = useState(false); // 저장 성공 토스트
 
   // 수정 모달
   const [editTarget, setEditTarget] = useState<CloudQrCode | null>(null);
@@ -142,6 +144,7 @@ export default function QrGenerator() {
     if (!preview || !previewUrl) return;
     if (!user) { await signIn(); return; }
     setSaving(true);
+    setSaveError("");
     try {
       await createQrCode({
         id: crypto.randomUUID(),
@@ -151,9 +154,20 @@ export default function QrGenerator() {
         url: previewUrl,
         createdAt: Date.now(),
       });
-      // 폼 초기화
+      // 폼 초기화 + 성공 안내 + 이력으로 스크롤
       setName(""); setUrl(""); setPreview(""); setPreviewUrl("");
-    } catch { /* silent */ }
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2500);
+      setTimeout(() => document.getElementById("qr-history")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    } catch (e: unknown) {
+      console.error("QR 저장 실패:", e);
+      const code = (e as { code?: string })?.code ?? "";
+      setSaveError(
+        code.includes("permission")
+          ? "저장 권한이 없습니다. Firestore 보안 규칙(qrCodes)이 배포되었는지 확인해 주세요."
+          : "저장에 실패했습니다. 잠시 후 다시 시도해 주세요."
+      );
+    }
     setSaving(false);
   };
 
@@ -284,11 +298,17 @@ export default function QrGenerator() {
             {preview && !user && (
               <div style={{ fontSize: 11, color: "#9CA3AF", textAlign: "center" }}>저장하려면 로그인이 필요해요</div>
             )}
+            {savedFlash && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#059669", textAlign: "center" }}>✓ 이력에 저장했어요</div>
+            )}
+            {saveError && (
+              <div style={{ fontSize: 11, color: "#DC2626", textAlign: "center", lineHeight: 1.5 }}>{saveError}</div>
+            )}
           </div>
         </div>
 
         {/* 히스토리 */}
-        <div style={{ marginTop: 40 }}>
+        <div id="qr-history" style={{ marginTop: 40, scrollMarginTop: 80 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <span style={{ fontSize: 18, fontWeight: 800, color: "#0F172A" }}>📜 생성 이력</span>
             <span style={{ fontSize: 13, color: "#9CA3AF" }}>{qrs.length}개</span>

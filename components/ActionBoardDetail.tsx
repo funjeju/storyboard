@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -11,6 +11,7 @@ import {
   updateBoardPost,
   updateBoardPostPosition,
   updateBoardPostQr,
+  updateBoardPostAnnOrder,
   createFeedPost,
   addBoardComment,
   deleteBoardComment,
@@ -315,12 +316,31 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   // Card maximize overlay — declared here so handleCanvasMouseUp can reference it
   const [maximizedPost, setMaximizedPost] = useState<CloudBoardPost | null>(null);
 
+  // ── 공지 카드 좌우 드래그 재정렬 (보드 개설자 전용) ──────────────────────────
+  const [annOrderIds, setAnnOrderIds] = useState<string[] | null>(null); // 낙관적 순서 오버라이드
+  const [draggingAnnId, setDraggingAnnId] = useState<string | null>(null); // 드래그 중 카드(스타일용)
+  const dragAnnId = useRef<string | null>(null);
+
   // Comments for maximized post
   const [comments, setComments] = useState<CloudBoardComment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const [copied, setCopied] = useState(false);
+
+  // 저장된 서버 순서가 낙관적 순서를 따라잡으면 오버라이드 해제 (다른 관리자의 변경 반영)
+  useEffect(() => {
+    if (!annOrderIds) return;
+    const serverIds = posts.filter(p => p.isAnnouncement).sort((a, b) => {
+      const ao = a.annOrder ?? Number.MAX_SAFE_INTEGER;
+      const bo = b.annOrder ?? Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+      return b.createdAt - a.createdAt;
+    }).map(p => p.id);
+    if (serverIds.length === annOrderIds.length && serverIds.every((id, i) => id === annOrderIds[i])) {
+      setAnnOrderIds(null);
+    }
+  }, [posts, annOrderIds]);
 
   // keep refs in sync so mouseup closures have latest state
   useEffect(() => { posRef.current = positions; }, [positions]);
@@ -666,9 +686,53 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const status = board ? getBoardStatus(board) : "closed";
   const canPost = status === "open" && !!user;
   const isAdmin = !!user && !!board && user.uid === board.uid;
-  const announcements = posts.filter(p => p.isAnnouncement);
+  // 공지: 저장된 수동 순서(annOrder) 우선, 없으면 최신순
+  const announcements = useMemo(() => {
+    const arr = posts.filter(p => p.isAnnouncement);
+    return arr.sort((a, b) => {
+      const ao = a.annOrder ?? Number.MAX_SAFE_INTEGER;
+      const bo = b.annOrder ?? Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+      return b.createdAt - a.createdAt;
+    });
+  }, [posts]);
   const questions     = posts.filter(p => p.isQuestion);
   const normalPosts   = posts.filter(p => !p.isAnnouncement && !p.isQuestion);
+
+  // 드래그 중에는 낙관적 순서(annOrderIds)를 우선 적용, 새 공지는 뒤에 붙임
+  const displayAnnouncements = useMemo(() => {
+    if (!annOrderIds) return announcements;
+    const map = new Map(announcements.map(p => [p.id, p]));
+    const ordered = annOrderIds.map(id => map.get(id)).filter(Boolean) as CloudBoardPost[];
+    announcements.forEach(p => { if (!annOrderIds.includes(p.id)) ordered.push(p); });
+    return ordered;
+  }, [announcements, annOrderIds]);
+
+  const handleAnnDragStart = (id: string) => {
+    dragAnnId.current = id;
+    setDraggingAnnId(id);
+    setAnnOrderIds(displayAnnouncements.map(p => p.id));
+  };
+  const handleAnnDragEnter = (overId: string) => {
+    const from = dragAnnId.current;
+    if (!from || from === overId) return;
+    setAnnOrderIds(prev => {
+      const list = [...(prev ?? displayAnnouncements.map(p => p.id))];
+      const fi = list.indexOf(from), oi = list.indexOf(overId);
+      if (fi < 0 || oi < 0) return prev;
+      list.splice(fi, 1);
+      list.splice(oi, 0, from);
+      return list;
+    });
+  };
+  const handleAnnDrop = () => {
+    const list = annOrderIds;
+    dragAnnId.current = null;
+    setDraggingAnnId(null);
+    if (!list) return;
+    // 순차 인덱스를 annOrder로 영구 저장
+    list.forEach((id, i) => updateBoardPostAnnOrder(boardId, id, i).catch(() => {}));
+  };
 
   const handleImageFile = (file: File) => {
     const reader = new FileReader();
@@ -932,13 +996,24 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       {/* ── Announcement banner ── */}
       {announcements.length > 0 && (
         <div style={{ background:"linear-gradient(135deg,rgba(124,58,237,0.06),rgba(236,72,153,0.04))", borderBottom:"1px solid rgba(124,58,237,0.12)", padding:"12px 24px" }}>
-          <div style={{ fontSize:11, fontWeight:700, color:"#7C3AED", letterSpacing:1, marginBottom:10 }}>📢 공지</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+            <span style={{ fontSize:11, fontWeight:700, color:"#7C3AED", letterSpacing:1 }}>📢 공지</span>
+            {isAdmin && announcements.length > 1 && (
+              <span style={{ fontSize:10, color:"#9CA3AF", fontWeight:600 }}>⇄ 카드를 좌우로 드래그해 순서를 바꿀 수 있어요</span>
+            )}
+          </div>
           <div style={{ display:"flex", gap:12, overflowX:"auto", paddingBottom:4 }}>
-            {announcements.map(post => (
+            {displayAnnouncements.map(post => (
               <div
                 key={post.id}
-                onClick={() => setMaximizedPost(post)}
-                style={{ flexShrink:0, width:260, background:post.bgColor ?? "#FFF9C4", borderRadius:14, padding:"14px 16px", boxShadow:"0 2px 8px rgba(0,0,0,0.08)", position:"relative", cursor:"pointer" }}
+                onClick={() => { if (dragAnnId.current) return; setMaximizedPost(post); }}
+                draggable={isAdmin}
+                onDragStart={isAdmin ? () => handleAnnDragStart(post.id) : undefined}
+                onDragEnter={isAdmin ? () => handleAnnDragEnter(post.id) : undefined}
+                onDragOver={isAdmin ? (e => e.preventDefault()) : undefined}
+                onDrop={isAdmin ? handleAnnDrop : undefined}
+                onDragEnd={isAdmin ? handleAnnDrop : undefined}
+                style={{ flexShrink:0, width:260, background:post.bgColor ?? "#FFF9C4", borderRadius:14, padding:"14px 16px", boxShadow: draggingAnnId === post.id ? "0 12px 32px rgba(124,58,237,0.28)" : "0 2px 8px rgba(0,0,0,0.08)", position:"relative", cursor: isAdmin ? "grab" : "pointer", opacity: draggingAnnId === post.id ? 0.85 : 1, transition:"box-shadow 0.15s,opacity 0.15s" }}
               >
                 <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
                   {post.authorPhoto && <img src={post.authorPhoto} alt="" style={{ width:18, height:18, borderRadius:"50%" }} />}

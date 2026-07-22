@@ -270,6 +270,7 @@ export interface CloudBoardPost {
   pdfName?: string;
   bgColor?: string;
   isAnnouncement?: boolean;
+  annOrder?: number;     // 공지 배너 내 수동 정렬 순서 (없으면 createdAt 기준)
   isQuestion?: boolean;
   refUrl?: string;
   refText?: string;
@@ -360,6 +361,10 @@ export async function updateBoardPost(
 
 export async function updateBoardPostQr(boardId: string, postId: string, qrDataUrl: string) {
   await setDoc(postDoc(boardId, postId), { qrDataUrl }, { merge: true });
+}
+
+export async function updateBoardPostAnnOrder(boardId: string, postId: string, annOrder: number) {
+  await setDoc(postDoc(boardId, postId), { annOrder }, { merge: true });
 }
 
 export function subscribeToBoardPosts(boardId: string, cb: (posts: CloudBoardPost[]) => void): Unsubscribe {

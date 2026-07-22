@@ -54,6 +54,7 @@ export default function ConverterHub() {
   const [quality, setQuality] = useState(0.9);
   const [outFormat, setOutFormat] = useState<"image/jpeg" | "image/png" | "image/webp">("image/jpeg");
   const [maxEdge, setMaxEdge] = useState(1280);
+  const [scale, setScale] = useState<2 | 4>(4); // AI 업스케일 배율
   const fileRef = useRef<HTMLInputElement>(null);
 
   const cur = CONVERTERS.find(c => c.key === tab)!;
@@ -111,7 +112,30 @@ export default function ConverterHub() {
     if (!files.length || busy) return;
     setBusy(true);
     try {
-      if (tab === "img2pdf") {
+      if (tab === "upscale") {
+        // AI 초해상도(Super-Resolution) — 전부 브라우저(기기) 안에서 처리. 모델은 첫 실행 시 1회 로드.
+        const [{ default: Upscaler }, modelMod] = await Promise.all([
+          import("upscaler"),
+          scale === 4 ? import("@upscalerjs/esrgan-slim/4x") : import("@upscalerjs/esrgan-slim/2x"),
+        ]);
+        const upscaler = new Upscaler({ model: modelMod.default });
+        for (const it of files) {
+          if (it.status === "done") continue;
+          setFiles(prev => prev.map(p => p.id === it.id ? { ...p, status: "busy", error: undefined } : p));
+          try {
+            const img = await loadImage(it.file);
+            const dataUrl = await upscaler.upscale(img, { output: "base64", patchSize: 64, padding: 6 });
+            URL.revokeObjectURL(img.src);
+            const blob = await (await fetch(dataUrl)).blob();
+            const url = URL.createObjectURL(blob);
+            const nm = it.file.name.replace(/\.[^.]+$/, "") + `_${scale}x.png`;
+            setFiles(prev => prev.map(p => p.id === it.id ? { ...p, status: "done", outUrl: url, outName: nm, outSize: blob.size } : p));
+          } catch (e) {
+            setFiles(prev => prev.map(p => p.id === it.id ? { ...p, status: "error", error: e instanceof Error ? e.message : "실패" } : p));
+          }
+        }
+        try { upscaler.dispose?.(); } catch { /* ignore */ }
+      } else if (tab === "img2pdf") {
         const { jsPDF } = await import("jspdf");
         let pdf: InstanceType<typeof jsPDF> | null = null;
         for (const it of files) {
@@ -229,6 +253,13 @@ export default function ConverterHub() {
                 </select>
               </label>
             )}
+            {tab === "upscale" && (
+              <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700 }}>확대 배율
+                <select value={scale} onChange={e => setScale(+e.target.value as 2 | 4)} style={{ padding: "7px 10px", border: "1.5px solid #E5E7EB", borderRadius: 9, fontSize: 13, fontFamily: "inherit" }}>
+                  <option value={4}>4배 (최대 화질)</option><option value={2}>2배 (빠름)</option>
+                </select>
+              </label>
+            )}
             {tab === "resize" && (
               <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700 }}>최대 크기
                 <select value={maxEdge} onChange={e => setMaxEdge(+e.target.value)} style={{ padding: "7px 10px", border: "1.5px solid #E5E7EB", borderRadius: 9, fontSize: 13, fontFamily: "inherit" }}>
@@ -242,6 +273,12 @@ export default function ConverterHub() {
               </label>
             )}
           </div>
+
+          {tab === "upscale" && (
+            <div style={{ marginTop: 12, padding: "10px 12px", background: "#EFF8FF", border: `1px solid ${T}33`, borderRadius: 10, fontSize: 12, color: "#0C4A6E", lineHeight: 1.6 }}>
+              🤖 AI가 <b>기기 안에서</b> 디테일을 복원해 사진을 키웁니다. 사진은 서버로 전송되지 않아요. 첫 실행 때 AI 모델을 한 번 내려받아 조금 느릴 수 있고, 큰 이미지·4배일수록 시간이 더 걸립니다.
+            </div>
+          )}
 
           {/* 파일 목록 */}
           {files.length > 0 && (
@@ -278,7 +315,7 @@ export default function ConverterHub() {
           {files.length > 0 && (
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
               <button onClick={run} disabled={busy} style={{ flex: 1, padding: "14px", borderRadius: 12, border: "none", fontSize: 15, fontWeight: 800, color: "white", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1, background: `linear-gradient(135deg,${T},${T2})` }}>
-                {busy ? "처리 중..." : isCombine ? (isPdf ? "🧩 PDF 합치기" : "📄 PDF로 변환") : "✨ 변환하기"}
+                {busy ? (tab === "upscale" ? "AI 처리 중... (다소 걸릴 수 있어요)" : "처리 중...") : isCombine ? (isPdf ? "🧩 PDF 합치기" : "📄 PDF로 변환") : tab === "upscale" ? `🔍 AI 업스케일 (${scale}배)` : "✨ 변환하기"}
               </button>
               {!isCombine && doneCount > 0 && <button onClick={dlAll} style={{ flex: "0 0 auto", padding: "14px 16px", borderRadius: 12, border: `1.5px solid ${T}`, background: "white", color: T, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>⬇ 전체 ({doneCount})</button>}
             </div>

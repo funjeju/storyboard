@@ -1,4 +1,5 @@
 "use client";
+import { aiFetch } from "@/lib/aiClient";
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
@@ -68,7 +69,7 @@ export default function MetaPrompt() {
   }, [messages, loading, finalPrompt, generatedImage]);
 
   const callAPI = async (msgs: Message[], mode: "question" | "generate") => {
-    const res = await fetch("/api/metaprompt", {
+    const res = await aiFetch("/api/metaprompt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: msgs, mode }),
@@ -152,7 +153,7 @@ export default function MetaPrompt() {
     if (!finalPrompt || generatingImage) return;
     setGeneratingImage(true);
     try {
-      const res = await fetch("/api/image", {
+      const res = await aiFetch("/api/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: finalPrompt }),

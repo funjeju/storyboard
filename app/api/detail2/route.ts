@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { resolveKey, keyErrorResponse } from "@/lib/aiKey";
+
 
 export const maxDuration = 120;
 
@@ -81,6 +81,9 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
 }
 
 export async function POST(req: NextRequest) {
+  let __key = "";
+  try { __key = await resolveKey(req, "openai"); } catch (e) { const r = keyErrorResponse(e); if (r) return r; throw e; }
+  const openai = new OpenAI({ apiKey: __key });
   try {
     const b = await req.json();
     const brand: string = (b.brand || "").trim();

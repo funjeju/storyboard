@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+import { resolveKey, keyErrorResponse } from "@/lib/aiKey";
+
 
 const TONE_DESCRIPTIONS: Record<string, string> = {
   premium: "고급스럽고 권위있는 톤. 품질과 가치를 강조. 신뢰와 격조 있는 어조.",
@@ -111,6 +111,9 @@ Format: { "title": string (≤20자, 예: "구매 전 확인하세요"), "recomm
 };
 
 export async function POST(req: NextRequest) {
+  let __key = "";
+  try { __key = await resolveKey(req, "google"); } catch (e) { const r = keyErrorResponse(e); if (r) return r; throw e; }
+  const genAI = new GoogleGenerativeAI(__key);
   try {
     const { sectionType, tone, productInfo, research, platform, styleDNA, copy: existingCopy, sectionGuidance, lockedSectionPrompts } = await req.json();
 

@@ -1,4 +1,6 @@
 "use client";
+import { aiFetch } from "@/lib/aiClient";
+import AiToolGate from "@/components/AiToolGate";
 
 import { useState, useRef } from "react";
 import Link from "next/link";
@@ -37,7 +39,7 @@ function buildSrt(cues: Cue[]): string {
     .join("\n\n");
 }
 
-export default function SrtPage() {
+function SrtPageInner() {
   const { user, loading: authLoading, signIn } = useAuth();
 
   const [mp3File, setMp3File]   = useState<File | null>(null);
@@ -91,7 +93,7 @@ export default function SrtPage() {
       // 3. API 호출
       setStatus("loading");
       const token = await user.getIdToken();
-      const res = await fetch("/api/srt-generate", {
+      const res = await aiFetch("/api/srt-generate", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ mp3Path, mp3MimeType: mp3File.type || "audio/mpeg", mp3Name: mp3File.name, txtContent }),
@@ -369,5 +371,13 @@ export default function SrtPage() {
         <p style={{ marginTop:28, textAlign:"center", fontSize:11, color:"#9CA3AF" }}>Powered by OpenAI Whisper</p>
       </main>
     </div>
+  );
+}
+
+export default function SrtPage() {
+  return (
+    <AiToolGate providers={["openai"]} toolName="SRT 자막 생성기">
+      <SrtPageInner />
+    </AiToolGate>
   );
 }

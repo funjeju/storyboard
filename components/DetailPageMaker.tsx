@@ -1,4 +1,5 @@
 "use client";
+import { aiFetch } from "@/lib/aiClient";
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
@@ -364,7 +365,7 @@ function moduleFromLibrary(type: ModuleType, order: number, score = 0, reason = 
 // ─── API helper ───────────────────────────────────────────────────────────────
 
 async function callApi<T = Record<string, unknown>>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(path, {
+  const res = await aiFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -659,7 +660,7 @@ export default function DetailPageMaker() {
     setRefining(true);
     try {
       const combinedPrompt = `${previewTarget.basePrompt}\n\nREFINEMENT INSTRUCTION (apply to the existing image): ${refineInput.trim()}`;
-      const res = await fetch("/api/image", {
+      const res = await aiFetch("/api/image", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: combinedPrompt, refImageBase64: previewTarget.url }),
       });
@@ -700,7 +701,7 @@ export default function DetailPageMaker() {
       const fullPrompt = project.styleDNA ? `${prompt} Style: ${project.styleDNA.promptBase}` : prompt;
       const body: Record<string, unknown> = { prompt: fullPrompt };
       if (refImageBase64) body.refImageBase64 = refImageBase64;
-      const res = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctrl.signal });
+      const res = await aiFetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctrl.signal });
       const data = await res.json();
       if (!res.ok || !data.imageUrl) { setLoading(false); alert("이미지 생성 실패: " + (data.error || `HTTP ${res.status}`)); return; }
       // Upload base64 to Firebase Storage so the URL persists across sessions
@@ -736,7 +737,7 @@ export default function DetailPageMaker() {
       const fullPrompt = project.styleDNA ? `${prompt} Style: ${project.styleDNA.promptBase}` : prompt;
       const body: Record<string, unknown> = { prompt: fullPrompt };
       if (refImg) body.refImageBase64 = refImg;
-      const res = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: sig });
+      const res = await aiFetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: sig });
       const data = await res.json();
       if (!res.ok || !data.imageUrl) throw new Error(data.error || "이미지 실패");
       let url: string = data.imageUrl;

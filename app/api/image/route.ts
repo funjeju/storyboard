@@ -1,9 +1,12 @@
 import OpenAI, { toFile } from "openai";
 import { NextRequest, NextResponse } from "next/server";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { resolveKey, keyErrorResponse } from "@/lib/aiKey";
+
 
 export async function POST(req: NextRequest) {
+  let __key = "";
+  try { __key = await resolveKey(req, "openai"); } catch (e) { const r = keyErrorResponse(e); if (r) return r; throw e; }
+  const openai = new OpenAI({ apiKey: __key });
   try {
     const { prompt, refImageBase64, size, quality } = await req.json();
     if (!prompt) return NextResponse.json({ error: "No prompt provided" }, { status: 400 });

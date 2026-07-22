@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveKey, keyErrorResponse } from "@/lib/aiKey";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+
 
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  let __key = "";
+  try { __key = await resolveKey(req, "google"); } catch (e) { const r = keyErrorResponse(e); if (r) return r; throw e; }
+  const genAI = new GoogleGenerativeAI(__key);
   try {
     const { text, type = "full" } = await req.json();
     // type: "full" = complete lyrics, "keywords" = phrases/keywords/inspiration

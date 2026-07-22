@@ -1,4 +1,5 @@
 "use client";
+import { aiFetch } from "@/lib/aiClient";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -135,7 +136,7 @@ export default function ThumbnailMaker() {
         ? { mode, title: musicTitle, stylePrompt, lyrics, target: musicTarget, playlist, mainColor }
         : { mode, title: genTitle, description, contentType, target: genTarget, channelVibe, mood };
 
-      const res = await fetch("/api/thumbnail", {
+      const res = await aiFetch("/api/thumbnail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

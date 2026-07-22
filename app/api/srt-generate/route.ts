@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveKey, keyErrorResponse } from "@/lib/aiKey";
 import OpenAI from "openai";
 import { getStorage } from "firebase-admin/storage";
 import { getAdminApp, getAdminAuth } from "@/lib/firebase-admin";
 
 export const maxDuration = 120;
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 
 const WHISPER_MAX_BYTES = 25 * 1024 * 1024; // Whisper API 25MB 한도
 
@@ -127,6 +127,9 @@ function alignLyrics(
 }
 
 export async function POST(req: NextRequest) {
+  let __key = "";
+  try { __key = await resolveKey(req, "openai"); } catch (e) { const r = keyErrorResponse(e); if (r) return r; throw e; }
+  const openai = new OpenAI({ apiKey: __key });
   let storageFilePath: string | null = null;
 
   try {

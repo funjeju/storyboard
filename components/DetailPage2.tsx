@@ -1,4 +1,5 @@
 "use client";
+import { aiFetch } from "@/lib/aiClient";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -193,7 +194,7 @@ export default function DetailPage2() {
 
     setGenLoading(true); setStrategy(null); setScenes([]);
     try {
-      const res = await fetch("/api/detail2", {
+      const res = await aiFetch("/api/detail2", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brand, features, categoryKey, modelMode, extra, model: { gender, age, ageRange, mood, situation } }),
       });
@@ -208,7 +209,7 @@ export default function DetailPage2() {
     if (!scene.imagePrompt || scene.generating) return;
     setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, generating: true, error: false } : s));
     try {
-      const res = await fetch("/api/image", {
+      const res = await aiFetch("/api/image", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: scene.imagePrompt, size: scene.size, quality }),
       });

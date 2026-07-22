@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveKey, keyErrorResponse } from "@/lib/aiKey";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genai = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
+
 
 export async function POST(req: NextRequest) {
+  let __key = "";
+  try { __key = await resolveKey(req, "google"); } catch (e) { const r = keyErrorResponse(e); if (r) return r; throw e; }
+  const genai = new GoogleGenerativeAI(__key);
   try {
     const { productInfo, research, tone } = await req.json();
 

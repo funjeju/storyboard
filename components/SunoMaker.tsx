@@ -1,4 +1,5 @@
 "use client";
+import { aiFetch } from "@/lib/aiClient";
 
 import { useState, useRef, useCallback } from "react";
 import { useAuth } from "@/components/AuthProvider";
@@ -451,7 +452,7 @@ export default function SunoMaker() {
 
     for (let i = 0; i < count; i++) {
       try {
-        const res = await fetch("/api/suno-prompt", {
+        const res = await aiFetch("/api/suno-prompt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -487,7 +488,7 @@ export default function SunoMaker() {
     setSimpleLoading(true);
     setSimpleStyle(""); setSimpleLyrics(""); setSimpleTitle(""); setSimpleMeta(null); setSimpleSaved(false);
     try {
-      const res = await fetch("/api/suno-prompt", {
+      const res = await aiFetch("/api/suno-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "simple", idea: simpleIdea.trim() }),
@@ -532,7 +533,7 @@ export default function SunoMaker() {
     if (!lyricsRawText.trim()) return;
     setAnalyzingLyrics(true);
     try {
-      const res = await fetch("/api/lyrics-analyze", {
+      const res = await aiFetch("/api/lyrics-analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: lyricsRawText, type: lyricsInputType }),
@@ -551,7 +552,7 @@ export default function SunoMaker() {
     setGeneratingLyrics(true);
     setLyricsResult(null);
     try {
-      const res = await fetch("/api/lyrics-gen", {
+      const res = await aiFetch("/api/lyrics-gen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -668,7 +669,7 @@ export default function SunoMaker() {
   const generateCover = async () => {
     setGenCover(true);
     try {
-      const res = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" },
+      const res = await aiFetch("/api/image", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: `Album cover art for a ${genre1} ${mood} music track titled "${title || "Untitled"}". ${topic}. Professional music album cover, high quality digital art, 1:1 square format.` }),
       });
       const data = await res.json();

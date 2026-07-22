@@ -1,4 +1,5 @@
 "use client";
+import { aiFetch } from "@/lib/aiClient";
 
 import { useState, useEffect } from "react";
 import type { Cut, Beat, Storyboard, StoryboardMeta, EmotionStyle } from "@/lib/types";
@@ -57,7 +58,7 @@ function calcCuts(total: number, maxCut: number): Cut[] {
 }
 
 async function callClaude(system: string, user: string, maxTokens = 4000): Promise<string> {
-  const res = await fetch("/api/claude", {
+  const res = await aiFetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ system, user, maxTokens }),
@@ -68,7 +69,7 @@ async function callClaude(system: string, user: string, maxTokens = 4000): Promi
 }
 
 async function generateImage(prompt: string): Promise<string> {
-  const res = await fetch("/api/image", {
+  const res = await aiFetch("/api/image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt }),

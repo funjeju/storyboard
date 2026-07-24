@@ -117,13 +117,13 @@ function ColorPalette({ value, onChange }: { value: string; onChange: (c: string
   );
 }
 
-function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, isDragging, onOpen }: {
+function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onPointerDown, isDragging, onOpen }: {
   post: CloudBoardPost;
   canDelete: boolean;
   onDelete: () => void;
   onEdit: () => void;
   onOpenPpt: (pptUrl: string, pptName: string) => void;
-  onMouseDown: (e: React.MouseEvent) => void;
+  onPointerDown: (e: React.PointerEvent) => void;
   isDragging: boolean;
   onOpen: () => void;
 }) {
@@ -149,8 +149,8 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onMouseDown, i
 
   return (
     <div
-      onMouseDown={onMouseDown}
-      style={{ background:color, borderRadius:16, padding:"18px 18px 14px", boxShadow: isDragging ? "0 20px 48px rgba(0,0,0,0.22)" : "0 4px 14px rgba(0,0,0,0.09)", position:"relative", minHeight:120, display:"flex", flexDirection:"column", gap:10, cursor: isDragging ? "grabbing" : "grab", userSelect:"none", transform: isDragging ? "scale(1.03)" : "scale(1)", transition: isDragging ? "box-shadow 0.15s,transform 0.1s" : "box-shadow 0.25s,transform 0.25s" }}
+      onPointerDown={onPointerDown}
+      style={{ background:color, borderRadius:16, padding:"18px 18px 14px", boxShadow: isDragging ? "0 20px 48px rgba(0,0,0,0.22)" : "0 4px 14px rgba(0,0,0,0.09)", position:"relative", minHeight:120, display:"flex", flexDirection:"column", gap:10, cursor: isDragging ? "grabbing" : "grab", userSelect:"none", WebkitUserSelect:"none", transform: isDragging ? "scale(1.03)" : "scale(1)", transition: isDragging ? "box-shadow 0.15s,transform 0.1s" : "box-shadow 0.25s,transform 0.25s" }}
     >
       {/* Author */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -310,10 +310,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [positions, setPositions] = useState<Record<string, Pos>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [snapLines, setSnapLines]   = useState<SnapLine[]>([]);
-  const dragRef = useRef<{ id: string; mouseX: number; mouseY: number; cardX: number; cardY: number; hasMoved: boolean } | null>(null);
+  const dragRef = useRef<{ id: string; mouseX: number; mouseY: number; cardX: number; cardY: number; hasMoved: boolean; pointerType: string; armed: boolean } | null>(null);
   const posRef  = useRef<Record<string, Pos>>({});
   const postsRef = useRef<CloudBoardPost[]>([]);
-  // Card maximize overlay — declared here so handleCanvasMouseUp can reference it
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const lpTimer = useRef<number | null>(null); // 모바일: 길게 눌러 드래그 시작 타이머
+  // Card maximize overlay — declared here so handleCanvasPointerUp can reference it
   const [maximizedPost, setMaximizedPost] = useState<CloudBoardPost | null>(null);
 
   // ── 공지 카드 좌우 드래그 재정렬 (보드 개설자 전용) ──────────────────────────
@@ -377,21 +379,45 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     });
   }, [posts, findEmptySlot]);
 
-  const handleCardMouseDown = useCallback((e: React.MouseEvent, postId: string) => {
-    const tag = (e.target as HTMLElement).closest("button,a,audio,iframe,select");
-    if (tag) return; // don't intercept interactive elements
-    e.preventDefault();
-    const pos = posRef.current[postId] ?? { x: 0, y: 0 };
-    dragRef.current = { id: postId, mouseX: e.clientX, mouseY: e.clientY, cardX: pos.x, cardY: pos.y, hasMoved: false };
-    setDraggingId(postId);
+  const clearLp = useCallback(() => {
+    if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
   }, []);
 
-  const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragRef.current) return;
-    const { id, mouseX, mouseY, cardX, cardY } = dragRef.current;
-    if (!dragRef.current.hasMoved &&
+  const handleCardPointerDown = useCallback((e: React.PointerEvent, postId: string) => {
+    const tag = (e.target as HTMLElement).closest("button,a,audio,iframe,select");
+    if (tag) return; // don't intercept interactive elements
+    const pos = posRef.current[postId] ?? { x: 0, y: 0 };
+    const touch = e.pointerType === "touch";
+    // 마우스/펜은 즉시 드래그, 터치는 길게 눌러야(250ms) 드래그 시작 → 탭·스크롤과 구분
+    dragRef.current = { id: postId, mouseX: e.clientX, mouseY: e.clientY, cardX: pos.x, cardY: pos.y, hasMoved: false, pointerType: e.pointerType, armed: !touch };
+    if (touch) {
+      clearLp();
+      lpTimer.current = window.setTimeout(() => {
+        if (dragRef.current && dragRef.current.id === postId) {
+          dragRef.current.armed = true;
+          setDraggingId(postId);
+          try { navigator.vibrate?.(15); } catch { /* no haptics */ }
+        }
+      }, 250);
+    } else {
+      e.preventDefault();
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* older browsers */ }
+      setDraggingId(postId);
+    }
+  }, [clearLp]);
+
+  const handleCanvasPointerMove = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const { id, mouseX, mouseY, cardX, cardY } = d;
+    if (!d.armed) {
+      // 터치: 아직 드래그 준비 전인데 움직이면 스크롤/탭으로 보고 취소
+      if (Math.abs(e.clientX - mouseX) > 8 || Math.abs(e.clientY - mouseY) > 8) { clearLp(); dragRef.current = null; }
+      return;
+    }
+    if (!d.hasMoved &&
         (Math.abs(e.clientX - mouseX) > 5 || Math.abs(e.clientY - mouseY) > 5)) {
-      dragRef.current.hasMoved = true;
+      d.hasMoved = true;
     }
     let x = Math.max(0, cardX + e.clientX - mouseX);
     let y = Math.max(0, cardY + e.clientY - mouseY);
@@ -419,24 +445,38 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
     setSnapLines(lines);
     setPositions(prev => ({ ...prev, [id]: { x, y } }));
-  }, [CARD_W, SNAP_DIST]);
+  }, [CARD_W, SNAP_DIST, clearLp]);
 
-  const handleCanvasMouseUp = useCallback(async () => {
-    if (!dragRef.current) return;
-    const { id, hasMoved } = dragRef.current;
+  const handleCanvasPointerUp = useCallback(async () => {
+    clearLp();
+    const d = dragRef.current;
+    if (!d) return;
     dragRef.current = null;
     setDraggingId(null);
     setSnapLines([]);
 
-    if (!hasMoved) {
-      const post = postsRef.current.find(p => p.id === id);
+    if (!d.hasMoved) {
+      // 탭(또는 움직임 없는 길게누름) → 게시물 열기. 스크롤로 취소된 경우 dragRef가 이미 null.
+      const post = postsRef.current.find(p => p.id === d.id);
       if (post) setMaximizedPost(post);
       return;
     }
 
-    const pos = posRef.current[id];
-    if (pos) updateBoardPostPosition(boardId, id, pos.x, pos.y).catch(() => {});
-  }, [boardId, setMaximizedPost]);
+    if (!d.armed) return; // 안전장치
+    const pos = posRef.current[d.id];
+    if (pos) updateBoardPostPosition(boardId, d.id, pos.x, pos.y).catch(() => {});
+  }, [boardId, setMaximizedPost, clearLp]);
+
+  // 모바일 터치 드래그 중에는 페이지 스크롤을 막는다(패시브가 아닌 네이티브 리스너 필요)
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const onTouchMove = (ev: TouchEvent) => {
+      if (dragRef.current?.armed && dragRef.current.pointerType === "touch") ev.preventDefault();
+    };
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onTouchMove);
+  }, []);
 
   // form
   const [cType, setCType]       = useState<ContentType>("text");
@@ -1149,10 +1189,11 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
       {/* Free-position canvas */}
       <div
+        ref={canvasRef}
         style={{ position:"relative", minHeight:"calc(100vh - 120px)", overflow:"visible" }}
-        onMouseMove={handleCanvasMouseMove}
-        onMouseUp={handleCanvasMouseUp}
-        onMouseLeave={handleCanvasMouseUp}
+        onPointerMove={handleCanvasPointerMove}
+        onPointerUp={handleCanvasPointerUp}
+        onPointerCancel={handleCanvasPointerUp}
       >
         {/* Snap guide lines */}
         {snapLines.map((line, i) => (
@@ -1193,7 +1234,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   onDelete={() => { if (window.confirm("이 게시물을 삭제할까요?")) deleteBoardPost(boardId, post.id); }}
                   onEdit={() => openEditPost(post)}
                   onOpenPpt={(url, name) => setPptViewer({ url, name })}
-                  onMouseDown={e => handleCardMouseDown(e, post.id)}
+                  onPointerDown={e => handleCardPointerDown(e, post.id)}
                   isDragging={isDragging}
                   onOpen={() => setMaximizedPost(post)}
                 />

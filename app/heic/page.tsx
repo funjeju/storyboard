@@ -4,8 +4,8 @@ import { CONVERTERS, ALL_KEYWORDS } from "@/lib/convertSeo";
 
 const SITE = "https://storyboard-ruddy-ten.vercel.app";
 const URL = `${SITE}/heic`;
-const TITLE = "무료 온라인 변환기 모음 | HEIC·이미지 압축·포맷·리사이즈·PDF 변환";
-const DESC = "HEIC를 JPG로, 이미지 압축·포맷 변환(PNG/JPG/WebP)·리사이즈, 이미지→PDF, PDF 합치기까지. 설치·회원가입 없이 브라우저에서 무료로, 파일은 서버 업로드 없이 내 기기 안에서 안전하게 변환하세요.";
+const TITLE = "무료 온라인 변환기 · 편집기 | 이미지 자르기·회전·보정·워터마크·HEIC·압축·PDF";
+const DESC = "HEIC를 JPG로, 이미지 압축·포맷 변환(PNG/JPG/WebP)·리사이즈, 사진 자르기(크롭)·회전·밝기 보정·워터마크, 이미지→PDF, PDF 합치기까지. 설치·회원가입 없이 브라우저에서 무료로, 파일은 서버 업로드 없이 내 기기 안에서 안전하게 처리하세요.";
 
 export const metadata: Metadata = {
   metadataBase: new globalThis.URL(SITE),
@@ -24,7 +24,7 @@ export default function Page() {
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      name: "무료 변환기 모음",
+      name: "무료 변환기 · 편집기 모음",
       url: URL,
       description: DESC,
       applicationCategory: "MultimediaApplication",

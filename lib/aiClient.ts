@@ -1,6 +1,7 @@
 "use client";
 
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { collection, query, where, getDocs, limit as fbLimit } from "firebase/firestore";
 
 // 소유자 이메일 (서버의 ADMIN_EMAIL과 동일해야 함)
 export const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "naggu1999@gmail.com").toLowerCase();
@@ -45,6 +46,21 @@ export function isOwnerEmail(email: string | null | undefined): boolean {
  * - 로그인돼 있으면 ID 토큰을 Authorization 헤더로(소유자 판별용)
  * - 저장된 본인 키(BYOK)가 있으면 x-user-*-key 헤더로 첨부
  */
+export async function checkUserAllowed(email: string): Promise<boolean> {
+  if (!db || !email) return false;
+  try {
+    const q = query(
+      collection(db, "allowedUsers"),
+      where("email", "==", email.toLowerCase()),
+      fbLimit(1),
+    );
+    const snap = await getDocs(q);
+    return !snap.empty;
+  } catch {
+    return false;
+  }
+}
+
 export async function aiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   try {

@@ -7,6 +7,17 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // 허용된 사용자 목록 — 인증된 사용자만 읽기 (쓰기는 Admin SDK 전용)
+    match /allowedUsers/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // API 사용 로그 — 클라이언트 접근 불가 (Admin SDK 전용)
+    match /apiUsageLogs/{logId} {
+      allow read, write: if false;
+    }
+
     // 기존 storyboards 컬렉션 (레거시 — Admin SDK로 직접 저장하던 것)
     match /storyboards/{docId} {
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyIdToken } from "@/lib/firebase-admin";
+import { verifyIdToken, getAdminDb } from "@/lib/firebase-admin";
 
-// 소유자(무제한, 서버 키 사용) 이메일. 그 외 사용자는 본인 키(BYOK)를 헤더로 보내야 함.
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "naggu1999@gmail.com").toLowerCase();
 
 export type AiProvider = "google" | "openai";
@@ -11,7 +10,6 @@ const HEADER: Record<AiProvider, string> = {
   openai: "x-user-openai-key",
 };
 
-// 키가 없을 때 던지는 에러 — keyErrorResponse로 401 응답 변환
 export class KeyRequiredError extends Error {
   provider: AiProvider;
   constructor(provider: AiProvider) {
@@ -21,30 +19,86 @@ export class KeyRequiredError extends Error {
   }
 }
 
-async function isOwner(req: Request): Promise<boolean> {
-  const auth = req.headers.get("authorization") || req.headers.get("Authorization");
-  if (!auth?.startsWith("Bearer ")) return false;
-  const decoded = await verifyIdToken(auth.slice(7));
-  return !!decoded && (decoded.email || "").toLowerCase() === ADMIN_EMAIL;
+// ── 허용된 사용자 캐시 (서버 측, 1분 TTL) ──────────────────────────────────
+let allowedCache: Set<string> | null = null;
+let cacheTick = 0;
+
+async function loadAllowed(): Promise<Set<string>> {
+  if (allowedCache && Date.now() - cacheTick < 60_000) return allowedCache;
+  try {
+    const snap = await getAdminDb().collection("allowedUsers").get();
+    allowedCache = new Set(snap.docs.map(d => (d.data().email || "").toLowerCase()));
+  } catch {
+    allowedCache = new Set();
+  }
+  cacheTick = Date.now();
+  return allowedCache;
+}
+
+export function invalidateAllowedCache() {
+  allowedCache = null;
+  cacheTick = 0;
+}
+
+// ── 요청에서 사용자 정보 추출 ──────────────────────────────────────────────
+interface ReqUser { uid: string; email: string; name: string }
+
+async function extractUser(req: Request): Promise<ReqUser | null> {
+  const h = req.headers.get("authorization") || req.headers.get("Authorization");
+  if (!h?.startsWith("Bearer ")) return null;
+  const decoded = await verifyIdToken(h.slice(7));
+  if (!decoded?.email) return null;
+  return { uid: decoded.uid, email: decoded.email.toLowerCase(), name: decoded.name || "" };
+}
+
+async function canUseServerKey(req: Request): Promise<{ ok: boolean; user: ReqUser | null }> {
+  const user = await extractUser(req);
+  if (!user) return { ok: false, user: null };
+  if (user.email === ADMIN_EMAIL) return { ok: true, user };
+  const set = await loadAllowed();
+  return { ok: set.has(user.email), user };
+}
+
+// ── API 사용 로그 (fire-and-forget) ────────────────────────────────────────
+function logUsage(req: Request, user: ReqUser, provider: AiProvider, keySource: "server" | "byok") {
+  try {
+    const url = new URL(req.url);
+    getAdminDb().collection("apiUsageLogs").add({
+      ts: Date.now(),
+      uid: user.uid,
+      email: user.email,
+      name: user.name,
+      endpoint: url.pathname,
+      provider,
+      keySource,
+    }).catch(() => {});
+  } catch { /* ignore */ }
 }
 
 /**
  * 이 요청에 사용할 API 키를 결정한다.
- * - 소유자 계정이면 서버 환경변수 키(무제한)
- * - 그 외 사용자는 요청 헤더로 보낸 본인 키
- * - 둘 다 없으면 KeyRequiredError (→ 401, 클라이언트가 키 입력 유도)
+ * - 소유자 또는 허용된 사용자 → 서버 환경변수 키(무제한)
+ * - 그 외 사용자 → 요청 헤더로 보낸 본인 키(BYOK)
+ * - 둘 다 없으면 KeyRequiredError → 401
  */
 export async function resolveKey(req: Request, provider: AiProvider): Promise<string> {
   const envKey = provider === "google" ? process.env.GOOGLE_AI_API_KEY : process.env.OPENAI_API_KEY;
-  if (envKey && (await isOwner(req))) return envKey;
+  const { ok, user } = await canUseServerKey(req);
+
+  if (envKey && ok && user) {
+    logUsage(req, user, provider, "server");
+    return envKey;
+  }
 
   const userKey = req.headers.get(HEADER[provider]);
-  if (userKey && userKey.trim()) return userKey.trim();
+  if (userKey && userKey.trim()) {
+    if (user) logUsage(req, user, provider, "byok");
+    return userKey.trim();
+  }
 
   throw new KeyRequiredError(provider);
 }
 
-// KeyRequiredError면 401 JSON을 반환, 아니면 null(호출부가 다시 throw)
 export function keyErrorResponse(e: unknown): NextResponse | null {
   if (e instanceof KeyRequiredError) {
     return NextResponse.json(

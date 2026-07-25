@@ -137,6 +137,7 @@ export default function ActionBoard() {
   const { user, signIn } = useAuth();
   const [boards, setBoards]         = useState<CloudActionBoard[]>([]);
   const [filter, setFilter]         = useState<"all" | "open" | "upcoming" | "closed">("all");
+  const [catFilter, setCatFilter]   = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating]     = useState(false);
 
@@ -146,6 +147,7 @@ export default function ActionBoard() {
   const [startPick, setStartPick] = useState<DatePick>(() => nowPick(0));
   const [endPick, setEndPick]     = useState<DatePick>(() => nowPick(9));
   const [password, setPassword]   = useState("");
+  const [category, setCategory]   = useState("");
 
   // edit state
   const [editBoard, setEditBoard]     = useState<CloudActionBoard | null>(null);
@@ -154,6 +156,7 @@ export default function ActionBoard() {
   const [editStart, setEditStart]     = useState<DatePick>(() => nowPick(0));
   const [editEnd, setEditEnd]         = useState<DatePick>(() => nowPick(9));
   const [editPassword, setEditPassword] = useState("");
+  const [editCategory, setEditCategory] = useState("");
   const [editSaving, setEditSaving]   = useState(false);
 
   // delete state
@@ -602,6 +605,7 @@ export default function ActionBoard() {
     setEditStart(tsToDatePick(b.startAt));
     setEditEnd(tsToDatePick(b.endAt));
     setEditPassword(b.password ?? "");
+    setEditCategory(b.category ?? "");
   };
 
   const openDelete = (b: CloudActionBoard, e: React.MouseEvent) => {
@@ -618,7 +622,8 @@ export default function ActionBoard() {
         description: editDesc.trim(),
         startAt: datepickToTs(editStart),
         endAt: datepickToTs(editEnd),
-        password: editPassword.trim(),  // 빈 문자열이면 비밀번호 해제
+        password: editPassword.trim(),
+        category: editCategory.trim(),
       });
       setEditBoard(null);
     } catch { /* silent */ }
@@ -667,7 +672,10 @@ export default function ActionBoard() {
     if (bo != null) return 1;
     return b.createdAt - a.createdAt;
   });
-  const filtered = sortedBoards.filter(b => filter === "all" || getBoardStatus(b) === filter);
+  const categories = [...new Set(boards.map(b => b.category).filter((c): c is string => !!c))].sort();
+  const filtered = sortedBoards
+    .filter(b => filter === "all" || getBoardStatus(b) === filter)
+    .filter(b => catFilter === "all" || (b.category || "") === catFilter);
 
   // 보드 순서 이동(관리자) — 전체 정렬 목록 기준으로 스왑 후 전체 재인덱싱
   const moveBoard = async (id: string, dir: "left" | "right", e: React.MouseEvent) => {
@@ -715,10 +723,11 @@ export default function ActionBoard() {
         postCount: 0,
         order: minOrder - 1,
         ...(password.trim() ? { password: password.trim() } : {}),
+        ...(category.trim() ? { category: category.trim() } : {}),
         createdAt: Date.now(),
       });
       setShowCreate(false);
-      setTitle(""); setDesc(""); setPassword("");
+      setTitle(""); setDesc(""); setPassword(""); setCategory("");
     } catch { /* silent */ }
     setCreating(false);
   };
@@ -1210,6 +1219,36 @@ export default function ActionBoard() {
           <span style={{ marginLeft:isAdmin && filter==="all" ? 12 : "auto", fontSize:13, color:"#9CA3AF", alignSelf:"center" }}>{filtered.length}개</span>
         </div>
 
+        {/* Category filter chips */}
+        {categories.length > 0 && (
+          <div className="hscroll" style={{ display:"flex", gap:6, marginBottom:28, overflowX:"auto", paddingBottom:2 }}>
+            <button
+              onClick={() => setCatFilter("all")}
+              className="filter-chip"
+              style={{ flex:"0 0 auto", padding:"5px 14px", borderRadius:100, border:`1.5px solid ${catFilter==="all"?"#0EA5E9":"#E5E7EB"}`, background:catFilter==="all"?"rgba(14,165,233,0.07)":"white", fontSize:12, fontWeight:600, color:catFilter==="all"?"#0EA5E9":"#6B7280" }}
+            >
+              🏷️ 전체
+            </button>
+            {categories.map(c => (
+              <button
+                key={c}
+                onClick={() => setCatFilter(c)}
+                className="filter-chip"
+                style={{ flex:"0 0 auto", padding:"5px 14px", borderRadius:100, border:`1.5px solid ${catFilter===c?"#0EA5E9":"#E5E7EB"}`, background:catFilter===c?"rgba(14,165,233,0.07)":"white", fontSize:12, fontWeight:600, color:catFilter===c?"#0EA5E9":"#6B7280" }}
+              >
+                📁 {c} <span style={{ fontSize:10, opacity:0.6, marginLeft:4 }}>{boards.filter(b=>b.category===c).length}</span>
+              </button>
+            ))}
+            <button
+              onClick={() => setCatFilter("")}
+              className="filter-chip"
+              style={{ flex:"0 0 auto", padding:"5px 14px", borderRadius:100, border:`1.5px solid ${catFilter===""?"#0EA5E9":"#E5E7EB"}`, background:catFilter===""?"rgba(14,165,233,0.07)":"white", fontSize:12, fontWeight:600, color:catFilter===""?"#0EA5E9":"#6B7280" }}
+            >
+              미분류 <span style={{ fontSize:10, opacity:0.6, marginLeft:4 }}>{boards.filter(b=>!b.category).length}</span>
+            </button>
+          </div>
+        )}
+
         {/* Board grid */}
         {filtered.length === 0 ? (
           <div style={{ textAlign:"center", padding:"80px 0", color:"#9CA3AF" }}>
@@ -1262,9 +1301,16 @@ export default function ActionBoard() {
                         </div>
                       )}
 
-                      {/* Status badge */}
-                      <div style={{ display:"inline-flex", alignItems:"center", padding:"4px 12px", background:"rgba(255,255,255,0.2)", backdropFilter:"blur(4px)", borderRadius:100, fontSize:11, fontWeight:700, color:"white", marginBottom:14 }}>
-                        {st.label}
+                      {/* Status + category badge */}
+                      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:14 }}>
+                        <div style={{ display:"inline-flex", alignItems:"center", padding:"4px 12px", background:"rgba(255,255,255,0.2)", backdropFilter:"blur(4px)", borderRadius:100, fontSize:11, fontWeight:700, color:"white" }}>
+                          {st.label}
+                        </div>
+                        {board.category && (
+                          <div style={{ display:"inline-flex", alignItems:"center", padding:"4px 10px", background:"rgba(255,255,255,0.15)", backdropFilter:"blur(4px)", borderRadius:100, fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.9)" }}>
+                            📁 {board.category}
+                          </div>
+                        )}
                       </div>
 
                       <div style={{ fontSize:20, fontWeight:800, color:"white", lineHeight:1.3, letterSpacing:-0.3, marginBottom:8, animation:"float 3s ease-in-out infinite" }}>
@@ -1356,6 +1402,19 @@ export default function ActionBoard() {
                 />
               </div>
 
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>📁 카테고리 (선택)</label>
+                <input
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  list="cat-list"
+                  placeholder="예: 마케팅 강의, 디자인 워크샵"
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+                <datalist id="cat-list">{categories.map(c => <option key={c} value={c} />)}</datalist>
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:5 }}>같은 카테고리의 보드끼리 묶어서 볼 수 있습니다.</div>
+              </div>
+
               <DateTimePicker label="입력 시작" icon="📅" value={startPick} onChange={setStartPick} />
               <DateTimePicker label="입력 마감" icon="🔒" value={endPick} onChange={setEndPick} />
 
@@ -1416,6 +1475,19 @@ export default function ActionBoard() {
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
                 />
               </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>📁 카테고리 (선택)</label>
+                <input
+                  value={editCategory}
+                  onChange={e => setEditCategory(e.target.value)}
+                  list="cat-edit-list"
+                  placeholder="예: 마케팅 강의, 디자인 워크샵"
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }}
+                />
+                <datalist id="cat-edit-list">{categories.map(c => <option key={c} value={c} />)}</datalist>
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:5 }}>같은 카테고리의 보드끼리 묶어서 볼 수 있습니다.</div>
+              </div>
+
               <DateTimePicker label="입력 시작" icon="📅" value={editStart} onChange={setEditStart} />
               <DateTimePicker label="입력 마감" icon="🔒" value={editEnd} onChange={setEditEnd} />
 

@@ -7,6 +7,7 @@ import {
   isOwnerEmail,
   getUserKey,
   setUserKey,
+  checkUserAllowed,
   PROVIDER_LABEL,
   PROVIDER_HELP,
   type AiProvider,
@@ -32,11 +33,18 @@ export default function AiToolGate({
   const { user, loading, signIn } = useAuth();
   const owner = isOwnerEmail(user?.email);
 
+  const [allowed, setAllowed] = useState(false);
   // localStorage에 저장된 키 상태 (마운트 후 로드 — SSR 불일치 방지)
   const [stored, setStored] = useState<Record<AiProvider, string>>({ google: "", openai: "" });
   const [mounted, setMounted] = useState(false);
   const [draft, setDraft] = useState<Record<AiProvider, string>>({ google: "", openai: "" });
   const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (user?.email && !owner) {
+      checkUserAllowed(user.email).then(setAllowed);
+    }
+  }, [user?.email, owner]);
 
   useEffect(() => {
     const s = { google: getUserKey("google"), openai: getUserKey("openai") };
@@ -66,11 +74,11 @@ export default function AiToolGate({
     setEditing(false);
   };
 
-  // 소유자거나, 본인 키를 모두 입력한 경우 → 도구 사용 허용
-  if (owner || (hasAllKeys && !editing)) {
+  // 소유자·허용된 사용자거나, 본인 키를 모두 입력한 경우 → 도구 사용 허용
+  if (owner || allowed || (hasAllKeys && !editing)) {
     return (
       <>
-        {!owner && (
+        {!owner && !allowed && (
           <div style={{ position: "fixed", right: 14, bottom: 14, zIndex: 9999 }}>
             <button
               onClick={() => setEditing(true)}

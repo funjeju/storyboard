@@ -94,6 +94,7 @@ export default function AdminDashboard() {
           <span style={{ fontSize: 15, fontWeight: 800 }}>📊 접속 통계</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Link href="/admin/members" style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: "#F1F5F9", color: "#6B7280", textDecoration: "none" }}>👥 회원 관리</Link>
           {[7, 30, 90].map(d => (
             <button key={d} onClick={() => setDays(d)} style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: days === d ? P : "#F1F5F9", color: days === d ? "white" : "#6B7280" }}>{d}일</button>
           ))}

@@ -41,10 +41,10 @@ export default function AiToolGate({
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
-    if (user?.email && !owner) {
-      checkUserAllowed(user.email).then(setAllowed);
+    if (user && !owner) {
+      checkUserAllowed().then(setAllowed);
     }
-  }, [user?.email, owner]);
+  }, [user, owner]);
 
   useEffect(() => {
     const s = { google: getUserKey("google"), openai: getUserKey("openai") };

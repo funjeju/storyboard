@@ -1,7 +1,6 @@
 "use client";
 
-import { auth, db } from "@/lib/firebase";
-import { collection, query, where, getDocs, limit as fbLimit } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 
 // 소유자 이메일 (서버의 ADMIN_EMAIL과 동일해야 함)
 export const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "naggu1999@gmail.com").toLowerCase();
@@ -41,21 +40,15 @@ export function isOwnerEmail(email: string | null | undefined): boolean {
   return !!email && email.toLowerCase() === ADMIN_EMAIL;
 }
 
-/**
- * AI API 호출용 fetch 래퍼.
- * - 로그인돼 있으면 ID 토큰을 Authorization 헤더로(소유자 판별용)
- * - 저장된 본인 키(BYOK)가 있으면 x-user-*-key 헤더로 첨부
- */
-export async function checkUserAllowed(email: string): Promise<boolean> {
-  if (!db || !email) return false;
+export async function checkUserAllowed(): Promise<boolean> {
   try {
-    const q = query(
-      collection(db, "allowedUsers"),
-      where("email", "==", email.toLowerCase()),
-      fbLimit(1),
-    );
-    const snap = await getDocs(q);
-    return !snap.empty;
+    const token = await auth?.currentUser?.getIdToken();
+    if (!token) return false;
+    const res = await fetch("/api/check-access", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    return !!data.allowed;
   } catch {
     return false;
   }

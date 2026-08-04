@@ -23,11 +23,24 @@ import {
   type FeedCategory,
 } from "@/lib/firestoreHelpers";
 import { uploadImageDataUrl, uploadBoardFile } from "@/lib/firebaseStorage";
+import DocViewer, { DocContent } from "@/components/DocViewer";
+import { fileIcon, fmtBytes, previewKind, getExt } from "@/lib/docParser";
 
 const P = "#7C3AED";
 const PINK = "#EC4899";
 
-type ContentType = "text" | "image" | "audio" | "youtube" | "ppt" | "pdf";
+type ContentType = "text" | "image" | "audio" | "youtube" | "ppt" | "pdf" | "file";
+
+/** 첨부파일 업로드 상한 (Storage 비용·뷰어 성능 고려) */
+const MAX_ATTACH_BYTES = 50 * 1024 * 1024;
+
+/**
+ * 뷰어는 확장자로 형식을 판별한다. 제목만 저장돼 있거나("발표자료"),
+ * 제목에 점이 섞인 경우("보고서 v1.2") 알려진 확장자로 끝날 때만 그대로 쓴다.
+ */
+function withExt(name: string, fallbackExt: string) {
+  return previewKind(name) !== "none" ? name : `${name}.${fallbackExt}`;
+}
 
 function getBoardStatus(board: CloudActionBoard) {
   const now = Date.now();
@@ -117,12 +130,12 @@ function ColorPalette({ value, onChange }: { value: string; onChange: (c: string
   );
 }
 
-function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onPointerDown, isDragging, onOpen }: {
+function PostCard({ post, canDelete, onDelete, onEdit, onOpenDoc, onPointerDown, isDragging, onOpen }: {
   post: CloudBoardPost;
   canDelete: boolean;
   onDelete: () => void;
   onEdit: () => void;
-  onOpenPpt: (pptUrl: string, pptName: string) => void;
+  onOpenDoc: (url: string, name: string, size?: number) => void;
   onPointerDown: (e: React.PointerEvent) => void;
   isDragging: boolean;
   onOpen: () => void;
@@ -249,7 +262,7 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onPointerDown,
           <div style={{ fontSize:32 }}>📊</div>
           <div style={{ fontSize:12, fontWeight:600, color:"#374151", wordBreak:"break-all", lineHeight:1.4 }}>{post.pptName || "프레젠테이션"}</div>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
-            <button onClick={() => onOpenPpt(post.pptUrl!, post.pptName || "프레젠테이션")}
+            <button onClick={() => onOpenDoc(post.pptUrl!, withExt(post.pptName || "프레젠테이션", "pptx"))}
               style={{ padding:"5px 12px", background:"#7C3AED", border:"none", borderRadius:8, fontSize:11, fontWeight:700, color:"white", cursor:"pointer" }}>
               🔍 보기
             </button>
@@ -266,7 +279,7 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onPointerDown,
           <div style={{ fontSize:32 }}>📄</div>
           <div style={{ fontSize:12, fontWeight:600, color:"#374151", wordBreak:"break-all", lineHeight:1.4 }}>{post.pdfName || "PDF 문서"}</div>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
-            <button onClick={() => onOpenPpt(post.pdfUrl!, post.pdfName || "PDF 문서")}
+            <button onClick={() => onOpenDoc(post.pdfUrl!, withExt(post.pdfName || "PDF 문서", "pdf"))}
               style={{ padding:"5px 12px", background:"#DC2626", border:"none", borderRadius:8, fontSize:11, fontWeight:700, color:"white", cursor:"pointer" }}>
               🔍 보기
             </button>
@@ -277,6 +290,32 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenPpt, onPointerDown,
           </div>
         </div>
       )}
+
+      {post.contentType === "file" && post.fileUrl && (() => {
+        const orig = post.fileOrigName || post.fileName || "첨부파일";
+        const canPreview = previewKind(orig) !== "none";
+        return (
+          <div style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"16px 14px", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+            <div style={{ fontSize:32 }}>{fileIcon(orig)}</div>
+            <div style={{ fontSize:12, fontWeight:600, color:"#374151", wordBreak:"break-all", lineHeight:1.4 }}>{post.fileName || orig}</div>
+            <div style={{ fontSize:10, color:"#9CA3AF" }}>
+              {getExt(orig).toUpperCase()}{post.fileSize ? ` · ${fmtBytes(post.fileSize)}` : ""}
+            </div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
+              {canPreview && (
+                <button onClick={() => onOpenDoc(post.fileUrl!, orig, post.fileSize)}
+                  style={{ padding:"5px 12px", background:"#0F766E", border:"none", borderRadius:8, fontSize:11, fontWeight:700, color:"white", cursor:"pointer" }}>
+                  🔍 보기
+                </button>
+              )}
+              <a href={post.fileUrl} download target="_blank" rel="noreferrer"
+                style={{ padding:"5px 12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:11, fontWeight:700, color:"#374151", textDecoration:"none" }}>
+                ⬇️ 다운로드
+              </a>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Comment count badge */}
       {(post.commentCount ?? 0) > 0 && (
@@ -491,14 +530,16 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [pptName, setPptName]   = useState("");
   const [pdfFile, setPdfFile]   = useState<File | null>(null);
   const [pdfName, setPdfName]   = useState("");
+  const [etcFile, setEtcFile]   = useState<File | null>(null);
+  const [etcName, setEtcName]   = useState("");
   const [cardColor, setCardColor] = useState(PALETTE[0]);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
   const [shareToFeed, setShareToFeed] = useState(false);
   const [feedTitle, setFeedTitle]     = useState("");
   const [uploadPct, setUploadPct] = useState(0);
 
-  // PPT full-screen viewer
-  const [pptViewer, setPptViewer] = useState<{ url: string; name: string } | null>(null);
+  // 문서 전체화면 뷰어 (ppt / pdf / hwpx / xlsx / 기타 파일 공용)
+  const [docViewer, setDocViewer] = useState<{ url: string; name: string; size?: number } | null>(null);
 
   // edit post state
   const [editPost, setEditPost]       = useState<CloudBoardPost | null>(null);
@@ -563,7 +604,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       post.contentType === "audio"   ? (post.audioName   ?? "") :
       post.contentType === "youtube" ? (post.youtubeUrl  ?? "") :
       post.contentType === "ppt"     ? (post.pptName     ?? "") :
-      post.contentType === "pdf"     ? (post.pdfName     ?? "") : ""
+      post.contentType === "pdf"     ? (post.pdfName     ?? "") :
+      post.contentType === "file"    ? (post.fileName    ?? "") : ""
     );
     setEditColor(post.bgColor ?? PALETTE[0]);
   };
@@ -578,6 +620,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       if (editPost.contentType === "youtube") fields.youtubeUrl = editField;
       if (editPost.contentType === "ppt")     fields.pptName    = editField;
       if (editPost.contentType === "pdf")     fields.pdfName    = editField;
+      if (editPost.contentType === "file")    fields.fileName   = editField;
       await updateBoardPost(boardId, editPost.id, fields);
       setEditPost(null);
     } catch (e) { console.error(e); }
@@ -693,6 +736,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const audioRef2   = useRef<HTMLInputElement>(null);
   const pptFileRef  = useRef<HTMLInputElement>(null);
   const pdfFileRef  = useRef<HTMLInputElement>(null);
+  const etcFileRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getActionBoard(boardId).then(b => {
@@ -788,7 +832,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       (cType === "audio"   && audioFile) ||
       (cType === "youtube" && ytUrl.trim()) ||
       (cType === "ppt"     && pptFile) ||
-      (cType === "pdf"     && pdfFile);
+      (cType === "pdf"     && pdfFile) ||
+      (cType === "file"    && etcFile);
     if (!validContent) return;
 
     setSubmitting(true);
@@ -822,6 +867,13 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         finalPdfUrl = url;
       }
 
+      // Upload 기타 파일 (hwpx / xlsx / pptx / zip 등) → Storage
+      let finalFileUrl = "";
+      if (cType === "file" && etcFile) {
+        const { url } = await uploadBoardFile(boardId, "files", etcFile, setUploadPct);
+        finalFileUrl = url;
+      }
+
       const post: CloudBoardPost = {
         id: crypto.randomUUID(),
         boardId,
@@ -839,6 +891,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         ...(cType === "youtube" && { youtubeUrl: ytUrl.trim() }),
         ...(cType === "ppt"     && { pptUrl: finalPptUrl, pptName: pptName || pptFile?.name || "프레젠테이션" }),
         ...(cType === "pdf"     && { pdfUrl: finalPdfUrl, pdfName: pdfName || pdfFile?.name || "PDF 문서" }),
+        ...(cType === "file"    && {
+          fileUrl: finalFileUrl,
+          fileName: etcName || etcFile?.name || "첨부파일",
+          fileOrigName: etcFile?.name ?? "",
+          fileSize: etcFile?.size ?? 0,
+        }),
       };
       await addBoardPost(boardId, post);
 
@@ -869,7 +927,8 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
       setPostTitle("");
       setText(""); setImageUrl(""); setAudioUrl(""); setAudioName(""); setAudioFile(null);
-      setYtUrl(""); setPptFile(null); setPptName(""); setPdfFile(null); setPdfName(""); setIsAnnouncement(false);
+      setYtUrl(""); setPptFile(null); setPptName(""); setPdfFile(null); setPdfName("");
+      setEtcFile(null); setEtcName(""); setIsAnnouncement(false);
       setShareToFeed(false); setFeedTitle("");
       setCardColor(PALETTE[0]);
       setShowForm(false);
@@ -1115,6 +1174,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                     <span style={{ fontSize:12, fontWeight:600, color:"#374151" }}>{post.audioName || "오디오"}</span>
                   </div>
                 )}
+                {post.contentType === "file" && post.fileUrl && (
+                  <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:"rgba(0,0,0,0.05)", borderRadius:8 }}>
+                    <span style={{ fontSize:20 }}>{fileIcon(post.fileOrigName || post.fileName || "")}</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:"#374151" }}>{post.fileName || post.fileOrigName || "첨부파일"}</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1233,7 +1298,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                   canDelete={!!user && (user.uid === post.uid || user.uid === board.uid)}
                   onDelete={() => { if (window.confirm("이 게시물을 삭제할까요?")) deleteBoardPost(boardId, post.id); }}
                   onEdit={() => openEditPost(post)}
-                  onOpenPpt={(url, name) => setPptViewer({ url, name })}
+                  onOpenDoc={(url, name, size) => setDocViewer({ url, name, size })}
                   onPointerDown={e => handleCardPointerDown(e, post.id)}
                   isDragging={isDragging}
                   onOpen={() => setMaximizedPost(post)}
@@ -1252,7 +1317,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
             {/* Content type tabs */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:6, marginBottom:16 }}>
-              {([["text","📝 텍스트"],["image","🖼️ 이미지"],["audio","🎵 MP3"],["youtube","▶ 유튜브"],["ppt","📊 PPT"],["pdf","📄 PDF"]] as [ContentType,string][]).map(([t,label]) => (
+              {([["text","📝 텍스트"],["image","🖼️ 이미지"],["audio","🎵 MP3"],["youtube","▶ 유튜브"],["ppt","📊 PPT"],["pdf","📄 PDF"],["file","📎 기타"]] as [ContentType,string][]).map(([t,label]) => (
                 <button key={t} onClick={() => setCType(t)} className="type-btn" style={{ padding:"8px 0", borderRadius:10, border:`2px solid ${cType===t?P:"#E5E7EB"}`, background:cType===t?`rgba(124,58,237,0.07)`:"white", fontSize:12, fontWeight:700, color:cType===t?P:"#6B7280" }}>
                   {label}
                 </button>
@@ -1357,6 +1422,46 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
               </div>
             )}
 
+            {cType === "file" && (
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <input ref={etcFileRef} type="file" style={{ display:"none" }}
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    if (f.size > MAX_ATTACH_BYTES) {
+                      alert(`파일이 너무 큽니다 (${fmtBytes(f.size)}). 최대 ${fmtBytes(MAX_ATTACH_BYTES)}까지 업로드할 수 있습니다.`);
+                      return;
+                    }
+                    setEtcFile(f);
+                    setEtcName(f.name);
+                  }} />
+                {etcFile ? (
+                  <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", background:"#F0FDFA", borderRadius:10, border:"1.5px solid #99F6E4" }}>
+                    <span style={{ fontSize:24 }}>{fileIcon(etcFile.name)}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:"#0F766E", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{etcFile.name}</div>
+                      <div style={{ fontSize:11, color:"#5EEAD4" }}>
+                        {fmtBytes(etcFile.size)}
+                        {previewKind(etcFile.name) !== "none" ? " · 뷰어에서 바로 열람/복사 가능" : " · 미리보기 미지원 (다운로드만)"}
+                      </div>
+                    </div>
+                    <button onClick={() => { setEtcFile(null); setEtcName(""); }} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:16 }}>×</button>
+                  </div>
+                ) : (
+                  <div onClick={() => etcFileRef.current?.click()} style={{ border:"2px dashed #E5E7EB", borderRadius:12, padding:"28px", textAlign:"center", cursor:"pointer", color:"#9CA3AF" }}>
+                    <div style={{ fontSize:28, marginBottom:6 }}>📎</div>
+                    <div style={{ fontSize:13 }}>클릭하여 파일 선택 (형식 제한 없음)</div>
+                    <div style={{ fontSize:11, marginTop:4, color:"#5EEAD4" }}>
+                      HWPX · HWP · XLSX · CSV · DOCX · PPTX · TXT는 뷰어로 열람하고 내용을 복사할 수 있어요
+                    </div>
+                    <div style={{ fontSize:11, marginTop:2, color:"#D1D5DB" }}>최대 {fmtBytes(MAX_ATTACH_BYTES)}</div>
+                  </div>
+                )}
+                <input value={etcName} onChange={e => setEtcName(e.target.value)} placeholder="파일 제목 (선택)" style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
+              </div>
+            )}
+
             {/* Color palette */}
             <div>
               <div style={{ fontSize:12, fontWeight:700, color:"#374151", marginBottom:8 }}>🎨 카드 배경색</div>
@@ -1416,25 +1521,14 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         </div>
       )}
 
-      {/* ── PPT full-screen viewer — rendered at root level to escape transform stacking context ── */}
-      {pptViewer && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:9999, display:"flex", flexDirection:"column" }}>
-          <div style={{ background:"#1a1a2e", padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
-            <span style={{ color:"white", fontSize:14, fontWeight:700 }}>📊 {pptViewer.name}</span>
-            <div style={{ display:"flex", gap:10 }}>
-              <a href={pptViewer.url} download target="_blank" rel="noreferrer"
-                style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, padding:"8px 16px", cursor:"pointer", fontSize:13, fontWeight:600, textDecoration:"none" }}>
-                ⬇️ 다운로드
-              </a>
-              <button onClick={() => setPptViewer(null)} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.2)", color:"white", borderRadius:10, padding:"8px 20px", cursor:"pointer", fontSize:13, fontWeight:700 }}>✕ 닫기</button>
-            </div>
-          </div>
-          <iframe
-            src={`https://docs.google.com/viewer?url=${encodeURIComponent(pptViewer.url)}&embedded=true`}
-            style={{ flex:1, border:"none", width:"100%" }}
-            allowFullScreen
-          />
-        </div>
+      {/* ── 문서 전체화면 뷰어 — rendered at root level to escape transform stacking context ── */}
+      {docViewer && (
+        <DocViewer
+          url={docViewer.url}
+          name={docViewer.name}
+          size={docViewer.size}
+          onClose={() => setDocViewer(null)}
+        />
       )}
 
       {/* ── Card maximize overlay ── */}
@@ -1504,15 +1598,41 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
               {maximizedPost.contentType === "ppt" && maximizedPost.pptUrl && (
                 <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                   <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
+                    <button onClick={() => setDocViewer({ url: maximizedPost.pptUrl!, name: withExt(maximizedPost.pptName || "프레젠테이션", "pptx") })}
+                      style={{ padding:"8px 20px", background:"rgba(124,58,237,0.85)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                      ⛶ 전체화면 뷰어
+                    </button>
                     <a href={maximizedPost.pptUrl} download target="_blank" rel="noreferrer"
                       style={{ padding:"8px 20px", background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:600, textDecoration:"none" }}>
                       ⬇️ PPT 다운로드
                     </a>
                   </div>
-                  <iframe src={`https://docs.google.com/viewer?url=${encodeURIComponent(maximizedPost.pptUrl)}&embedded=true`}
-                    style={{ border:"none", width:"100%", height:500, borderRadius:12 }} allowFullScreen />
+                  <div style={{ height:520 }}>
+                    <DocContent url={maximizedPost.pptUrl} name={withExt(maximizedPost.pptName || "프레젠테이션", "pptx")} />
+                  </div>
                 </div>
               )}
+
+              {maximizedPost.contentType === "file" && maximizedPost.fileUrl && (() => {
+                const orig = maximizedPost.fileOrigName || maximizedPost.fileName || "첨부파일";
+                return (
+                  <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                    <div style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap" }}>
+                      <button onClick={() => setDocViewer({ url: maximizedPost.fileUrl!, name: orig, size: maximizedPost.fileSize })}
+                        style={{ padding:"8px 20px", background:"rgba(15,118,110,0.85)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                        ⛶ 전체화면 뷰어
+                      </button>
+                      <a href={maximizedPost.fileUrl} download target="_blank" rel="noreferrer"
+                        style={{ padding:"8px 20px", background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                        ⬇️ {getExt(orig).toUpperCase() || "파일"} 다운로드
+                      </a>
+                    </div>
+                    <div style={{ height:560 }}>
+                      <DocContent url={maximizedPost.fileUrl} name={orig} size={maximizedPost.fileSize} />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {maximizedPost.contentType === "pdf" && maximizedPost.pdfUrl && (
                 <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
@@ -1794,6 +1914,16 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 <input value={editField} onChange={e => setEditField(e.target.value)}
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
                 <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>PDF 파일 교체는 지원하지 않습니다.</div>
+              </div>
+            )}
+            {editPost.contentType === "file" && (
+              <div style={{ marginBottom:16 }}>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>파일 제목</label>
+                <input value={editField} onChange={e => setEditField(e.target.value)}
+                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>
+                  원본 파일: {editPost.fileOrigName || "-"} · 파일 교체는 지원하지 않습니다.
+                </div>
               </div>
             )}
             {editPost.contentType === "image" && editPost.imageUrl && (

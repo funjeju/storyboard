@@ -258,7 +258,7 @@ export interface CloudBoardPost {
   uid: string;
   authorName: string;
   authorPhoto: string;
-  contentType: "text" | "image" | "audio" | "youtube" | "ppt" | "pdf";
+  contentType: "text" | "image" | "audio" | "youtube" | "ppt" | "pdf" | "file";
   title?: string;        // 게시물 제목 (선택)
   text?: string;
   imageUrl?: string;
@@ -269,6 +269,10 @@ export interface CloudBoardPost {
   pptName?: string;
   pdfUrl?: string;
   pdfName?: string;
+  fileUrl?: string;      // 기타 첨부파일 (hwpx / xlsx / pptx / zip 등)
+  fileName?: string;     // 표시용 제목
+  fileOrigName?: string; // 업로드 원본 파일명 (확장자 판별·다운로드용)
+  fileSize?: number;
   bgColor?: string;
   isAnnouncement?: boolean;
   annOrder?: number;     // 공지 배너 내 수동 정렬 순서 (없으면 createdAt 기준)
@@ -355,7 +359,7 @@ export async function updateBoardPostPosition(boardId: string, postId: string, x
 export async function updateBoardPost(
   boardId: string,
   postId: string,
-  fields: Partial<Pick<CloudBoardPost, "title" | "text" | "audioName" | "youtubeUrl" | "pptName" | "pdfName" | "bgColor">>,
+  fields: Partial<Pick<CloudBoardPost, "title" | "text" | "audioName" | "youtubeUrl" | "pptName" | "pdfName" | "fileName" | "bgColor">>,
 ) {
   await setDoc(postDoc(boardId, postId), fields, { merge: true });
 }

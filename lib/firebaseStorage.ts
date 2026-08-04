@@ -190,13 +190,14 @@ export async function uploadMapImage(
 
 export async function uploadBoardFile(
   boardId: string,
-  subPath: string,   // e.g. "audio" | "ppt"
+  subPath: string,   // e.g. "audio" | "ppt" | "files"
   file: File,
   onProgress?: (pct: number) => void,
+  index = 0,         // 같은 ms에 여러 파일을 올릴 때 경로 충돌 방지
 ): Promise<{ path: string; url: string }> {
   const storage = getStorageInstance();
   if (!storage) throw new Error("Firebase Storage not initialised");
-  const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const safeName = `${Date.now()}${index ? `_${index}` : ""}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const path = `actionboards/${boardId}/${subPath}/${safeName}`;
   const storageRef = ref(storage, path);
   if (onProgress) {

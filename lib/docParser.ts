@@ -100,6 +100,26 @@ export async function fetchFileBuffer(url: string): Promise<ArrayBuffer> {
   return await r2.arrayBuffer();
 }
 
+/**
+ * 원본 파일명 그대로 저장되도록 blob으로 내려받는다.
+ * (Storage 경로에는 타임스탬프가 붙은 이름이 들어 있어 그냥 링크로 받으면 이름이 지저분해진다)
+ */
+export async function downloadFile(url: string, name: string): Promise<void> {
+  try {
+    const buf = await fetchFileBuffer(url);
+    const blobUrl = URL.createObjectURL(new Blob([buf]));
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+  } catch {
+    window.open(url, "_blank", "noopener");
+  }
+}
+
 // ─── 공통 유틸 ────────────────────────────────────────────────────────────────
 
 /** UTF-8 → 실패 시 EUC-KR(CP949)로 디코딩 (한글 텍스트/CSV 대응) */

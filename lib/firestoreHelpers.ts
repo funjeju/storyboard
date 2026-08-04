@@ -252,6 +252,12 @@ export interface CloudActionBoard {
   updatedAt: number;
 }
 
+export interface BoardFileItem {
+  url: string;
+  name: string;   // 업로드 원본 파일명 (확장자 판별·다운로드 파일명)
+  size: number;
+}
+
 export interface CloudBoardPost {
   id: string;
   boardId: string;
@@ -269,9 +275,11 @@ export interface CloudBoardPost {
   pptName?: string;
   pdfUrl?: string;
   pdfName?: string;
-  fileUrl?: string;      // 기타 첨부파일 (hwpx / xlsx / pptx / zip 등)
-  fileName?: string;     // 표시용 제목
-  fileOrigName?: string; // 업로드 원본 파일명 (확장자 판별·다운로드용)
+  files?: BoardFileItem[]; // 기타 첨부파일 목록 (hwpx / xlsx / pptx / zip 등)
+  fileName?: string;       // 첨부 묶음 표시용 제목
+  // ↓ files[] 도입 이전 단일 첨부 게시물 호환용
+  fileUrl?: string;
+  fileOrigName?: string;
   fileSize?: number;
   bgColor?: string;
   isAnnouncement?: boolean;

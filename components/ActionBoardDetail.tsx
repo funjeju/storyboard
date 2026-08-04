@@ -21,18 +21,34 @@ import {
   type CloudBoardComment,
   type CloudFeedPost,
   type FeedCategory,
+  type BoardFileItem,
 } from "@/lib/firestoreHelpers";
 import { uploadImageDataUrl, uploadBoardFile } from "@/lib/firebaseStorage";
 import DocViewer, { DocContent } from "@/components/DocViewer";
-import { fileIcon, fmtBytes, previewKind, getExt } from "@/lib/docParser";
+import { fileIcon, fmtBytes, previewKind, getExt, downloadFile } from "@/lib/docParser";
 
 const P = "#7C3AED";
 const PINK = "#EC4899";
 
 type ContentType = "text" | "image" | "audio" | "youtube" | "ppt" | "pdf" | "file";
 
-/** 첨부파일 업로드 상한 (Storage 비용·뷰어 성능 고려) */
+/** 첨부파일 1개당 업로드 상한 (Storage 비용·뷰어 성능 고려) */
 const MAX_ATTACH_BYTES = 50 * 1024 * 1024;
+/** 게시물 1개당 첨부 개수 상한 */
+const MAX_ATTACH_COUNT = 10;
+
+/** files[] 도입 이전의 단일 첨부 게시물도 같은 형태로 읽는다. */
+function postFiles(post: CloudBoardPost): BoardFileItem[] {
+  if (post.files?.length) return post.files;
+  if (post.fileUrl) {
+    return [{
+      url: post.fileUrl,
+      name: post.fileOrigName || post.fileName || "첨부파일",
+      size: post.fileSize ?? 0,
+    }];
+  }
+  return [];
+}
 
 /**
  * 뷰어는 확장자로 형식을 판별한다. 제목만 저장돼 있거나("발표자료"),
@@ -94,6 +110,78 @@ function CopyBar({ text, position }: { text: string; position: "top" | "bottom" 
         style={{ padding:"5px 14px", background:copied?"#059669":"white", border:`1.5px solid ${copied?"#059669":"#D1D5DB"}`, borderRadius:8, fontSize:12, fontWeight:700, color:copied?"white":"#374151", cursor:"pointer", transition:"all 0.2s", display:"flex", alignItems:"center", gap:5 }}
       >
         {copied ? "✓ 복사됨" : "📋 전체 복사"}
+      </button>
+    </div>
+  );
+}
+
+// ── 첨부파일 한 줄 (카드 / 확대 오버레이 공용) ───────────────────────────────
+function FileRow({ file, onOpen, compact = false, dark = false, active = false }: {
+  file: BoardFileItem;
+  onOpen: () => void;
+  compact?: boolean;   // 카드 안 좁은 영역용
+  dark?: boolean;      // 확대 오버레이(어두운 배경)용
+  active?: boolean;    // 확대 오버레이에서 현재 미리보기 중인 파일
+}) {
+  const [saving, setSaving] = useState(false);
+  const canPreview = previewKind(file.name) !== "none";
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+
+  const save = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSaving(true);
+    await downloadFile(file.url, file.name);
+    setSaving(false);
+  };
+
+  const btn = (bg: string, color: string, border: string): React.CSSProperties => ({
+    padding: compact ? "3px 8px" : "6px 12px",
+    background: bg, color, border, borderRadius: 8,
+    fontSize: compact ? 10 : 12, fontWeight: 700, cursor: "pointer",
+    whiteSpace: "nowrap", flexShrink: 0,
+  });
+
+  return (
+    <div
+      onPointerDown={stop}
+      onMouseDown={stop}
+      onClick={e => { e.stopPropagation(); if (canPreview) onOpen(); }}
+      title={file.name}
+      style={{
+        display: "flex", alignItems: "center", gap: compact ? 7 : 10,
+        padding: compact ? "6px 8px" : "10px 14px",
+        borderRadius: 10,
+        background: dark
+          ? (active ? "rgba(124,58,237,0.35)" : "rgba(255,255,255,0.08)")
+          : "white",
+        border: dark
+          ? `1px solid ${active ? "rgba(196,181,253,0.7)" : "rgba(255,255,255,0.12)"}`
+          : "1px solid #E5E7EB",
+        cursor: canPreview ? "pointer" : "default",
+      }}
+    >
+      <span style={{ fontSize: compact ? 16 : 22, flexShrink: 0 }}>{fileIcon(file.name)}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: compact ? 11 : 14, fontWeight: 600,
+          color: dark ? "rgba(255,255,255,0.95)" : "#1F2937",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{file.name}</div>
+        <div style={{ fontSize: compact ? 9 : 11, color: dark ? "rgba(255,255,255,0.5)" : "#9CA3AF" }}>
+          {getExt(file.name).toUpperCase()}{file.size ? ` · ${fmtBytes(file.size)}` : ""}
+          {!canPreview && " · 미리보기 미지원"}
+        </div>
+      </div>
+      {canPreview && (
+        <button onClick={e => { e.stopPropagation(); onOpen(); }} onPointerDown={stop}
+          style={btn("#0F766E", "white", "none")}>
+          {compact ? "보기" : "🔍 보기"}
+        </button>
+      )}
+      <button onClick={save} onPointerDown={stop} disabled={saving}
+        style={btn(dark ? "rgba(255,255,255,0.15)" : "white", dark ? "white" : "#374151",
+          dark ? "1px solid rgba(255,255,255,0.3)" : "1.5px solid #E5E7EB")}>
+        {saving ? "저장 중" : compact ? "⬇" : "⬇️ 다운로드"}
       </button>
     </div>
   );
@@ -261,7 +349,8 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenDoc, onPointerDown,
         <div style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"16px 14px", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
           <div style={{ fontSize:32 }}>📊</div>
           <div style={{ fontSize:12, fontWeight:600, color:"#374151", wordBreak:"break-all", lineHeight:1.4 }}>{post.pptName || "프레젠테이션"}</div>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}
+            onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
             <button onClick={() => onOpenDoc(post.pptUrl!, withExt(post.pptName || "프레젠테이션", "pptx"))}
               style={{ padding:"5px 12px", background:"#7C3AED", border:"none", borderRadius:8, fontSize:11, fontWeight:700, color:"white", cursor:"pointer" }}>
               🔍 보기
@@ -278,7 +367,8 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenDoc, onPointerDown,
         <div style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"16px 14px", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
           <div style={{ fontSize:32 }}>📄</div>
           <div style={{ fontSize:12, fontWeight:600, color:"#374151", wordBreak:"break-all", lineHeight:1.4 }}>{post.pdfName || "PDF 문서"}</div>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}
+            onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
             <button onClick={() => onOpenDoc(post.pdfUrl!, withExt(post.pdfName || "PDF 문서", "pdf"))}
               style={{ padding:"5px 12px", background:"#DC2626", border:"none", borderRadius:8, fontSize:11, fontWeight:700, color:"white", cursor:"pointer" }}>
               🔍 보기
@@ -291,28 +381,29 @@ function PostCard({ post, canDelete, onDelete, onEdit, onOpenDoc, onPointerDown,
         </div>
       )}
 
-      {post.contentType === "file" && post.fileUrl && (() => {
-        const orig = post.fileOrigName || post.fileName || "첨부파일";
-        const canPreview = previewKind(orig) !== "none";
+      {post.contentType === "file" && (() => {
+        const files = postFiles(post);
+        if (!files.length) return null;
+        const shown = files.slice(0, 3);
         return (
-          <div style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"16px 14px", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
-            <div style={{ fontSize:32 }}>{fileIcon(orig)}</div>
-            <div style={{ fontSize:12, fontWeight:600, color:"#374151", wordBreak:"break-all", lineHeight:1.4 }}>{post.fileName || orig}</div>
-            <div style={{ fontSize:10, color:"#9CA3AF" }}>
-              {getExt(orig).toUpperCase()}{post.fileSize ? ` · ${fmtBytes(post.fileSize)}` : ""}
+          <div style={{ background:"rgba(0,0,0,0.05)", borderRadius:10, padding:"12px 10px", display:"flex", flexDirection:"column", gap:7 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6, padding:"0 2px" }}>
+              <span style={{ fontSize:11, fontWeight:700, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                📎 {post.fileName || "첨부파일"}
+              </span>
+              <span style={{ fontSize:10, fontWeight:700, color:"white", background:"#0F766E", borderRadius:20, padding:"1px 7px", flexShrink:0 }}>{files.length}</span>
             </div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
-              {canPreview && (
-                <button onClick={() => onOpenDoc(post.fileUrl!, orig, post.fileSize)}
-                  style={{ padding:"5px 12px", background:"#0F766E", border:"none", borderRadius:8, fontSize:11, fontWeight:700, color:"white", cursor:"pointer" }}>
-                  🔍 보기
-                </button>
-              )}
-              <a href={post.fileUrl} download target="_blank" rel="noreferrer"
-                style={{ padding:"5px 12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:11, fontWeight:700, color:"#374151", textDecoration:"none" }}>
-                ⬇️ 다운로드
-              </a>
-            </div>
+            {shown.map((f, i) => (
+              <FileRow key={f.url + i} file={f} compact onOpen={() => onOpenDoc(f.url, f.name, f.size)} />
+            ))}
+            {files.length > shown.length && (
+              <button
+                onClick={e => { e.stopPropagation(); onOpen(); }}
+                onPointerDown={e => e.stopPropagation()}
+                style={{ padding:"5px 0", background:"rgba(0,0,0,0.05)", border:"none", borderRadius:8, fontSize:11, fontWeight:700, color:"#374151", cursor:"pointer" }}>
+                + {files.length - shown.length}개 더 보기
+              </button>
+            )}
           </div>
         );
       })()}
@@ -530,7 +621,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [pptName, setPptName]   = useState("");
   const [pdfFile, setPdfFile]   = useState<File | null>(null);
   const [pdfName, setPdfName]   = useState("");
-  const [etcFile, setEtcFile]   = useState<File | null>(null);
+  const [etcFiles, setEtcFiles] = useState<File[]>([]);
   const [etcName, setEtcName]   = useState("");
   const [cardColor, setCardColor] = useState(PALETTE[0]);
   const [isAnnouncement, setIsAnnouncement] = useState(false);
@@ -540,6 +631,21 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
   // 문서 전체화면 뷰어 (ppt / pdf / hwpx / xlsx / 기타 파일 공용)
   const [docViewer, setDocViewer] = useState<{ url: string; name: string; size?: number } | null>(null);
+
+  // 첨부가 여러 개인 게시물 — 확대 화면에서 미리보기 중인 파일 / 일괄 다운로드 상태
+  const [selFileIdx, setSelFileIdx] = useState(0);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkDone, setBulkDone]     = useState(0);
+
+  const downloadAllFiles = async (files: BoardFileItem[]) => {
+    setBulkSaving(true);
+    setBulkDone(0);
+    for (let i = 0; i < files.length; i++) {
+      await downloadFile(files[i].url, files[i].name);
+      setBulkDone(i + 1);
+    }
+    setBulkSaving(false);
+  };
 
   // edit post state
   const [editPost, setEditPost]       = useState<CloudBoardPost | null>(null);
@@ -595,6 +701,14 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     } catch (e) { console.error(e); }
     setQSubmitting(false);
   };
+
+  // 게시물을 열 때마다 미리보기 가능한 첫 파일을 기본 선택
+  useEffect(() => {
+    if (!maximizedPost) return;
+    const files = postFiles(maximizedPost);
+    const first = files.findIndex(f => previewKind(f.name) !== "none");
+    setSelFileIdx(first >= 0 ? first : 0);
+  }, [maximizedPost]);
 
   const openEditPost = (post: CloudBoardPost) => {
     setEditPost(post);
@@ -833,7 +947,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       (cType === "youtube" && ytUrl.trim()) ||
       (cType === "ppt"     && pptFile) ||
       (cType === "pdf"     && pdfFile) ||
-      (cType === "file"    && etcFile);
+      (cType === "file"    && etcFiles.length > 0);
     if (!validContent) return;
 
     setSubmitting(true);
@@ -867,11 +981,19 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         finalPdfUrl = url;
       }
 
-      // Upload 기타 파일 (hwpx / xlsx / pptx / zip 등) → Storage
-      let finalFileUrl = "";
-      if (cType === "file" && etcFile) {
-        const { url } = await uploadBoardFile(boardId, "files", etcFile, setUploadPct);
-        finalFileUrl = url;
+      // Upload 기타 파일 여러 개 (hwpx / xlsx / pptx / zip 등) → Storage
+      const uploadedFiles: BoardFileItem[] = [];
+      if (cType === "file" && etcFiles.length) {
+        for (let i = 0; i < etcFiles.length; i++) {
+          const f = etcFiles[i];
+          const { url } = await uploadBoardFile(
+            boardId, "files", f,
+            pct => setUploadPct(Math.round(((i + pct / 100) / etcFiles.length) * 100)),
+            i,
+          );
+          uploadedFiles.push({ url, name: f.name, size: f.size });
+        }
+        setUploadPct(100);
       }
 
       const post: CloudBoardPost = {
@@ -892,10 +1014,10 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
         ...(cType === "ppt"     && { pptUrl: finalPptUrl, pptName: pptName || pptFile?.name || "프레젠테이션" }),
         ...(cType === "pdf"     && { pdfUrl: finalPdfUrl, pdfName: pdfName || pdfFile?.name || "PDF 문서" }),
         ...(cType === "file"    && {
-          fileUrl: finalFileUrl,
-          fileName: etcName || etcFile?.name || "첨부파일",
-          fileOrigName: etcFile?.name ?? "",
-          fileSize: etcFile?.size ?? 0,
+          files: uploadedFiles,
+          fileName: etcName || (uploadedFiles.length === 1
+            ? uploadedFiles[0].name
+            : `첨부파일 ${uploadedFiles.length}개`),
         }),
       };
       await addBoardPost(boardId, post);
@@ -928,7 +1050,7 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       setPostTitle("");
       setText(""); setImageUrl(""); setAudioUrl(""); setAudioName(""); setAudioFile(null);
       setYtUrl(""); setPptFile(null); setPptName(""); setPdfFile(null); setPdfName("");
-      setEtcFile(null); setEtcName(""); setIsAnnouncement(false);
+      setEtcFiles([]); setEtcName(""); setIsAnnouncement(false);
       setShareToFeed(false); setFeedTitle("");
       setCardColor(PALETTE[0]);
       setShowForm(false);
@@ -1174,10 +1296,17 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                     <span style={{ fontSize:12, fontWeight:600, color:"#374151" }}>{post.audioName || "오디오"}</span>
                   </div>
                 )}
-                {post.contentType === "file" && post.fileUrl && (
+                {post.contentType === "file" && postFiles(post).length > 0 && (
                   <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:"rgba(0,0,0,0.05)", borderRadius:8 }}>
-                    <span style={{ fontSize:20 }}>{fileIcon(post.fileOrigName || post.fileName || "")}</span>
-                    <span style={{ fontSize:12, fontWeight:600, color:"#374151" }}>{post.fileName || post.fileOrigName || "첨부파일"}</span>
+                    <span style={{ fontSize:20 }}>{fileIcon(postFiles(post)[0].name)}</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {post.fileName || postFiles(post)[0].name}
+                    </span>
+                    {postFiles(post).length > 1 && (
+                      <span style={{ fontSize:10, fontWeight:700, color:"white", background:"#0F766E", borderRadius:20, padding:"1px 7px", flexShrink:0 }}>
+                        {postFiles(post).length}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -1424,41 +1553,80 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
 
             {cType === "file" && (
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                <input ref={etcFileRef} type="file" style={{ display:"none" }}
+                <input ref={etcFileRef} type="file" multiple style={{ display:"none" }}
                   onChange={e => {
-                    const f = e.target.files?.[0];
+                    const picked = Array.from(e.target.files ?? []);
                     e.target.value = "";
-                    if (!f) return;
-                    if (f.size > MAX_ATTACH_BYTES) {
-                      alert(`파일이 너무 큽니다 (${fmtBytes(f.size)}). 최대 ${fmtBytes(MAX_ATTACH_BYTES)}까지 업로드할 수 있습니다.`);
-                      return;
+                    if (!picked.length) return;
+
+                    const tooBig = picked.filter(f => f.size > MAX_ATTACH_BYTES);
+                    if (tooBig.length) {
+                      alert(`다음 파일은 ${fmtBytes(MAX_ATTACH_BYTES)}를 넘어 제외됩니다:\n` +
+                        tooBig.map(f => `· ${f.name} (${fmtBytes(f.size)})`).join("\n"));
                     }
-                    setEtcFile(f);
-                    setEtcName(f.name);
+                    // 같은 파일을 두 번 고른 경우 제외하고 기존 선택에 이어붙인다
+                    const merged = [...etcFiles];
+                    for (const f of picked.filter(f => f.size <= MAX_ATTACH_BYTES)) {
+                      if (!merged.some(m => m.name === f.name && m.size === f.size)) merged.push(f);
+                    }
+                    if (merged.length > MAX_ATTACH_COUNT) {
+                      alert(`첨부는 게시물당 최대 ${MAX_ATTACH_COUNT}개까지예요.`);
+                    }
+                    setEtcFiles(merged.slice(0, MAX_ATTACH_COUNT));
                   }} />
-                {etcFile ? (
-                  <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", background:"#F0FDFA", borderRadius:10, border:"1.5px solid #99F6E4" }}>
-                    <span style={{ fontSize:24 }}>{fileIcon(etcFile.name)}</span>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:13, fontWeight:600, color:"#0F766E", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{etcFile.name}</div>
-                      <div style={{ fontSize:11, color:"#5EEAD4" }}>
-                        {fmtBytes(etcFile.size)}
-                        {previewKind(etcFile.name) !== "none" ? " · 뷰어에서 바로 열람/복사 가능" : " · 미리보기 미지원 (다운로드만)"}
+
+                {etcFiles.length > 0 && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {etcFiles.map((f, i) => (
+                      <div key={`${f.name}-${f.size}-${i}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:"#F0FDFA", borderRadius:10, border:"1.5px solid #99F6E4" }}>
+                        <span style={{ fontSize:20 }}>{fileIcon(f.name)}</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:"#0F766E", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</div>
+                          <div style={{ fontSize:11, color:"#14B8A6" }}>
+                            {fmtBytes(f.size)}
+                            {previewKind(f.name) !== "none" ? " · 뷰어 열람 가능" : " · 다운로드만"}
+                          </div>
+                        </div>
+                        <button onClick={() => setEtcFiles(prev => prev.filter((_, idx) => idx !== i))}
+                          style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:16 }}>×</button>
+                      </div>
+                    ))}
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"0 2px" }}>
+                      <span style={{ fontSize:11, color:"#6B7280" }}>
+                        총 {etcFiles.length}개 · {fmtBytes(etcFiles.reduce((s, f) => s + f.size, 0))}
+                      </span>
+                      <div style={{ display:"flex", gap:8 }}>
+                        {etcFiles.length < MAX_ATTACH_COUNT && (
+                          <button onClick={() => etcFileRef.current?.click()}
+                            style={{ padding:"5px 12px", background:"white", border:"1.5px solid #99F6E4", borderRadius:8, fontSize:11, fontWeight:700, color:"#0F766E", cursor:"pointer" }}>
+                            + 파일 추가
+                          </button>
+                        )}
+                        <button onClick={() => setEtcFiles([])}
+                          style={{ padding:"5px 12px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:8, fontSize:11, fontWeight:700, color:"#9CA3AF", cursor:"pointer" }}>
+                          전체 비우기
+                        </button>
                       </div>
                     </div>
-                    <button onClick={() => { setEtcFile(null); setEtcName(""); }} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:16 }}>×</button>
-                  </div>
-                ) : (
-                  <div onClick={() => etcFileRef.current?.click()} style={{ border:"2px dashed #E5E7EB", borderRadius:12, padding:"28px", textAlign:"center", cursor:"pointer", color:"#9CA3AF" }}>
-                    <div style={{ fontSize:28, marginBottom:6 }}>📎</div>
-                    <div style={{ fontSize:13 }}>클릭하여 파일 선택 (형식 제한 없음)</div>
-                    <div style={{ fontSize:11, marginTop:4, color:"#5EEAD4" }}>
-                      HWPX · HWP · XLSX · CSV · DOCX · PPTX · TXT는 뷰어로 열람하고 내용을 복사할 수 있어요
-                    </div>
-                    <div style={{ fontSize:11, marginTop:2, color:"#D1D5DB" }}>최대 {fmtBytes(MAX_ATTACH_BYTES)}</div>
                   </div>
                 )}
-                <input value={etcName} onChange={e => setEtcName(e.target.value)} placeholder="파일 제목 (선택)" style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
+
+                {etcFiles.length === 0 && (
+                  <div onClick={() => etcFileRef.current?.click()} style={{ border:"2px dashed #E5E7EB", borderRadius:12, padding:"28px", textAlign:"center", cursor:"pointer", color:"#9CA3AF" }}>
+                    <div style={{ fontSize:28, marginBottom:6 }}>📎</div>
+                    <div style={{ fontSize:13 }}>클릭하여 파일 선택 (여러 개 선택 가능, 형식 제한 없음)</div>
+                    <div style={{ fontSize:11, marginTop:4, color:"#14B8A6" }}>
+                      HWPX · HWP · XLSX · CSV · DOCX · PPTX · TXT는 뷰어로 열람하고 내용을 복사할 수 있어요
+                    </div>
+                    <div style={{ fontSize:11, marginTop:2, color:"#D1D5DB" }}>
+                      개당 최대 {fmtBytes(MAX_ATTACH_BYTES)} · 게시물당 {MAX_ATTACH_COUNT}개까지
+                    </div>
+                  </div>
+                )}
+
+                <input value={etcName} onChange={e => setEtcName(e.target.value)}
+                  placeholder={etcFiles.length > 1 ? "첨부 묶음 제목 (선택) — 예: 3차 회의 자료" : "파일 제목 (선택)"}
+                  style={{ padding:"10px 12px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit" }} />
               </div>
             )}
 
@@ -1613,23 +1781,56 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 </div>
               )}
 
-              {maximizedPost.contentType === "file" && maximizedPost.fileUrl && (() => {
-                const orig = maximizedPost.fileOrigName || maximizedPost.fileName || "첨부파일";
+              {maximizedPost.contentType === "file" && (() => {
+                const files = postFiles(maximizedPost);
+                if (!files.length) return null;
+                const sel = files[Math.min(selFileIdx, files.length - 1)];
+                const selPreviewable = previewKind(sel.name) !== "none";
                 return (
-                  <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                    <div style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap" }}>
-                      <button onClick={() => setDocViewer({ url: maximizedPost.fileUrl!, name: orig, size: maximizedPost.fileSize })}
-                        style={{ padding:"8px 20px", background:"rgba(15,118,110,0.85)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:700, cursor:"pointer" }}>
-                        ⛶ 전체화면 뷰어
-                      </button>
-                      <a href={maximizedPost.fileUrl} download target="_blank" rel="noreferrer"
-                        style={{ padding:"8px 20px", background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:600, textDecoration:"none" }}>
-                        ⬇️ {getExt(orig).toUpperCase() || "파일"} 다운로드
-                      </a>
+                  <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:14, fontWeight:700, color:"rgba(255,255,255,0.9)" }}>
+                        📎 첨부파일 {files.length}개
+                        <span style={{ fontSize:12, fontWeight:500, color:"rgba(255,255,255,0.5)", marginLeft:8 }}>
+                          · 총 {fmtBytes(files.reduce((s, f) => s + (f.size || 0), 0))}
+                        </span>
+                      </span>
+                      {files.length > 1 && (
+                        <button onClick={() => downloadAllFiles(files)} disabled={bulkSaving}
+                          style={{ padding:"8px 18px", background:"rgba(15,118,110,0.85)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:13, fontWeight:700, cursor:bulkSaving?"default":"pointer" }}>
+                          {bulkSaving ? `저장 중... (${bulkDone}/${files.length})` : "⬇️ 모두 다운로드"}
+                        </button>
+                      )}
                     </div>
-                    <div style={{ height:560 }}>
-                      <DocContent url={maximizedPost.fileUrl} name={orig} size={maximizedPost.fileSize} />
+
+                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                      {files.map((f, i) => (
+                        <FileRow
+                          key={f.url + i}
+                          file={f}
+                          dark
+                          active={files.length > 1 && i === Math.min(selFileIdx, files.length - 1)}
+                          onOpen={() => setSelFileIdx(i)}
+                        />
+                      ))}
                     </div>
+
+                    {selPreviewable && (
+                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+                          <span style={{ fontSize:12, color:"rgba(255,255,255,0.6)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                            미리보기 — {sel.name}
+                          </span>
+                          <button onClick={() => setDocViewer({ url: sel.url, name: sel.name, size: sel.size })}
+                            style={{ padding:"6px 16px", background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"white", borderRadius:10, fontSize:12, fontWeight:700, cursor:"pointer", flexShrink:0 }}>
+                            ⛶ 전체화면
+                          </button>
+                        </div>
+                        <div style={{ height:520 }}>
+                          <DocContent key={sel.url} url={sel.url} name={sel.name} size={sel.size} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -1918,11 +2119,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
             )}
             {editPost.contentType === "file" && (
               <div style={{ marginBottom:16 }}>
-                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>파일 제목</label>
+                <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>첨부 제목</label>
                 <input value={editField} onChange={e => setEditField(e.target.value)}
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
-                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>
-                  원본 파일: {editPost.fileOrigName || "-"} · 파일 교체는 지원하지 않습니다.
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6, lineHeight:1.6 }}>
+                  첨부 {postFiles(editPost).length}개: {postFiles(editPost).map(f => f.name).join(", ") || "-"}
+                  <br />파일 추가·교체는 지원하지 않습니다.
                 </div>
               </div>
             )}

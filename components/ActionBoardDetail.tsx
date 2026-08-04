@@ -23,7 +23,7 @@ import {
   type FeedCategory,
   type BoardFileItem,
 } from "@/lib/firestoreHelpers";
-import { uploadImageDataUrl, uploadBoardFile } from "@/lib/firebaseStorage";
+import { uploadImageDataUrl, uploadBoardFile, deleteStorageByUrl } from "@/lib/firebaseStorage";
 import DocViewer, { DocContent } from "@/components/DocViewer";
 import { fileIcon, fmtBytes, previewKind, getExt, downloadFile } from "@/lib/docParser";
 
@@ -182,6 +182,51 @@ function FileRow({ file, onOpen, compact = false, dark = false, active = false }
         style={btn(dark ? "rgba(255,255,255,0.15)" : "white", dark ? "white" : "#374151",
           dark ? "1px solid rgba(255,255,255,0.3)" : "1.5px solid #E5E7EB")}>
         {saving ? "저장 중" : compact ? "⬇" : "⬇️ 다운로드"}
+      </button>
+    </div>
+  );
+}
+
+// ── 단일 첨부(ppt/pdf/audio/image) 교체 위젯 ─────────────────────────────────
+function AttachSwap({ currentName, pending, accept, onPick, onClear }: {
+  currentName: string;
+  pending: File | null;
+  accept?: string;
+  onPick: (f: File) => void;
+  onClear: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:8 }}>
+      <input ref={ref} type="file" accept={accept} style={{ display:"none" }}
+        onChange={e => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f) return;
+          if (f.size > MAX_ATTACH_BYTES) {
+            alert(`파일이 너무 큽니다 (${fmtBytes(f.size)}). 최대 ${fmtBytes(MAX_ATTACH_BYTES)}까지 올릴 수 있어요.`);
+            return;
+          }
+          onPick(f);
+        }} />
+      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:pending?"#F0FDFA":"#F9FAFB", borderRadius:10, border:`1.5px solid ${pending?"#99F6E4":"#E5E7EB"}` }}>
+        <span style={{ fontSize:20 }}>{fileIcon(pending?.name ?? currentName)}</span>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:13, fontWeight:600, color:pending?"#0F766E":"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            {pending?.name ?? currentName}
+          </div>
+          <div style={{ fontSize:11, color:pending?"#14B8A6":"#9CA3AF" }}>
+            {pending ? `새 파일로 교체 · ${fmtBytes(pending.size)}` : "현재 첨부 — 저장 시 그대로 유지"}
+          </div>
+        </div>
+        {pending && (
+          <button onClick={onClear} title="교체 취소"
+            style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:16 }}>×</button>
+        )}
+      </div>
+      <button onClick={() => ref.current?.click()}
+        style={{ padding:"9px 0", background:"white", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:12, fontWeight:700, color:"#374151", cursor:"pointer" }}>
+        🔄 다른 파일로 교체
       </button>
     </div>
   );
@@ -654,6 +699,12 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
   const [editField, setEditField]     = useState(""); // audioName / youtubeUrl / pptName
   const [editColor, setEditColor]     = useState(PALETTE[0]);
   const [editSaving, setEditSaving]   = useState(false);
+  // 첨부 수정: 남겨둘 기존 파일 / 새로 추가할 파일 / 단일 첨부(ppt·pdf·audio·image) 교체본
+  const [editFiles, setEditFiles]       = useState<BoardFileItem[]>([]);
+  const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
+  const [editSwapFile, setEditSwapFile] = useState<File | null>(null);
+  const [editUploadPct, setEditUploadPct] = useState(0);
+  const editFileRef = useRef<HTMLInputElement>(null);
 
   // ── Question form state ─────────────────────────────────────────────────────
   const [showQuestionForm, setShowQuestionForm] = useState(false);
@@ -702,13 +753,23 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
     setQSubmitting(false);
   };
 
+  // 확대해 둔 게시물은 스냅샷이라 수정 결과가 반영되지 않는다 → 구독 데이터로 갱신
+  useEffect(() => {
+    if (!maximizedPost) return;
+    const fresh = posts.find(p => p.id === maximizedPost.id);
+    if (fresh && fresh !== maximizedPost) setMaximizedPost(fresh);
+  }, [posts, maximizedPost]);
+
   // 게시물을 열 때마다 미리보기 가능한 첫 파일을 기본 선택
+  // (게시물이 바뀔 때만 — 다른 사람의 새 글로 목록이 갱신돼도 선택이 풀리지 않도록)
+  const maximizedId = maximizedPost?.id;
   useEffect(() => {
     if (!maximizedPost) return;
     const files = postFiles(maximizedPost);
     const first = files.findIndex(f => previewKind(f.name) !== "none");
     setSelFileIdx(first >= 0 ? first : 0);
-  }, [maximizedPost]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maximizedId]);
 
   const openEditPost = (post: CloudBoardPost) => {
     setEditPost(post);
@@ -722,23 +783,82 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
       post.contentType === "file"    ? (post.fileName    ?? "") : ""
     );
     setEditColor(post.bgColor ?? PALETTE[0]);
+    setEditFiles(postFiles(post));
+    setEditNewFiles([]);
+    setEditSwapFile(null);
+    setEditUploadPct(0);
   };
 
   const handleEditSave = async () => {
     if (!editPost) return;
+    const type = editPost.contentType;
+
+    if (type === "file" && editFiles.length + editNewFiles.length === 0) {
+      alert("첨부파일이 하나도 없어요. 파일을 추가하거나 게시물을 삭제해주세요.");
+      return;
+    }
+
     setEditSaving(true);
+    setEditUploadPct(0);
     try {
       const fields: Parameters<typeof updateBoardPost>[2] = { bgColor: editColor, title: editTitle.trim() };
-      if (editPost.contentType === "text")    fields.text       = editText;
-      if (editPost.contentType === "audio")   fields.audioName  = editField;
-      if (editPost.contentType === "youtube") fields.youtubeUrl = editField;
-      if (editPost.contentType === "ppt")     fields.pptName    = editField;
-      if (editPost.contentType === "pdf")     fields.pdfName    = editField;
-      if (editPost.contentType === "file")    fields.fileName   = editField;
+      // 저장에 성공한 뒤 Storage에서 지울 대상 (실패 시 파일이 사라지면 안 되므로 나중에 처리)
+      const orphaned: string[] = [];
+
+      if (type === "text")    fields.text       = editText;
+      if (type === "audio")   fields.audioName  = editField;
+      if (type === "youtube") fields.youtubeUrl = editField;
+      if (type === "ppt")     fields.pptName    = editField;
+      if (type === "pdf")     fields.pdfName    = editField;
+
+      // ── 기타(다중 첨부): 제거된 파일 반영 + 새 파일 업로드 ────────────────
+      if (type === "file") {
+        const uploaded: BoardFileItem[] = [];
+        for (let i = 0; i < editNewFiles.length; i++) {
+          const f = editNewFiles[i];
+          const { url } = await uploadBoardFile(
+            boardId, "files", f,
+            pct => setEditUploadPct(Math.round(((i + pct / 100) / editNewFiles.length) * 100)),
+            i,
+          );
+          uploaded.push({ url, name: f.name, size: f.size });
+        }
+        fields.files    = [...editFiles, ...uploaded];
+        fields.fileName = editField || (fields.files.length === 1
+          ? fields.files[0].name
+          : `첨부파일 ${fields.files.length}개`);
+        // files[] 이전 스키마로 저장된 게시물의 잔여 필드 정리
+        fields.fileUrl = "";
+        fields.fileOrigName = "";
+        fields.fileSize = 0;
+
+        const kept = new Set(fields.files.map(f => f.url));
+        orphaned.push(...postFiles(editPost).filter(f => !kept.has(f.url)).map(f => f.url));
+      }
+
+      // ── 단일 첨부(ppt/pdf/audio/image) 교체 ────────────────────────────────
+      if (editSwapFile && (type === "ppt" || type === "pdf" || type === "audio" || type === "image")) {
+        const sub = type === "image" ? "image" : type;
+        const { url } = await uploadBoardFile(boardId, sub, editSwapFile, setEditUploadPct);
+        if (type === "ppt")   { fields.pptUrl   = url; if (!editField) fields.pptName   = editSwapFile.name; }
+        if (type === "pdf")   { fields.pdfUrl   = url; if (!editField) fields.pdfName   = editSwapFile.name; }
+        if (type === "audio") { fields.audioUrl = url; if (!editField) fields.audioName = editSwapFile.name; }
+        if (type === "image") { fields.imageUrl = url; }
+
+        // 피드에 공유됐을 수 있는 이미지·오디오 원본은 남겨둔다 (피드 게시물이 깨짐)
+        const oldUrl = type === "ppt" ? editPost.pptUrl : type === "pdf" ? editPost.pdfUrl : "";
+        if (oldUrl) orphaned.push(oldUrl);
+      }
+
       await updateBoardPost(boardId, editPost.id, fields);
+      orphaned.forEach(u => deleteStorageByUrl(u).catch(() => {}));
       setEditPost(null);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error("[ActionBoard] edit failed:", e);
+      alert("수정 중 오류가 발생했습니다. 다시 시도해주세요.");
+    }
     setEditSaving(false);
+    setEditUploadPct(0);
   };
 
   const handleCommentSubmit = async () => {
@@ -2091,7 +2211,13 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>트랙 제목</label>
                 <input value={editField} onChange={e => setEditField(e.target.value)}
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
-                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>오디오 파일 교체는 지원하지 않습니다.</div>
+                <AttachSwap
+                  currentName={editPost.audioName || "오디오"}
+                  pending={editSwapFile}
+                  accept="audio/*"
+                  onPick={f => { setEditSwapFile(f); if (!editField) setEditField(f.name.replace(/\.[^/.]+$/, "")); }}
+                  onClear={() => setEditSwapFile(null)}
+                />
               </div>
             )}
             {editPost.contentType === "youtube" && (
@@ -2106,7 +2232,13 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>발표 제목</label>
                 <input value={editField} onChange={e => setEditField(e.target.value)}
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
-                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>PPT 파일 교체는 지원하지 않습니다.</div>
+                <AttachSwap
+                  currentName={editPost.pptName || "프레젠테이션"}
+                  pending={editSwapFile}
+                  accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                  onPick={f => { setEditSwapFile(f); if (!editField) setEditField(f.name); }}
+                  onClear={() => setEditSwapFile(null)}
+                />
               </div>
             )}
             {editPost.contentType === "pdf" && (
@@ -2114,7 +2246,13 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>문서 제목</label>
                 <input value={editField} onChange={e => setEditField(e.target.value)}
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
-                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>PDF 파일 교체는 지원하지 않습니다.</div>
+                <AttachSwap
+                  currentName={editPost.pdfName || "PDF 문서"}
+                  pending={editSwapFile}
+                  accept=".pdf,application/pdf"
+                  onPick={f => { setEditSwapFile(f); if (!editField) setEditField(f.name); }}
+                  onClear={() => setEditSwapFile(null)}
+                />
               </div>
             )}
             {editPost.contentType === "file" && (
@@ -2122,16 +2260,83 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
                 <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>첨부 제목</label>
                 <input value={editField} onChange={e => setEditField(e.target.value)}
                   style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E5E7EB", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none" }} />
-                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6, lineHeight:1.6 }}>
-                  첨부 {postFiles(editPost).length}개: {postFiles(editPost).map(f => f.name).join(", ") || "-"}
-                  <br />파일 추가·교체는 지원하지 않습니다.
+                <div style={{ marginTop:12 }}>
+                  <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>
+                    첨부파일 {editFiles.length + editNewFiles.length}개
+                  </label>
+                  <input ref={editFileRef} type="file" multiple style={{ display:"none" }}
+                    onChange={e => {
+                      const picked = Array.from(e.target.files ?? []);
+                      e.target.value = "";
+                      if (!picked.length) return;
+                      const tooBig = picked.filter(f => f.size > MAX_ATTACH_BYTES);
+                      if (tooBig.length) {
+                        alert(`다음 파일은 ${fmtBytes(MAX_ATTACH_BYTES)}를 넘어 제외됩니다:\n` +
+                          tooBig.map(f => `· ${f.name} (${fmtBytes(f.size)})`).join("\n"));
+                      }
+                      const merged = [...editNewFiles];
+                      for (const f of picked.filter(f => f.size <= MAX_ATTACH_BYTES)) {
+                        if (!merged.some(m => m.name === f.name && m.size === f.size)) merged.push(f);
+                      }
+                      const room = Math.max(0, MAX_ATTACH_COUNT - editFiles.length);
+                      if (merged.length > room) alert(`첨부는 게시물당 최대 ${MAX_ATTACH_COUNT}개까지예요.`);
+                      setEditNewFiles(merged.slice(0, room));
+                    }} />
+
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {editFiles.map((f, i) => (
+                      <div key={f.url} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", background:"#F9FAFB", borderRadius:10, border:"1.5px solid #E5E7EB" }}>
+                        <span style={{ fontSize:18 }}>{fileIcon(f.name)}</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</div>
+                          <div style={{ fontSize:11, color:"#9CA3AF" }}>{fmtBytes(f.size)}</div>
+                        </div>
+                        <button onClick={() => setEditFiles(prev => prev.filter((_, idx) => idx !== i))}
+                          title="이 첨부 삭제"
+                          style={{ background:"none", border:"none", cursor:"pointer", color:"#EF4444", fontSize:16, fontWeight:700 }}>×</button>
+                      </div>
+                    ))}
+                    {editNewFiles.map((f, i) => (
+                      <div key={`${f.name}-${f.size}-${i}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", background:"#F0FDFA", borderRadius:10, border:"1.5px solid #99F6E4" }}>
+                        <span style={{ fontSize:18 }}>{fileIcon(f.name)}</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:"#0F766E", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</div>
+                          <div style={{ fontSize:11, color:"#14B8A6" }}>새로 추가 · {fmtBytes(f.size)}</div>
+                        </div>
+                        <button onClick={() => setEditNewFiles(prev => prev.filter((_, idx) => idx !== i))}
+                          style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:16 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {editFiles.length + editNewFiles.length === 0 && (
+                    <div style={{ fontSize:12, color:"#DC2626", padding:"10px 0" }}>
+                      첨부가 모두 삭제됐어요. 저장하려면 파일을 1개 이상 추가해주세요.
+                    </div>
+                  )}
+
+                  {editFiles.length + editNewFiles.length < MAX_ATTACH_COUNT && (
+                    <button onClick={() => editFileRef.current?.click()}
+                      style={{ width:"100%", marginTop:8, padding:"9px 0", background:"white", border:"1.5px dashed #99F6E4", borderRadius:10, fontSize:12, fontWeight:700, color:"#0F766E", cursor:"pointer" }}>
+                      + 파일 추가
+                    </button>
+                  )}
+                  <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>
+                    삭제한 첨부는 저장할 때 실제 파일까지 함께 지워집니다.
+                  </div>
                 </div>
               </div>
             )}
             {editPost.contentType === "image" && editPost.imageUrl && (
               <div style={{ marginBottom:16 }}>
                 <img src={editPost.imageUrl} alt="" style={{ width:"100%", borderRadius:12, maxHeight:160, objectFit:"cover" }} />
-                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:6 }}>배경색만 수정 가능합니다.</div>
+                <AttachSwap
+                  currentName="현재 이미지"
+                  pending={editSwapFile}
+                  accept="image/*"
+                  onPick={f => setEditSwapFile(f)}
+                  onClear={() => setEditSwapFile(null)}
+                />
               </div>
             )}
 
@@ -2140,12 +2345,18 @@ export default function ActionBoardDetail({ boardId }: { boardId: string }) {
               <ColorPalette value={editColor} onChange={setEditColor} />
             </div>
 
+            {editSaving && editUploadPct > 0 && editUploadPct < 100 && (
+              <div style={{ height:5, background:"#F1F5F9", borderRadius:99, overflow:"hidden", marginBottom:12 }}>
+                <div style={{ height:"100%", width:`${editUploadPct}%`, background:`linear-gradient(90deg,${P},${PINK})`, transition:"width 0.3s" }} />
+              </div>
+            )}
+
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setEditPost(null)} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:"pointer" }}>취소</button>
+              <button onClick={() => setEditPost(null)} disabled={editSaving} style={{ flex:1, padding:"13px", background:"white", border:"1.5px solid #E5E7EB", borderRadius:12, fontSize:14, fontWeight:600, color:"#6B7280", cursor:editSaving?"default":"pointer" }}>취소</button>
               <button onClick={handleEditSave} disabled={editSaving}
-                style={{ flex:2, padding:"13px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:"pointer", boxShadow:`0 4px 16px rgba(124,58,237,0.3)` }}
+                style={{ flex:2, padding:"13px", background:`linear-gradient(135deg,${P},${PINK})`, border:"none", borderRadius:12, fontSize:14, fontWeight:700, color:"white", cursor:editSaving?"default":"pointer", boxShadow:`0 4px 16px rgba(124,58,237,0.3)`, opacity:editSaving?0.7:1 }}
               >
-                {editSaving ? "저장 중..." : "✏️ 수정 완료"}
+                {editSaving ? (editUploadPct > 0 ? `업로드 ${editUploadPct}%` : "저장 중...") : "✏️ 수정 완료"}
               </button>
             </div>
           </div>

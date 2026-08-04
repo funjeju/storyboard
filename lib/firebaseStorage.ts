@@ -62,6 +62,22 @@ export async function deleteStorageFile(path: string) {
   }
 }
 
+/** 다운로드 URL(.../o/<encoded path>?alt=media&token=...)에서 Storage 경로를 되돌린다. */
+export function storagePathFromUrl(url: string): string | null {
+  try {
+    const m = new URL(url).pathname.match(/\/o\/(.+)$/);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 게시물에서 떼어낸 첨부의 실제 파일을 Storage에서 지운다. 실패해도 무시. */
+export async function deleteStorageByUrl(url: string) {
+  const path = storagePathFromUrl(url);
+  if (path) await deleteStorageFile(path);
+}
+
 export async function getStorageUrl(path: string): Promise<string | null> {
   const storage = getStorageInstance();
   if (!storage) return null;

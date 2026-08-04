@@ -367,7 +367,12 @@ export async function updateBoardPostPosition(boardId: string, postId: string, x
 export async function updateBoardPost(
   boardId: string,
   postId: string,
-  fields: Partial<Pick<CloudBoardPost, "title" | "text" | "audioName" | "youtubeUrl" | "pptName" | "pdfName" | "fileName" | "bgColor">>,
+  fields: Partial<Pick<CloudBoardPost,
+    | "title" | "text" | "bgColor"
+    | "audioName" | "audioUrl" | "youtubeUrl" | "imageUrl"
+    | "pptName" | "pptUrl" | "pdfName" | "pdfUrl"
+    | "fileName" | "files" | "fileUrl" | "fileOrigName" | "fileSize"
+  >>,
 ) {
   await setDoc(postDoc(boardId, postId), fields, { merge: true });
 }
